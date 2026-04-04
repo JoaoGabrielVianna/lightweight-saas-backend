@@ -18,10 +18,17 @@ import "time"
 //   - Email: User's email address (required)
 //   - Password: User's plaintext password (required)
 //
+// Example:
+//
+//	{
+//	  "email": "test@test.com",
+//	  "password": "testPassword"
+//	}
+//
 // =====================================================
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required" example:"test@test.com"`
+	Password string `json:"password" binding:"required" example:"testPassword"`
 }
 
 // =====================================================
@@ -31,10 +38,17 @@ type RegisterRequest struct {
 //   - Email: User's email address (required)
 //   - Password: User's plaintext password (required)
 //
+// Example:
+//
+//	{
+//	  "email": "test@test.com",
+//	  "password": "testPassword"
+//	}
+//
 // =====================================================
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required" example:"test@test.com"`
+	Password string `json:"password" binding:"required" example:"testPassword"`
 }
 
 // =====================================================
