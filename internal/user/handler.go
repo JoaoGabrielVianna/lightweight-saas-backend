@@ -25,36 +25,6 @@ import (
 var log = logger.New("user-handler")
 
 // =====================================================
-// AuthRequest represents the JSON request body for register and login.
-//
-// Fields:
-//   - Email: User's email address
-//   - Password: User's plaintext password
-//
-// =====================================================
-type AuthRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-// =====================================================
-// AuthResponse represents the successful authentication response.
-//
-// Fields:
-//   - ID: User's unique identifier
-//   - Email: User's email address
-//   - CreatedAt: Account creation timestamp
-//   - UpdatedAt: Last account update timestamp
-//
-// =====================================================
-type AuthResponse struct {
-	ID        uint   `json:"id"`
-	Email     string `json:"email"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-}
-
-// =====================================================
 // Handler provides HTTP endpoints for authentication.
 //
 // This struct wraps the authentication service and provides
@@ -93,8 +63,8 @@ func NewHandler(service *Service) *Handler {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param body body AuthRequest true "User credentials"
-// @Success 201 {object} AuthResponse
+// @Param body body RegisterRequest true "User credentials"
+// @Success 201 {object} UserResponse
 // @Failure 400 {object} map[string]string
 // @Router /register [post]
 //
@@ -106,7 +76,7 @@ func NewHandler(service *Service) *Handler {
 //
 // =====================================================
 func (h *Handler) Register(c *gin.Context) {
-	var req AuthRequest
+	var req RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Error("failed to parse register request: " + err.Error())
@@ -127,13 +97,7 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	response := AuthResponse{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt.String(),
-		UpdatedAt: user.UpdatedAt.String(),
-	}
-
+	response := user.ToUserResponse()
 	c.JSON(http.StatusCreated, response)
 }
 
@@ -145,7 +109,7 @@ func (h *Handler) Register(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param body body AuthRequest true "User credentials"
+// @Param body body LoginRequest true "User credentials"
 // @Success 200 {object} AuthResponse
 // @Failure 401 {object} map[string]string
 // @Router /login [post]
@@ -158,7 +122,7 @@ func (h *Handler) Register(c *gin.Context) {
 //
 // =====================================================
 func (h *Handler) Login(c *gin.Context) {
-	var req AuthRequest
+	var req LoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Error("failed to parse login request: " + err.Error())
@@ -180,10 +144,8 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	response := AuthResponse{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt.String(),
-		UpdatedAt: user.UpdatedAt.String(),
+		User:  user.ToUserResponse(),
+		Token: "",
 	}
 
 	c.JSON(http.StatusOK, response)
