@@ -16,8 +16,11 @@ func main() {
 
 	db := database.Connect(cfg.DBUrl)
 
+	// Setup application handlers
+	userHandler := server.SetupUser(db)
+
 	srv := server.NewServer(db, cfg)
-	srv.SetupRoutes()
+	srv.SetupRoutes(userHandler)
 
 	srv.Start(cfg.Port)
 }
