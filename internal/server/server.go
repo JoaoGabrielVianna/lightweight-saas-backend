@@ -22,21 +22,23 @@ var log = logger.New("server")
 //
 // Parameters:
 //   - db: The database connection
+//   - jwtSecret: Secret key for JWT token signing
 //
 // Returns:
 //   - *user.Handler: The initialized user handler
 //
 // =====================================================
-func SetupUser(db *gorm.DB) *user.Handler {
+func SetupUser(db *gorm.DB, jwtSecret string) *user.Handler {
 	repo := user.NewRepository(db)
 	service := user.NewService(repo)
-	handler := user.NewHandler(service)
+	handler := user.NewHandler(service, jwtSecret)
 	return handler
 }
 
 type Server struct {
-	router *gin.Engine
-	db     *gorm.DB
+	router    *gin.Engine
+	db        *gorm.DB
+	jwtSecret string
 }
 
 func NewServer(db *gorm.DB, cfg *config.Config) *Server {
@@ -46,14 +48,15 @@ func NewServer(db *gorm.DB, cfg *config.Config) *Server {
 	r := gin.Default()
 
 	return &Server{
-		router: r,
-		db:     db,
+		router:    r,
+		db:        db,
+		jwtSecret: cfg.JWTSecret,
 	}
 }
 
 func (s *Server) SetupRoutes(userHandler *user.Handler) {
-	// Setup all application routes
-	SetupRouter(s.router, userHandler)
+	// Setup all application routes with JWT secret
+	SetupRouter(s.router, userHandler, s.jwtSecret)
 
 	// Health check endpoint
 	s.router.GET("/health", func(c *gin.Context) {

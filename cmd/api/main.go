@@ -1,3 +1,19 @@
+// =====================================================
+// Lightweight SaaS Backend API
+//
+// This is a lightweight SaaS backend API with user authentication.
+//
+// @title Lightweight SaaS Backend API
+// @version 1.0
+// @description A lightweight SaaS backend with authentication and user management
+// @host localhost:8080
+// @basePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+// =====================================================
+
 package main
 
 import (
@@ -16,8 +32,8 @@ func main() {
 
 	db := database.Connect(cfg.DBUrl)
 
-	// Setup application handlers
-	userHandler := server.SetupUser(db)
+	// Setup application handlers with JWT secret
+	userHandler := server.SetupUser(db, cfg.JWTSecret)
 
 	srv := server.NewServer(db, cfg)
 	srv.SetupRoutes(userHandler)

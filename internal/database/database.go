@@ -5,6 +5,7 @@ import (
 
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -38,6 +39,11 @@ func Connect(dbUrl string) *gorm.DB {
 //
 // This function checks if a test user already exists before creating it,
 // preventing duplicate entries on multiple application starts.
+// The password is hashed using bcrypt for security.
+//
+// Test credentials:
+//   - Email: test@test.com
+//   - Password: testPassword
 //
 // Parameters:
 //   - db: The database connection
@@ -45,6 +51,7 @@ func Connect(dbUrl string) *gorm.DB {
 // =====================================================
 func seedDefaultUser(db *gorm.DB) {
 	const defaultEmail = "test@test.com"
+	const defaultPassword = "testPassword"
 
 	// Check if user already exists
 	var count int64
@@ -55,10 +62,17 @@ func seedDefaultUser(db *gorm.DB) {
 		return
 	}
 
-	// Create default test user
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(defaultPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Error(fmt.Sprintf("failed to hash default user password: %v", err))
+		return
+	}
+
+	// Create default test user with hashed password
 	defaultUser := &user.User{
 		Email:    defaultEmail,
-		Password: "123",
+		Password: string(hashedPassword),
 	}
 
 	if err := db.Create(defaultUser).Error; err != nil {

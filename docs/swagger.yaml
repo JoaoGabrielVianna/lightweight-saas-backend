@@ -1,15 +1,37 @@
+basePath: /
 definitions:
-  user.AuthRequest:
+  user.AuthResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/user.UserResponse'
+    type: object
+  user.LoginRequest:
     properties:
       email:
+        example: test@test.com
         type: string
       password:
+        example: testPassword
         type: string
     required:
     - email
     - password
     type: object
-  user.AuthResponse:
+  user.RegisterRequest:
+    properties:
+      email:
+        example: test@test.com
+        type: string
+      password:
+        example: testPassword
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  user.UserResponse:
     properties:
       created_at:
         type: string
@@ -20,21 +42,30 @@ definitions:
       updated_at:
         type: string
     type: object
+host: localhost:8080
 info:
   contact: {}
+  description: A lightweight SaaS backend with authentication and user management
+  title: Lightweight SaaS Backend API
+  version: "1.0"
 paths:
   /login:
     post:
       consumes:
       - application/json
-      description: Authenticate user with email and password
+      description: |-
+        Authenticate user with email and password
+
+        Test credentials:
+        - Email: test@test.com
+        - Password: testPassword
       parameters:
       - description: User credentials
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/user.AuthRequest'
+          $ref: '#/definitions/user.LoginRequest'
       produces:
       - application/json
       responses:
@@ -51,25 +82,57 @@ paths:
       summary: Login user
       tags:
       - auth
+  /me:
+    get:
+      description: Retrieve the current authenticated user's profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get authenticated user
+      tags:
+      - auth
   /register:
     post:
       consumes:
       - application/json
-      description: Create a new user account with email and password
+      description: |-
+        Create a new user account with email and password
+
+        Test credentials:
+        - Email: test@test.com
+        - Password: testPassword
       parameters:
       - description: User credentials
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/user.AuthRequest'
+          $ref: '#/definitions/user.RegisterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/user.AuthResponse'
+            $ref: '#/definitions/user.UserResponse'
         "400":
           description: Bad Request
           schema:
@@ -79,4 +142,10 @@ paths:
       summary: Register user
       tags:
       - auth
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
