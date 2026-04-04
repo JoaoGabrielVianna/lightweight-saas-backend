@@ -61,3 +61,37 @@ func GenerateToken(userID uint, secret string) (string, error) {
 
 	return tokenString, nil
 }
+
+// =====================================================
+// ValidateToken parses and validates a JWT token string.
+//
+// Parameters:
+//   - tokenString: The JWT token string to validate
+//   - secret: The JWT secret key used for verification
+//
+// Returns:
+//   - *Claims: The decoded claims if valid
+//   - error: Any error that occurred during validation
+//
+// =====================================================
+func ValidateToken(tokenString string, secret string) (*Claims, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		// Verify signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	return claims, nil
+}
