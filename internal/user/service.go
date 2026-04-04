@@ -43,7 +43,7 @@ var (
 //
 // =====================================================
 type Service struct {
-	repo *Repository
+	repo UserRepository
 }
 
 // =====================================================
@@ -60,7 +60,7 @@ type Service struct {
 //   - A new Service instance
 //
 // =====================================================
-func NewService(repo *Repository) *Service {
+func NewService(repo UserRepository) *Service {
 	return &Service{repo: repo}
 }
 

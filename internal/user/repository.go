@@ -23,6 +23,19 @@ import (
 )
 
 // =====================================================
+// UserRepository defines the interface for user persistence operations.
+//
+// This interface allows for flexible repository implementations,
+// making it easy to mock repository behavior in tests.
+//
+// =====================================================
+type UserRepository interface {
+	Create(user *User) error
+	FindByEmail(email string) (*User, error)
+	FindByID(id uint) (*User, error)
+}
+
+// =====================================================
 // Repository handles user persistence operations.
 //
 // This struct wraps a GORM database connection and provides
