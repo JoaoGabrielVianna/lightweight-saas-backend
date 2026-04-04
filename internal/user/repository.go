@@ -116,3 +116,42 @@ func (r *Repository) FindByEmail(email string) (*User, error) {
 
 	return &user, nil
 }
+
+// =====================================================
+// FindByID retrieves a user by their primary key.
+//
+// This method queries the database for a user with the given ID.
+// Returns (nil, nil) if the user is not found.
+//
+// Parameters:
+//   - id: The user's primary key
+//
+// Returns:
+//   - *User: Pointer to the User if found, nil otherwise
+//   - error: Nil if successful, error if database error occurs
+//
+// Example:
+//
+//	user, err := repo.FindByID(1)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	if user == nil {
+//	    fmt.Println("User not found")
+//	}
+//
+// =====================================================
+func (r *Repository) FindByID(id uint) (*User, error) {
+	var user User
+	result := r.db.First(&user, id)
+
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &user, nil
+}

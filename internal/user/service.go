@@ -171,3 +171,43 @@ func (s *Service) Login(email string, password string) (*User, error) {
 
 	return user, nil
 }
+
+// =====================================================
+// GetByID retrieves a user by their primary key.
+//
+// This method is used for fetching user data in authenticated requests
+// where the user ID is known (extracted from JWT token).
+//
+// Parameters:
+//   - id: The user's primary key
+//
+// Returns:
+//   - *User: The user if found
+//   - error: ErrInvalidCredentials if user not found,
+//     other errors if database operations fail
+//
+// Example:
+//
+//	user, err := service.GetByID(1)
+//	if err != nil {
+//	    if err == ErrInvalidCredentials {
+//	        fmt.Println("User not found")
+//	    } else {
+//	        log.Fatal(err)
+//	    }
+//	}
+//	fmt.Printf("User: %s\n", user.Email)
+//
+// =====================================================
+func (s *Service) GetByID(id uint) (*User, error) {
+	user, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if user == nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	return user, nil
+}
