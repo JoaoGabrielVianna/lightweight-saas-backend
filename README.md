@@ -1,373 +1,307 @@
 # Lightweight SaaS Backend
 
-> **Status: v0.1.0 — MVP Ready**
+> **Status:** Sprint 3 complete — Keycloak-based auth, end-to-end validated.
 
-A production-ready SaaS backend built with Go and Gin. Designed to be clean, scalable, and easy to understand. Features secure user authentication, request validation, and a layered architecture that separates concerns effectively.
+A reusable Go backend foundation for SaaS-style products. Authentication is
+delegated to [Keycloak](https://www.keycloak.org/) (or any future OIDC
+provider — see [§Architecture](#architecture)); business code never handles
+passwords or JWT signing. The whole stack — API, app DB, Keycloak, Keycloak's
+DB — is one `make up` away.
 
-## Overview
+If you've used this repo before Sprint 3, **start here:**
+[docs/migrations/PHASE3_BREAKING_CHANGE.md](docs/migrations/PHASE3_BREAKING_CHANGE.md).
 
-This project provides a solid foundation for building SaaS applications. It implements core features—user authentication, secure password handling, JWT-based authorization—with a clean architecture that separates HTTP handlers, business logic, and data access layers.
+---
 
-The goal is simple: provide a real-world backend structure without unnecessary complexity. Every design decision reflects practical SaaS requirements.
-
-## Features
-
-- **User Authentication** — Secure registration and login with bcrypt password hashing
-- **JWT Authorization** — Token-based authentication with 24-hour expiration
-- **Protected Routes** — Authentication middleware for endpoint protection
-- **Current User Endpoint** — `/me` endpoint to retrieve authenticated user data
-- **PostgreSQL Integration** — GORM-based ORM with automatic migrations and seed data
-- **Comprehensive Testing** — Unit tests for authentication service with 90%+ coverage
-- **API Documentation** — Swagger/OpenAPI with auto-generated docs
-- **Clean Architecture** — Handler → Service → Repository pattern for maintainability
-- **DTO Pattern** — Request/response separation from domain models
-- **Structured Logging** — Production-ready logging configuration
-
-## Architecture
-
-The application follows a **feature-first, layered architecture**:
-
-```
-HTTP Request
-    ↓
-Handler (HTTP layer - parsing, validation)
-    ↓
-Service (business logic - authentication, hashing, validation)
-    ↓
-Repository (data access - database operations)
-    ↓
-Database
-```
-
-Each feature is organized as a domain package containing:
-- **handler** — HTTP endpoint handlers and request validation
-- **service** — Business logic and domain rules
-- **repository** — Database operations and queries
-- **model** — Domain entities
-- **dto** — HTTP request/response contracts
-
-This structure keeps concerns isolated and makes features easy to test and extend.
-
-## Project Structure
-
-```
-.
-├── cmd/
-│   └── api/
-│       └── main.go                 # Application entry point
-├── internal/
-│   ├── auth/
-│   │   ├── jwt.go                  # JWT token generation and validation
-│   │   └── middleware.go           # Authentication middleware
-│   ├── user/
-│   │   ├── handler.go              # HTTP handlers
-│   │   ├── service.go              # Business logic
-│   │   ├── service_test.go         # Unit tests
-│   │   ├── repository.go           # Database operations
-│   │   ├── model.go                # Domain model
-│   │   └── dto.go                  # Request/response DTOs
-│   ├── config/
-│   │   └── config.go               # Configuration loader
-│   ├── database/
-│   │   └── database.go             # Database initialization
-│   ├── logger/
-│   │   └── logger.go               # Structured logging
-│   └── server/
-│       ├── server.go               # Server initialization
-│       └── router.go               # Route definitions
-├── docs/                           # Swagger/OpenAPI documentation
-├── docker-compose.yml              # Docker Compose for PostgreSQL
-├── go.mod                          # Go module definition
-└── README.md                       # This file
-```
-
-## Quick Start
-
-### Prerequisites
-- Go 1.21+
-- Docker and Docker Compose
-- PostgreSQL 15+ (via Docker Compose)
-
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone https://github.com/yourusername/lightweight-saas-backend.git
-cd lightweight-saas-backend
-```
-
-2. **Start PostgreSQL**
-```bash
-docker-compose up -d
-```
-
-3. **Install dependencies**
-```bash
-go mod download
-```
-
-4. **Run the application**
-```bash
-go run cmd/api/main.go
-```
-
-The API will be available at `http://localhost:8080`.
-
-API documentation is available at `http://localhost:8080/swagger/index.html`.
-
-## API Usage
-
-### User Registration
-
-Register a new user account:
+## Quickstart
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "securePassword123"
-  }'
+git clone <repo> && cd lightweight-saas-backend
+make doctor          # verify toolchain (go, docker, docker-compose, curl, jq)
+make init            # interactive bootstrap (writes config/project.json + .env)
+make up              # build api, pull keycloak, start the 4-container stack
+make auth-test       # acquire a Keycloak token + call /me  → expect 200
 ```
 
-Response:
-```json
-{
-  "id": 1,
-  "email": "user@example.com",
-  "created_at": "2026-04-04T10:30:00Z"
-}
-```
+Full onboarding walkthrough: **[docs/KEYCLOAK_SETUP.md](docs/KEYCLOAK_SETUP.md)**.
 
-### User Login
+---
 
-Authenticate and receive a JWT token:
+## What's in the box
 
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "securePassword123"
-  }'
-```
+- **Provider-agnostic auth.** `auth.AuthProvider` interface; today's
+  implementation is Keycloak (JWKS-validated RS256), tomorrow's could be
+  Auth0/Supabase/Clerk — zero changes to business code.
+- **Idempotent user provisioning.** First protected request for a Keycloak
+  `sub` creates a local row; later requests reuse the same `users.id`. Race-
+  safe via DB unique index on `keycloak_sub`.
+- **Single-source-of-truth bootstrap.** Edit
+  [`config/project.json`](config/project.json), run `make regen`, and `.env`,
+  the Keycloak realm export, and `config/project.schema.json` rebuild
+  themselves.
+- **Day-one DX.** Categorized `make help`, `make doctor` toolchain probe,
+  `make reset-dev` one-command rescue.
+- **Structured auth events.** Hookable via `auth.SetEventHook` — plug
+  Prometheus or OpenTelemetry without touching middleware.
+- **Tested.** 41 unit tests including a 50-goroutine race on user
+  provisioning; CI gate includes `swagger-check` for doc drift.
 
-Response:
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expires_in": 86400
-}
-```
+---
 
-### Get Current User
+## API surface
 
-Retrieve authenticated user information using the JWT token:
-
-```bash
-curl -X GET http://localhost:8080/api/users/me \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-```
-
-Response:
-```json
-{
-  "id": 1,
-  "email": "user@example.com",
-  "created_at": "2026-04-04T10:30:00Z",
-  "updated_at": "2026-04-04T10:30:00Z"
-}
-```
-
-### Test with Wrong Credentials
-
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "wrongPassword"
-  }'
-```
-
-Response (401):
-```json
-{
-  "error": "invalid credentials"
-}
-```
-
-## API Documentation
-
-Complete API documentation is auto-generated and available at:
+The canonical reference is the generated OpenAPI:
 
 ```
 http://localhost:8080/swagger/index.html
 ```
 
-Endpoints are documented with examples, request/response schemas, and authentication requirements.
+Today the surface is intentionally tiny:
 
-To regenerate Swagger documentation after making changes:
+| Method | Path       | Auth          | Purpose                                                  |
+|--------|------------|---------------|----------------------------------------------------------|
+| `GET`  | `/health`  | none          | Liveness probe (200 always).                             |
+| `GET`  | `/me`      | Bearer        | Returns the local user row; JIT-creates it on first call.|
+| `GET`  | `/swagger/*` | none        | Swagger UI for the generated OpenAPI spec.              |
 
-```bash
-swag init -g cmd/api/main.go
-```
+**There is no `/register` or `/login` here by design** — Keycloak owns
+identity. Clients obtain tokens directly from Keycloak (Authorization Code
++ PKCE for browsers, Direct Access Grants for CLI/tests), and call protected
+endpoints with `Authorization: Bearer <token>`.
 
-## Authentication Flow
-
-1. **User Registration** — Email and plaintext password provided
-   - Password is hashed using bcrypt (cost: 10)
-   - User is stored in the database
-   - User ID and timestamps are returned
-
-2. **User Login** — Email and plaintext password provided
-   - User is retrieved from the database by email
-   - Plaintext password is compared against stored bcrypt hash
-   - On success, JWT token is generated with 24-hour expiration
-   - Token is returned to client
-
-3. **Protected Requests** — Client sends JWT in Authorization header
-   - Middleware extracts and validates JWT token
-   - Token claims are extracted (particularly user ID)
-   - Request context is enriched with user information
-   - Handler accesses user from context
-
-4. **Token Expiration** — After 24 hours, token becomes invalid
-   - Client receives 401 Unauthorized
-   - User logs in again to receive new token
-
-## Testing
-
-Run all tests:
+### Example: token → `/me`
 
 ```bash
-go test ./...
+TOKEN=$(curl -fsS -X POST http://localhost:8081/realms/saas/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'client_id=saas-backend' -d 'client_secret=saas-backend-secret' \
+  -d 'grant_type=password' -d 'username=testuser' -d 'password=password' \
+  | jq -r .access_token)
+
+curl -fsS http://localhost:8080/me -H "Authorization: Bearer $TOKEN" | jq
 ```
 
-Run tests with coverage:
-
-```bash
-go test ./... -cover
+Response:
+```json
+{
+  "id": 1,
+  "keycloak_sub": "fbe56e3a-3bd2-4ed3-8ff1-37c655f3fbdc",
+  "email":        "testuser@test.com",
+  "username":     "testuser",
+  "created_at":   "2026-05-17T08:14:48Z",
+  "updated_at":   "2026-05-17T08:14:48Z"
+}
 ```
 
-Run specific package tests:
+Call it a second time with the same token → same `id`, no new row.
+See [KEYCLOAK_SETUP.md §7-§8](docs/KEYCLOAK_SETUP.md) for the full flow.
 
-```bash
-go test ./internal/user -v
-```
+---
 
-Coverage breakdown:
-- **Authentication service**: 90%+ coverage
-- **Password hashing**: Tested (bcrypt integration)
-- **JWT validation**: Tested (middleware coverage)
-- **Error handling**: Tested (duplicate users, invalid credentials, repository errors)
-
-Test cases:
-- ✓ Successful user registration
-- ✓ Duplicate user prevention
-- ✓ Successful login with correct credentials
-- ✓ Login rejection with wrong password
-- ✓ Login rejection for non-existent users
-- ✓ Repository error handling
-- ✓ End-to-end registration and login flow
-
-## Roadmap
-
-### v0.2.0 (In Progress)
-- Multi-tenant support with tenant isolation
-- Lead management API
-- Tenant invitations and role-based access control
-
-### v0.3.0 (Planned)
-- Refresh token implementation
-- Email verification
-- Password reset flow
-- OAuth2 integration
-
-### v1.0.0 (Planned)
-- Comprehensive audit logging
-- Rate limiting
-- Advanced permission system
-- Production deployment guide
-
-## Engineering Highlights
-
-### Clean Architecture
-The codebase separates concerns into distinct layers:
-- **Handlers** know about HTTP but not database
-- **Services** contain business logic and don't depend on frameworks
-- **Repositories** handle only data access
-
-This makes the code testable, maintainable, and framework-agnostic.
-
-### Security Best Practices
-- Passwords are hashed using bcrypt with automatic cost adjustment
-- JWT tokens have explicit expiration times
-- Sensitive data (passwords) is excluded from JSON responses
-- Authentication middleware validates all protected routes
-- Error messages don't leak sensitive information
-
-### Production Readiness
-- Structured logging for observability
-- Comprehensive error handling
-- Database connection pooling via GORM
-- Automatic schema migrations
-- Request validation at the HTTP layer
-- Graceful shutdown handling
-
-### Testing Strategy
-- Unit tests for core business logic
-- Mock repository implementation (no external testing libraries)
-- Integration-style tests for complete workflows
-- Simple, maintainable test structure
-
-### Database Design
-- Automatic migrations keep schema in sync with code
-- Unique constraints on email prevent duplicates
-- Timestamps (created_at, updated_at) for audit trails
-- Proper indexing on frequently queried fields
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Language | Go 1.21+ |
-| Web Framework | Gin |
-| Database | PostgreSQL 15+ |
-| ORM | GORM |
-| Authentication | JWT (golang-jwt) |
-| Password Hashing | bcrypt |
-| API Documentation | Swagger/OpenAPI (swaggo) |
-| Logging | Structured (encoding/json) |
-| Testing | Go standard library |
-
-## Environment Variables
-
-Create a `.env` file with the following variables:
+## Architecture
 
 ```
-PORT=8080
-DATABASE_URL=postgres://user:password@postgres:5432/saas_db
-JWT_SECRET=your-secret-key-change-in-production
-JWT_EXPIRATION=86400
+HTTP request
+    ↓
+auth.RequireAuth(provider)        ← AuthProvider interface — Keycloak today
+    ↓                               (validates JWT signature + iss + azp + exp)
+auth.Identity in gin.Context      ← { Subject, Email, Username, Roles, Raw }
+    ↓
+user.Handler (HTTP layer)
+    ↓
+user.Service.EnsureUser(identity) ← idempotent JIT provisioning
+    ↓
+user.Repository (GORM)
+    ↓
+PostgreSQL (users table — keycloak_sub uniquely indexed)
 ```
 
-See `.env.example` for a complete example.
+The boundary between **auth identity** (Keycloak's `sub`) and **business
+identity** (`users.id`) is enforced by package layout:
 
-## Contributing
+- `internal/auth/` and `internal/auth/keycloak/` know about JWTs.
+- `internal/user/` does not — verified by `grep -r keycloak internal/user/`.
+- `internal/server/` mounts `auth.RequireAuth` once at the route group.
 
-This project is designed as a reference implementation for SaaS backend architectures. While it's not accepting contributions, you're welcome to fork it and adapt it for your own projects.
+Swap Keycloak for another OIDC provider by writing a new
+`auth.AuthProvider` implementation and re-wiring `cmd/api/main.go`. No
+business code changes.
 
-## About
+Full diagrams and rationale: [docs/KEYCLOAK_SETUP.md §1](docs/KEYCLOAK_SETUP.md#1-overview).
 
-This project demonstrates production-ready backend engineering with Go. It's built to serve as a reference for:
-- Clean architecture patterns in Go
-- Secure authentication implementation
-- Professional code organization
-- Testing practices
-- Real-world SaaS backend design
+---
 
-The focus is on code quality, maintainability, and practical design decisions that scale.
+## Project layout
+
+```
+.
+├── cmd/
+│   ├── api/main.go                 # API entrypoint (banner → config → db → provider → server)
+│   └── bootstrap/main.go           # `make init` CLI
+├── internal/
+│   ├── auth/
+│   │   ├── provider.go             # AuthProvider interface + sentinel errors
+│   │   ├── identity.go             # Identity struct + gin context helpers
+│   │   ├── middleware.go           # RequireAuth(provider) — provider-agnostic
+│   │   ├── events.go               # AuthEvent + SetEventHook for observability
+│   │   └── keycloak/
+│   │       ├── config.go           # KeycloakConfig
+│   │       ├── jwks.go             # JWKS cache wrapping MicahParks/keyfunc/v3
+│   │       └── provider.go         # implements auth.AuthProvider
+│   ├── user/
+│   │   ├── model.go                # User (id, keycloak_sub, email, username, timestamps)
+│   │   ├── repository.go           # FindBySub / FindByID / Create / Update
+│   │   ├── service.go              # EnsureUser (idempotent JIT provisioning)
+│   │   ├── handler.go              # /me handler
+│   │   └── dto.go                  # UserResponse
+│   ├── server/                     # gin engine + route composition + swagger mount
+│   ├── config/                     # env loader + fail-fast Validate()
+│   ├── database/                   # gorm connect + AutoMigrate
+│   ├── logger/                     # structured (text) logger
+│   └── bootstrap/                  # config-as-source-of-truth + generators
+├── config/
+│   ├── project.json                # source-of-truth (committed, no secrets)
+│   └── project.schema.json         # JSON Schema (mirror of embedded canonical)
+├── deploy/
+│   └── keycloak/realm-export.json  # imported by Keycloak on first boot
+├── docs/
+│   ├── KEYCLOAK_SETUP.md           # onboarding + troubleshooting
+│   ├── bootstrap.md                # bootstrap design + lifecycle commands
+│   ├── VALIDATION_PHASE3.md        # Sprint 3 sign-off
+│   ├── migrations/                 # breaking change records
+│   ├── docs.go / swagger.json / swagger.yaml  # generated by `make docs`
+├── scripts/
+│   ├── auth-test.sh                # token → /me smoke test
+│   └── e2e.sh                      # readiness waits + auth-test
+├── Dockerfile                      # multi-stage Go build
+├── docker-compose.yml              # api + postgres + keycloak + keycloak-postgres
+├── Makefile                        # categorized; `make help` for the menu
+└── .env / .env.example             # generated by `make init` / `make regen`
+```
+
+---
+
+## Stack lifecycle
+
+`make help` prints the full menu. The everyday targets:
+
+| Command          | Effect                                                  | Data |
+|------------------|---------------------------------------------------------|------|
+| `make up`        | Build + start full stack (postgres, keycloak, api).     | preserves volumes |
+| `make stop`      | Pause containers; resume with `make start`.             | preserves all |
+| `make down`      | Stop + remove containers; volumes survive.              | preserves data |
+| `make purge`     | Wipe containers, volumes, network, api image, `bin/`. Prompts y/N. | DATA LOSS |
+| `make reset-dev` | One-shot: `purge` + rebuild + start. Prompts y/N.       | DATA LOSS |
+| `make logs`      | Tail logs from all services.                            | — |
+| `make doctor`    | Toolchain + docker daemon + container + port + reachability probe. | — |
+
+When something breaks, run `make doctor` first, then `make reset-dev` if
+nothing else helps. See
+[docs/KEYCLOAK_SETUP.md §9](docs/KEYCLOAK_SETUP.md#9-troubleshooting) for
+symptom-by-symptom fixes.
+
+---
+
+## Bootstrap & configuration
+
+[`config/project.json`](config/project.json) is the **single source of
+truth** for non-secret project description (project name, realm name,
+client id, roles, ports, feature flags, seed user list). Secrets
+(`KEYCLOAK_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `SEED_USER_PASSWORD`)
+live in `.env` and are never committed.
+
+```
+make init             # interactive prompts — write project.json + regen all derived files
+make regen            # non-interactive — re-run generators against current project.json
+```
+
+Generated files (overwritten in place — don't hand-edit):
+`.env`, `.env.example`, `config/project.schema.json`,
+`deploy/keycloak/realm-export.json`.
+
+Full design + customization recipes: [docs/bootstrap.md](docs/bootstrap.md).
+
+---
+
+## Testing & quality
+
+```
+make test              # all unit tests (41 total: 11 keycloak + 21 bootstrap + 9 user)
+make test-race         # tests with -race
+make test-cover        # coverage report (writes coverage.out)
+make vet               # go vet
+make fmt-check         # fail if gofmt would touch any file
+make lint              # golangci-lint if installed, else fmt-check
+make ci                # fmt-check + vet + build + test + swagger-check
+```
+
+The `swagger-check` step in CI fails if `docs/swagger.{json,yaml}` /
+`docs/docs.go` drift from the handler annotations — i.e. someone changed a
+handler signature without running `make docs`. Long-form rationale below.
+
+---
+
+## Documentation workflow
+
+The Swagger spec is generated from `// @Router`, `// @Summary`, etc.
+annotations on the handlers. Generation is **manual + CI-gated**:
+
+| Command             | Purpose |
+|---------------------|---------|
+| `make docs`         | Regenerate `docs/{docs.go,swagger.json,swagger.yaml}` from annotations. |
+| `make docs-clean`   | Delete the three generated files (next `make docs` recreates them). |
+| `make swagger-check`| CI gate — fails if committed docs are out of sync with annotations.  |
+| `make swagger`      | Original target name; `make docs` is an alias.                       |
+
+**Why not auto-generate on every `make up`?**
+
+- Adds a swag dependency + a few seconds to every dev cycle, for an
+  artifact that's only useful when handlers change.
+- Couples runtime startup to a code-generation step.
+- `make ci` catches drift before merge; that's enough.
+
+If you change a handler annotation, run `make docs && git add docs/` before
+committing. `make ci` will tell you if you forget.
+
+---
+
+## Tech stack
+
+| Component        | Choice |
+|------------------|--------|
+| Language         | Go 1.25 |
+| HTTP framework   | Gin |
+| Database         | PostgreSQL 15 |
+| ORM              | GORM |
+| Identity         | Keycloak 26 (JWKS, RS256) |
+| JWKS cache       | github.com/MicahParks/keyfunc/v3 (with kid-miss refresh) |
+| JWT parser       | github.com/golang-jwt/jwt/v5 |
+| Config schema    | github.com/santhosh-tekuri/jsonschema/v6 |
+| API documentation| Swagger / OpenAPI (swaggo) |
+| Test runner      | Go standard library + race detector |
+
+---
+
+## Environment variables
+
+The complete list is documented in
+[docs/KEYCLOAK_SETUP.md §2](docs/KEYCLOAK_SETUP.md#2-environment-variables),
+including which are required, defaults, and risk-if-wrong.
+
+`.env.example` is the always-current template; `make init` produces a
+working `.env` from it.
+
+---
+
+## Production hardening
+
+Several Sprint-3 defaults are dev-only and must be replaced before any
+non-local deployment (Direct Access Grants disabled, seeded users
+dropped, real secrets manager, TLS, Keycloak `start --optimized` mode,
+etc.). Full checklist:
+[docs/KEYCLOAK_SETUP.md §10](docs/KEYCLOAK_SETUP.md#10-production-considerations).
+
+---
 
 ## License
 

@@ -1,22 +1,24 @@
 // =====================================================
 // Lightweight SaaS Backend API
 //
-// This is a lightweight SaaS backend API with user authentication.
-//
 // @title Lightweight SaaS Backend API
 // @version 1.0
-// @description A lightweight SaaS backend with authentication and user management
+// @description SaaS backend with Keycloak-issued JWT auth.
+// @description All protected endpoints require a Bearer token obtained from Keycloak.
 // @host localhost:8080
 // @basePath /
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Type "Bearer" followed by a space and JWT token.
+// @description Type "Bearer" followed by a Keycloak-issued access token.
 // =====================================================
-
 package main
 
 import (
+	"context"
+
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth"
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth/keycloak"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/banner"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/database"
@@ -32,11 +34,53 @@ func main() {
 
 	db := database.Connect(cfg.DBUrl)
 
-	// Setup application handlers with JWT secret
-	userHandler := server.SetupUser(db, cfg.JWTSecret)
+	provider := mustBuildAuthProvider(cfg)
+	auth.SetEventHook(authEventLogger)
+
+	userHandler := server.SetupUser(db)
 
 	srv := server.NewServer(db, cfg)
-	srv.SetupRoutes(userHandler)
-
+	srv.SetupRoutes(userHandler, provider)
 	srv.Start(cfg.Port)
+}
+
+// mustBuildAuthProvider constructs the Keycloak provider and fails fast if
+// JWKS can't be fetched at startup — surfacing a Keycloak misconfiguration
+// here is much better than serving 401s in production.
+func mustBuildAuthProvider(cfg *config.Config) auth.AuthProvider {
+	p, err := keycloak.NewProvider(context.Background(), keycloak.Config{
+		URL:              cfg.KeycloakURL,
+		Realm:            cfg.KeycloakRealm,
+		ClientID:         cfg.KeycloakClientID,
+		ClientSecret:     cfg.KeycloakClientSecret,
+		JWKSURL:          cfg.KeycloakJWKSURL,
+		AllowedClientIDs: cfg.KeycloakAllowedClientIDs,
+	}, keycloak.JWKSOptions{})
+	if err != nil {
+		log.Fatal("init auth provider: " + err.Error())
+	}
+	log.Info("auth provider ready (keycloak realm=" + cfg.KeycloakRealm + ")")
+	return p
+}
+
+// authEventLogger is registered as the global auth event hook. Today it
+// writes to the structured logger; tomorrow it can fan out to Prometheus
+// or OpenTelemetry without touching middleware code.
+var authLog = logger.New("auth")
+
+func authEventLogger(e auth.AuthEvent) {
+	switch e.Kind {
+	case auth.EventTokenValidated:
+		authLog.Info("ok kind=" + string(e.Kind) +
+			" sub=" + e.Subject +
+			" method=" + e.Method +
+			" path=" + e.Path +
+			" dur=" + e.Duration.String())
+	default:
+		authLog.Warn("denied kind=" + string(e.Kind) +
+			" method=" + e.Method +
+			" path=" + e.Path +
+			" reason=" + e.Reason +
+			" dur=" + e.Duration.String())
+	}
 }

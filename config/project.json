@@ -1,0 +1,56 @@
+{
+  "project": {
+    "name": "lightweight-saas-backend",
+    "environment": "local"
+  },
+  "auth": {
+    "provider": "keycloak",
+    "realm": "saas",
+    "client": {
+      "id": "saas-backend"
+    },
+    "roles": [
+      "admin",
+      "user"
+    ],
+    "admin": {
+      "username": "admin",
+      "email": "admin@local.dev"
+    }
+  },
+  "ports": {
+    "api": 8080,
+    "postgres": 5432,
+    "keycloak": 8081,
+    "keycloak_postgres": 5433
+  },
+  "features": {
+    "google_login": false,
+    "mfa": false,
+    "multi_tenant": true,
+    "seed_users": true,
+    "swagger": true,
+    "dev_playground": true
+  },
+  "seed_users": [
+    {
+      "username": "testuser",
+      "email": "testuser@test.com",
+      "roles": [
+        "user"
+      ]
+    },
+    {
+      "username": "adminuser",
+      "email": "adminuser@test.com",
+      "roles": [
+        "admin",
+        "user"
+      ]
+    }
+  ],
+  "_meta": {
+    "warning": "Secrets are NOT stored in this file. Client secret, admin password, and seed user password live in .env (gitignored). Run `make regen` to rebuild .env / realm-export.json from this file plus .env."
+  },
+  "$schema": "./project.schema.json"
+}

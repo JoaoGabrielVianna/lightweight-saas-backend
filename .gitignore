@@ -1,3 +1,7 @@
 # Environment variables (never commit these!)
 .env
 .env.local
+
+# Build artefacts
+/bin/
+/coverage.out

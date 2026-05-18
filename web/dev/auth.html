@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="color-scheme" content="dark">
+  <title>auth-console · dev only</title>
+  <link rel="stylesheet" href="/dev/auth/styles.css">
+</head>
+<body>
+  <main class="console">
+
+    <header class="hdr">
+      <h1>auth-console <span class="pulse" id="pulse" title="ui live">●</span></h1>
+      <span class="badge badge-dev" title="local development only">DEV ONLY</span>
+      <p class="hdr-sub">unified developer console for the Keycloak integration · validation source: <code>/auth/debug</code></p>
+    </header>
+
+    <!-- ───────── 1. CONNECTION STATUS ───────── -->
+    <section class="card" id="card-connection">
+      <header class="card-hdr">
+        <h2>// connection</h2>
+        <span class="card-sub">auto-refresh 10s</span>
+        <button class="btn-xs" id="btn-refresh-diag" title="re-check now">↻ refresh</button>
+      </header>
+      <ul class="diag">
+        <li data-id="api">
+          <span class="dot dot-pending"></span>
+          <span class="diag-label">api <code>/health</code></span>
+          <span class="diag-note" data-note></span>
+        </li>
+        <li data-id="kc">
+          <span class="dot dot-pending"></span>
+          <span class="diag-label">keycloak base</span>
+          <span class="diag-note" data-note></span>
+        </li>
+        <li data-id="oidc">
+          <span class="dot dot-pending"></span>
+          <span class="diag-label">oidc discovery</span>
+          <span class="diag-note" data-note></span>
+        </li>
+      </ul>
+      <dl class="kv">
+        <div><dt>realm</dt><dd><code id="meta-realm">…</code></dd></div>
+        <div><dt>oidc client (config)</dt><dd><code id="meta-client">…</code></dd></div>
+        <div><dt>current azp (live token)</dt><dd><code id="meta-azp">—</code></dd></div>
+        <div><dt>redirect uri</dt><dd><code id="meta-redirect">…</code></dd></div>
+      </dl>
+    </section>
+
+    <!-- ───────── 2. AUTHENTICATION ───────── -->
+    <section class="card" id="card-auth">
+      <header class="card-hdr">
+        <h2>// authentication</h2>
+        <span class="pill" id="auth-pill">unauthenticated</span>
+      </header>
+      <dl class="kv" id="user-info" hidden>
+        <div><dt>email</dt><dd id="user-email">—</dd></div>
+        <div><dt>sub</dt><dd><code id="user-sub">—</code></dd></div>
+        <div><dt>roles</dt><dd id="user-roles">—</dd></div>
+        <div><dt>expires in</dt><dd><code id="user-countdown">—</code></dd></div>
+      </dl>
+      <div class="row" id="auth-buttons">
+        <button class="btn primary" id="btn-login">Login with Keycloak</button>
+        <button class="btn" id="btn-refresh" hidden>Refresh token</button>
+        <button class="btn warn" id="btn-logout" hidden>Logout</button>
+        <button class="btn-xs" id="btn-copy" hidden>Copy token</button>
+        <span class="muted" id="copy-confirm" hidden>copied</span>
+      </div>
+      <p id="auth-error" class="error" hidden></p>
+    </section>
+
+    <!-- ───────── 3. TOKEN INTROSPECTION ───────── -->
+    <section class="card" id="card-introspect" hidden>
+      <header class="card-hdr">
+        <h2>// token introspection</h2>
+        <span class="card-sub">source <code>GET /auth/debug</code></span>
+        <button class="btn-xs" id="btn-refresh-debug">↻ refresh</button>
+      </header>
+      <dl class="kv">
+        <div><dt>valid</dt><dd><span id="d-valid" class="pill"></span></dd></div>
+        <div><dt>issuer</dt><dd><code id="d-iss">—</code></dd></div>
+        <div><dt>azp</dt><dd><code id="d-azp">—</code></dd></div>
+        <div><dt>sub</dt><dd><code id="d-sub">—</code></dd></div>
+        <div><dt>email</dt><dd id="d-email">—</dd></div>
+        <div><dt>roles</dt><dd id="d-roles">—</dd></div>
+        <div><dt>aud</dt><dd id="d-aud">—</dd></div>
+        <div><dt>iat</dt><dd><code id="d-iat">—</code></dd></div>
+        <div><dt>exp</dt><dd><code id="d-exp">—</code></dd></div>
+        <div><dt>expired</dt><dd><span id="d-expired" class="pill"></span></dd></div>
+        <div><dt>allowed clients</dt><dd id="d-allowed">—</dd></div>
+      </dl>
+    </section>
+
+    <!-- ───────── 4. DEBUGGING (only when invalid) ───────── -->
+    <section class="card severity-bad" id="card-debug" hidden>
+      <header class="card-hdr">
+        <h2>// debugging</h2>
+        <span class="card-sub">why was this token rejected?</span>
+      </header>
+      <div id="d-explanation" class="explanation"></div>
+      <details class="raw-reason">
+        <summary>raw provider error</summary>
+        <pre id="d-reason-raw" class="pre">—</pre>
+      </details>
+    </section>
+
+    <!-- ───────── 5. API TESTING ───────── -->
+    <section class="card" id="card-api">
+      <header class="card-hdr">
+        <h2>// api testing</h2>
+        <span class="card-sub">protected calls use the active token</span>
+      </header>
+      <div class="row">
+        <button class="btn" id="btn-me">GET /me</button>
+        <button class="btn" id="btn-health">GET /health</button>
+        <button class="btn dim" disabled title="placeholder — not implemented">GET /organizations</button>
+        <button class="btn dim" disabled title="placeholder — not implemented">GET /admin</button>
+      </div>
+      <p id="api-meta" class="muted">—</p>
+      <pre id="api-out" class="pre">—</pre>
+    </section>
+
+    <!-- ───────── 6. RAW PAYLOADS ───────── -->
+    <section class="card" id="card-raw">
+      <header class="card-hdr">
+        <h2>// raw payloads</h2>
+        <span class="card-sub">collapsible</span>
+      </header>
+      <details>
+        <summary>
+          decoded jwt <small class="muted">(local decode — cosmetic only, NOT validation)</small>
+          <button class="btn-xs" data-copy="raw-jwt">copy</button>
+        </summary>
+        <pre id="raw-jwt" class="pre">—</pre>
+      </details>
+      <details>
+        <summary>
+          /auth/debug response
+          <button class="btn-xs" data-copy="raw-debug">copy</button>
+        </summary>
+        <pre id="raw-debug" class="pre">—</pre>
+      </details>
+      <details>
+        <summary>
+          /me response
+          <button class="btn-xs" data-copy="raw-me">copy</button>
+        </summary>
+        <pre id="raw-me" class="pre">—</pre>
+      </details>
+    </section>
+
+    <footer class="ftr">
+      <p>tokens live in <code>sessionStorage</code> only · closing the tab clears them</p>
+      <p class="muted">backend gate <code>DEV_PLAYGROUND_ENABLED</code> · validation source <code>/auth/debug</code> · auth flow Authorization Code + PKCE</p>
+    </footer>
+  </main>
+  <script src="/dev/auth/auth.js" defer></script>
+</body>
+</html>

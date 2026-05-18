@@ -1,36 +1,5 @@
 basePath: /
 definitions:
-  user.AuthResponse:
-    properties:
-      token:
-        type: string
-      user:
-        $ref: '#/definitions/user.UserResponse'
-    type: object
-  user.LoginRequest:
-    properties:
-      email:
-        example: test@test.com
-        type: string
-      password:
-        example: testPassword
-        type: string
-    required:
-    - email
-    - password
-    type: object
-  user.RegisterRequest:
-    properties:
-      email:
-        example: test@test.com
-        type: string
-      password:
-        example: testPassword
-        type: string
-    required:
-    - email
-    - password
-    type: object
   user.UserResponse:
     properties:
       created_at:
@@ -39,52 +8,44 @@ definitions:
         type: string
       id:
         type: integer
+      keycloak_sub:
+        type: string
       updated_at:
+        type: string
+      username:
         type: string
     type: object
 host: localhost:8080
 info:
   contact: {}
-  description: A lightweight SaaS backend with authentication and user management
+  description: |-
+    SaaS backend with Keycloak-issued JWT auth.
+    All protected endpoints require a Bearer token obtained from Keycloak.
   title: Lightweight SaaS Backend API
   version: "1.0"
 paths:
-  /login:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        Authenticate user with email and password
-
-        Test credentials:
-        - Email: test@test.com
-        - Password: testPassword
-      parameters:
-      - description: User credentials
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/user.LoginRequest'
+  /health:
+    get:
+      description: Returns 200 if the process is up. No auth required, no dependency
+        checks.
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/user.AuthResponse'
-        "401":
-          description: Unauthorized
-          schema:
             additionalProperties:
               type: string
             type: object
-      summary: Login user
+      summary: Liveness probe
       tags:
-      - auth
+      - operations
   /me:
     get:
-      description: Retrieve the current authenticated user's profile
+      description: |-
+        Returns the local user record for the authenticated subject.
+        On first call for a new subject, JIT-creates the local row
+        from token claims (sub, email, preferred_username).
       produces:
       - application/json
       responses:
@@ -98,8 +59,8 @@ paths:
             additionalProperties:
               type: string
             type: object
-        "404":
-          description: Not Found
+        "500":
+          description: Internal Server Error
           schema:
             additionalProperties:
               type: string
@@ -108,43 +69,10 @@ paths:
       - BearerAuth: []
       summary: Get authenticated user
       tags:
-      - auth
-  /register:
-    post:
-      consumes:
-      - application/json
-      description: |-
-        Create a new user account with email and password
-
-        Test credentials:
-        - Email: test@test.com
-        - Password: testPassword
-      parameters:
-      - description: User credentials
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/user.RegisterRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/user.UserResponse'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Register user
-      tags:
-      - auth
+      - users
 securityDefinitions:
   BearerAuth:
-    description: Type "Bearer" followed by a space and JWT token.
+    description: Type "Bearer" followed by a Keycloak-issued access token.
     in: header
     name: Authorization
     type: apiKey

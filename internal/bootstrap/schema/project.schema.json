@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lightweight-saas-backend.local/schemas/project.schema.json",
+  "title": "ProjectConfig",
+  "description": "Source-of-truth project description for the SaaS-foundation bootstrap layer. Secrets are intentionally NOT part of this schema — they live in .env.",
+  "type": "object",
+  "required": ["project", "auth", "ports"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_meta": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "project": {
+      "type": "object",
+      "required": ["name", "environment"],
+      "additionalProperties": false,
+      "properties": {
+        "name":        { "type": "string", "minLength": 1, "pattern": "^[a-zA-Z][a-zA-Z0-9_\\- ]*$" },
+        "environment": { "type": "string", "enum": ["local", "dev", "staging", "prod"] }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "required": ["provider", "realm", "client", "roles"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string", "enum": ["keycloak", "auth0", "supabase", "clerk", "custom"] },
+        "realm":    { "type": "string", "minLength": 1 },
+        "client": {
+          "type": "object",
+          "required": ["id"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "allowed_client_ids": {
+          "description": "Optional explicit whitelist of token-issuing client ids. When absent, derived from auth.client.id + the dev playground client (when features.dev_playground=true).",
+          "type": "array",
+          "items":    { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "roles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "username": { "type": "string", "minLength": 1 },
+            "email":    { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" }
+          }
+        }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "required": ["api", "postgres", "keycloak"],
+      "additionalProperties": false,
+      "properties": {
+        "api":               { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "postgres":          { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "keycloak":          { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "keycloak_postgres": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "seed_users": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["username", "email", "roles"],
+        "additionalProperties": false,
+        "properties": {
+          "username": { "type": "string", "minLength": 1 },
+          "email":    { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+          "roles":    {
+            "type": "array",
+            "items":    { "type": "string", "minLength": 1 },
+            "minItems": 1
+          }
+        }
+      }
+    }
+  }
+}

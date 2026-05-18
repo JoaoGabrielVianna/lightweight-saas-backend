@@ -15,39 +15,19 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/login": {
-            "post": {
-                "description": "Authenticate user with email and password\n\nTest credentials:\n- Email: test@test.com\n- Password: testPassword",
-                "consumes": [
-                    "application/json"
-                ],
+        "/health": {
+            "get": {
+                "description": "Returns 200 if the process is up. No auth required, no dependency checks.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "operations"
                 ],
-                "summary": "Login user",
-                "parameters": [
-                    {
-                        "description": "User credentials",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/user.LoginRequest"
-                        }
-                    }
-                ],
+                "summary": "Liveness probe",
                 "responses": {
                     "200": {
                         "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/user.AuthResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -65,12 +45,12 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieve the current authenticated user's profile",
+                "description": "Returns the local user record for the authenticated subject.\nOn first call for a new subject, JIT-creates the local row\nfrom token claims (sub, email, preferred_username).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "users"
                 ],
                 "summary": "Get authenticated user",
                 "responses": {
@@ -89,51 +69,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/register": {
-            "post": {
-                "description": "Create a new user account with email and password\n\nTest credentials:\n- Email: test@test.com\n- Password: testPassword",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Register user",
-                "parameters": [
-                    {
-                        "description": "User credentials",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/user.RegisterRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/user.UserResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -146,51 +83,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "user.AuthResponse": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/user.UserResponse"
-                }
-            }
-        },
-        "user.LoginRequest": {
-            "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "test@test.com"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "testPassword"
-                }
-            }
-        },
-        "user.RegisterRequest": {
-            "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "test@test.com"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "testPassword"
-                }
-            }
-        },
         "user.UserResponse": {
             "type": "object",
             "properties": {
@@ -203,7 +95,13 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
+                "keycloak_sub": {
+                    "type": "string"
+                },
                 "updated_at": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }
@@ -211,7 +109,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a space and JWT token.",
+            "description": "Type \"Bearer\" followed by a Keycloak-issued access token.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -226,7 +124,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Lightweight SaaS Backend API",
-	Description:      "A lightweight SaaS backend with authentication and user management",
+	Description:      "SaaS backend with Keycloak-issued JWT auth.\nAll protected endpoints require a Bearer token obtained from Keycloak.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

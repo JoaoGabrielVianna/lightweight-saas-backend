@@ -1,0 +1,22 @@
+# Excludes for the api image build context.
+#
+# IMPORTANT: docs/ is NOT excluded — it contains the generated swagger
+# package that internal/server/server.go imports as a blank-import side
+# effect. Excluding it breaks the Go build.
+#
+# deploy/ is excluded because the api Dockerfile never COPIes it. If a
+# future Dockerfile bakes the Keycloak realm into a custom image, remove
+# the deploy/ exclusion below (or use a more specific include).
+.git
+.gitignore
+.env
+.env.local
+.dockerignore
+Dockerfile
+docker-compose.yml
+README.md
+AUDITORIA_TECNICA.md
+deploy/
+config/
+*.md
+!docs/**

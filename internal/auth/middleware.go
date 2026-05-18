@@ -1,109 +1,90 @@
-// =====================================================
-// Middleware provides authentication middleware for protected routes.
+// Package auth — provider-agnostic middleware.
 //
-// This module implements Gin middleware that validates JWT tokens
-// and extracts user information from claims.
-//
-// =====================================================
+// RequireAuth wraps any AuthProvider. The provider implementation chosen
+// at process boot (Keycloak today, anything tomorrow) is invisible to
+// every consumer of this middleware.
 package auth
 
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
-// =====================================================
-// AuthMiddleware returns a Gin middleware that validates JWT tokens.
+// RequireAuth returns a Gin middleware that:
+//  1. extracts the Bearer token from the Authorization header
+//  2. validates it via the injected AuthProvider
+//  3. stores the resulting *Identity in the gin context for handlers
+//  4. emits an AuthEvent (token_validated, validation_failed, ...) for
+//     every request so observability backends can subscribe without
+//     touching middleware code
 //
-// Behavior:
-//   - Reads the Authorization header
-//   - Expects format: "Bearer <token>"
-//   - Validates the token using the provided secret
-//   - Extracts user_id from claims and stores in context
-//   - Returns 401 Unauthorized if token is missing or invalid
-//
-// Parameters:
-//   - secret: The JWT secret key for token validation
-//
-// Returns:
-//   - gin.HandlerFunc: The middleware function for Gin
-//
-// Usage:
-//
-//	router.POST("/protected", auth.AuthMiddleware(cfg.JWTSecret), handler)
-//
-// =====================================================
-func AuthMiddleware(secret string) gin.HandlerFunc {
+// On failure the request is aborted with 401 and a generic error message;
+// the precise reason is captured in the AuthEvent.Reason field, not in
+// the response body, to avoid leaking validation details to clients.
+func RequireAuth(p AuthProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "missing authorization header",
+		start := time.Now()
+		path := c.Request.URL.Path
+		method := c.Request.Method
+
+		raw, kind := extractBearer(c)
+		if raw == "" {
+			EmitEvent(AuthEvent{
+				Kind:     kind,
+				Reason:   "missing or malformed Authorization header",
+				Path:     path,
+				Method:   method,
+				Duration: time.Since(start),
 			})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			c.Abort()
 			return
 		}
 
-		// Parse Bearer token
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid authorization header format",
+		id, err := p.ValidateToken(c.Request.Context(), raw)
+		if err != nil {
+			EmitEvent(AuthEvent{
+				Kind:     EventValidationFailed,
+				Reason:   err.Error(),
+				Path:     path,
+				Method:   method,
+				Duration: time.Since(start),
 			})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			c.Abort()
 			return
 		}
 
-		tokenString := parts[1]
-
-		// Validate and parse token
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			// Ensure the signing method is HS256
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrSignatureInvalid
-			}
-			return []byte(secret), nil
+		StoreIdentity(c, id)
+		EmitEvent(AuthEvent{
+			Kind:     EventTokenValidated,
+			Subject:  id.Subject,
+			Path:     path,
+			Method:   method,
+			Duration: time.Since(start),
 		})
-
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid or expired token",
-			})
-			c.Abort()
-			return
-		}
-
-		// Extract user_id from claims and store in context
-		c.Set("user_id", claims.UserID)
 		c.Next()
 	}
 }
 
-// =====================================================
-// GetUserID extracts the user_id from Gin context.
-//
-// This helper function retrieves the user_id that was stored
-// by AuthMiddleware. It should only be called within protected routes.
-//
-// Parameters:
-//   - c: The Gin context
-//
-// Returns:
-//   - uint: The user's ID (0 if not found)
-//   - bool: True if user_id was found, false otherwise
-//
-// =====================================================
-func GetUserID(c *gin.Context) (uint, bool) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		return 0, false
+// extractBearer returns the raw token string and an event kind describing
+// the input quality (missing header vs malformed header) when the token
+// is unusable.
+func extractBearer(c *gin.Context) (string, AuthEventKind) {
+	h := c.GetHeader("Authorization")
+	if h == "" {
+		return "", EventMissingHeader
 	}
-
-	id, ok := userID.(uint)
-	return id, ok
+	const prefix = "Bearer "
+	if !strings.HasPrefix(h, prefix) {
+		return "", EventMalformedHeader
+	}
+	tok := strings.TrimSpace(strings.TrimPrefix(h, prefix))
+	if tok == "" {
+		return "", EventMalformedHeader
+	}
+	return tok, ""
 }

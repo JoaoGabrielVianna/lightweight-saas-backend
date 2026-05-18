@@ -17,6 +17,7 @@ package config
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 	"github.com/gin-gonic/gin"
@@ -58,9 +59,26 @@ var log = logger.New("config")
 type Config struct {
 	Port                string
 	DBUrl               string
-	JWTSecret           string
 	GinLogEnabled       bool
 	GinAccessLogEnabled bool
+
+	// Keycloak / OIDC provider configuration.
+	// KeycloakJWKSURL is optional — derived from URL+Realm when empty.
+	// KeycloakClientSecret is optional (reserved for future Admin API calls).
+	// KeycloakAllowedClientIDs is optional — parsed from a comma-separated
+	// env var; when empty the provider falls back to validating azp against
+	// just {KeycloakClientID}.
+	KeycloakURL              string
+	KeycloakRealm            string
+	KeycloakClientID         string
+	KeycloakClientSecret     string
+	KeycloakJWKSURL          string
+	KeycloakAllowedClientIDs []string
+
+	// DEV-ONLY auth playground (served at /dev/auth when enabled).
+	// Driven by features.dev_playground in config/project.json.
+	DevPlaygroundEnabled  bool
+	DevPlaygroundClientID string
 }
 
 // =====================================================
@@ -108,12 +126,54 @@ func LoadConfig() *Config {
 		log.Warn("No .env file found, using default environment variables")
 	}
 
-	return &Config{
-		Port:                getEnv("PORT", "8080"),
-		DBUrl:               getEnv("DB_URL", ""),
-		JWTSecret:           getEnv("JWT_SECRET", "secret"),
-		GinLogEnabled:       parseBool(getEnv("GIN_LOG_ENABLED", "true")),
-		GinAccessLogEnabled: parseBool(getEnv("GIN_ACCESS_LOG_ENABLED", "true")),
+	cfg := &Config{
+		Port:                     getEnv("PORT", "8080"),
+		DBUrl:                    getEnv("DB_URL", ""),
+		GinLogEnabled:            parseBool(getEnv("GIN_LOG_ENABLED", "true")),
+		GinAccessLogEnabled:      parseBool(getEnv("GIN_ACCESS_LOG_ENABLED", "true")),
+		KeycloakURL:              getEnv("KEYCLOAK_URL", ""),
+		KeycloakRealm:            getEnv("KEYCLOAK_REALM", ""),
+		KeycloakClientID:         getEnv("KEYCLOAK_CLIENT_ID", ""),
+		KeycloakClientSecret:     getEnv("KEYCLOAK_CLIENT_SECRET", ""),
+		KeycloakJWKSURL:          getEnv("KEYCLOAK_JWKS_URL", ""),
+		KeycloakAllowedClientIDs: parseCSV(getEnv("KEYCLOAK_ALLOWED_CLIENT_IDS", "")),
+		DevPlaygroundEnabled:     parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
+		DevPlaygroundClientID:    getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
+	}
+
+	if cfg.KeycloakJWKSURL == "" && cfg.KeycloakURL != "" && cfg.KeycloakRealm != "" {
+		cfg.KeycloakJWKSURL = strings.TrimRight(cfg.KeycloakURL, "/") +
+			"/realms/" + cfg.KeycloakRealm + "/protocol/openid-connect/certs"
+	}
+
+	cfg.Validate()
+
+	return cfg
+}
+
+// Validate enforces required runtime configuration. It calls log.Fatal on the
+// first missing value so the process exits before serving traffic with a
+// half-configured auth stack. Optional fields (KeycloakClientSecret,
+// KeycloakJWKSURL when derivable) are not checked.
+func (c *Config) Validate() {
+	missing := []string{}
+	if c.DBUrl == "" {
+		missing = append(missing, "DB_URL")
+	}
+	if c.KeycloakURL == "" {
+		missing = append(missing, "KEYCLOAK_URL")
+	}
+	if c.KeycloakRealm == "" {
+		missing = append(missing, "KEYCLOAK_REALM")
+	}
+	if c.KeycloakClientID == "" {
+		missing = append(missing, "KEYCLOAK_CLIENT_ID")
+	}
+	if c.KeycloakJWKSURL == "" {
+		missing = append(missing, "KEYCLOAK_JWKS_URL (or KEYCLOAK_URL+KEYCLOAK_REALM to derive it)")
+	}
+	if len(missing) > 0 {
+		log.Fatal("missing required environment variables: " + strings.Join(missing, ", "))
 	}
 }
 
@@ -193,6 +253,31 @@ func parseBool(value string) bool {
 	default:
 		return false
 	}
+}
+
+// parseCSV splits a comma-separated env-var value into a clean string slice:
+// each element trimmed of surrounding whitespace, blank entries dropped.
+// "" → nil. "a, b ,, c" → ["a","b","c"].
+//
+// Used by LoadConfig for KEYCLOAK_ALLOWED_CLIENT_IDS. Keeping the parser
+// tolerant of whitespace + stray commas matches how operators actually
+// hand-edit env files.
+func parseCSV(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // =====================================================

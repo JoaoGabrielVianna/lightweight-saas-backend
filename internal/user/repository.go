@@ -1,19 +1,9 @@
-// =====================================================
-// Package user handles user domain logic and persistence.
+// Package user holds the local user projection and its repository.
 //
-// This package provides user authentication operations with proper error
-// handling and GORM integration. It follows a clean architecture pattern
-// focused on the current authentication flow needs.
-//
-// Usage:
-//
-//	repo := user.NewRepository(db)
-//	user, err := repo.FindByEmail("user@example.com")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//
-// =====================================================
+// The repository contract is intentionally narrow: lookup by subject
+// (the canonical identity), lookup by primary key, create, update.
+// FindByEmail is gone — emails are not stable identities in an OIDC world
+// (users can change them in Keycloak).
 package user
 
 import (
@@ -22,149 +12,65 @@ import (
 	"gorm.io/gorm"
 )
 
-// =====================================================
-// UserRepository defines the interface for user persistence operations.
-//
-// This interface allows for flexible repository implementations,
-// making it easy to mock repository behavior in tests.
-//
-// =====================================================
+// UserRepository is the persistence contract consumed by Service.
+// Implementations must:
+//   - return (nil, nil) for "not found" rather than an error
+//   - surface DB errors verbatim so callers can branch on them
 type UserRepository interface {
 	Create(user *User) error
-	FindByEmail(email string) (*User, error)
+	Update(user *User) error
+	FindBySub(sub string) (*User, error)
 	FindByID(id uint) (*User, error)
 }
 
-// =====================================================
-// Repository handles user persistence operations.
-//
-// This struct wraps a GORM database connection and provides
-// a clean interface for all user-related database operations.
-//
-// Fields:
-//   - db: The GORM database connection
-//
-// =====================================================
+// Repository is the GORM-backed implementation of UserRepository.
 type Repository struct {
 	db *gorm.DB
 }
 
-// =====================================================
-// NewRepository creates a new user repository.
-//
-// This constructor initializes a repository with the provided
-// GORM database connection. The connection should be fully
-// configured and ready for use.
-//
-// Parameters:
-//   - db: An initialized GORM database connection
-//
-// Returns:
-//   - A new Repository instance
-//
-// =====================================================
+// NewRepository constructs a Repository over the given GORM connection.
 func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// =====================================================
-// Create inserts a new user into the database.
-//
-// This method saves a new user record to the users table.
-// GORM automatically handles timestamps (CreatedAt, UpdatedAt).
-//
-// Parameters:
-//   - user: Pointer to the User struct to insert
-//
-// Returns:
-//   - error: Nil if successful, error otherwise
-//
-// Example:
-//
-//	user := &User{Email: "user@example.com", Password: "hashed_pw"}
-//	if err := repo.Create(user); err != nil {
-//	    log.Fatal(err)
-//	}
-//
-// =====================================================
+// Create inserts a new row. On unique-constraint conflict (concurrent
+// first-login race), gorm surfaces the underlying postgres error which
+// the Service inspects to retry the lookup.
 func (r *Repository) Create(user *User) error {
 	return r.db.Create(user).Error
 }
 
-// =====================================================
-// FindByEmail retrieves a user by email address.
-//
-// This method queries the database for a user with the given email.
-// Returns (nil, nil) if the user is not found.
-//
-// Parameters:
-//   - email: The user's email address
-//
-// Returns:
-//   - *User: Pointer to the User if found, nil otherwise
-//   - error: Nil if successful, error if database error occurs
-//
-// Example:
-//
-//	user, err := repo.FindByEmail("user@example.com")
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	if user == nil {
-//	    fmt.Println("User not found")
-//	}
-//
-// =====================================================
-func (r *Repository) FindByEmail(email string) (*User, error) {
-	var user User
-	result := r.db.Where("email = ?", email).First(&user)
-
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	return &user, nil
+// Update persists changes to an existing row. Caller is expected to have
+// loaded the row via FindBySub/FindByID first so optimistic concurrency is
+// handled at the Go level for this MVP (no version column yet).
+func (r *Repository) Update(user *User) error {
+	return r.db.Save(user).Error
 }
 
-// =====================================================
-// FindByID retrieves a user by their primary key.
-//
-// This method queries the database for a user with the given ID.
-// Returns (nil, nil) if the user is not found.
-//
-// Parameters:
-//   - id: The user's primary key
-//
-// Returns:
-//   - *User: Pointer to the User if found, nil otherwise
-//   - error: Nil if successful, error if database error occurs
-//
-// Example:
-//
-//	user, err := repo.FindByID(1)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	if user == nil {
-//	    fmt.Println("User not found")
-//	}
-//
-// =====================================================
-func (r *Repository) FindByID(id uint) (*User, error) {
-	var user User
-	result := r.db.First(&user, id)
-
-	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+// FindBySub looks up the user row by their Keycloak subject UUID.
+// Returns (nil, nil) when no row exists.
+func (r *Repository) FindBySub(sub string) (*User, error) {
+	var u User
+	res := r.db.Where("keycloak_sub = ?", sub).First(&u)
+	if errors.Is(res.Error, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-
-	if result.Error != nil {
-		return nil, result.Error
+	if res.Error != nil {
+		return nil, res.Error
 	}
+	return &u, nil
+}
 
-	return &user, nil
+// FindByID looks up the user row by primary key.
+// Returns (nil, nil) when no row exists.
+func (r *Repository) FindByID(id uint) (*User, error) {
+	var u User
+	res := r.db.First(&u, id)
+	if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	return &u, nil
 }

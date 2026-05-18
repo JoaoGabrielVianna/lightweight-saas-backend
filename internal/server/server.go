@@ -2,6 +2,7 @@ package server
 
 import (
 	_ "github.com/JoaoGabrielVianna/lightweight-saas-backend/docs"
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user"
@@ -13,63 +14,61 @@ import (
 
 var log = logger.New("server")
 
-// =====================================================
-// SetupUser initializes and returns the user handler.
-//
-// This function encapsulates the setup of user-related dependencies
-// (repository, service, handler) to keep initialization logic organized
-// and separate from the main function.
-//
-// Parameters:
-//   - db: The database connection
-//   - jwtSecret: Secret key for JWT token signing
-//
-// Returns:
-//   - *user.Handler: The initialized user handler
-//
-// =====================================================
-func SetupUser(db *gorm.DB, jwtSecret string) *user.Handler {
+// SetupUser composes the user domain wiring (repo → service → handler).
+// No auth secrets here — token validation is the provider's job.
+func SetupUser(db *gorm.DB) *user.Handler {
 	repo := user.NewRepository(db)
 	service := user.NewService(repo)
-	handler := user.NewHandler(service, jwtSecret)
-	return handler
+	return user.NewHandler(service)
 }
 
+// Server is the HTTP entry shell. It owns the Gin engine and exposes
+// SetupRoutes / Start to the main package.
 type Server struct {
-	router    *gin.Engine
-	db        *gorm.DB
-	jwtSecret string
+	router *gin.Engine
+	db     *gorm.DB
+	cfg    *config.Config
 }
 
+// NewServer builds the Gin engine with the project's Gin configuration.
 func NewServer(db *gorm.DB, cfg *config.Config) *Server {
-	// Apply Gin configuration from config
 	cfg.ApplyGinConfig()
-
-	r := gin.Default()
-
 	return &Server{
-		router:    r,
-		db:        db,
-		jwtSecret: cfg.JWTSecret,
+		router: gin.Default(),
+		db:     db,
+		cfg:    cfg,
 	}
 }
 
-func (s *Server) SetupRoutes(userHandler *user.Handler) {
-	// Setup all application routes with JWT secret
-	SetupRouter(s.router, userHandler, s.jwtSecret)
-
-	// Health check endpoint
-	s.router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status": "ok",
-		})
-	})
-
-	// Swagger documentation endpoint
+// SetupRoutes mounts user routes plus operational endpoints (health, swagger).
+// The auth provider is threaded through to the router which wires it into
+// the RequireAuth middleware, AND into the DEV-ONLY playground/debug surface
+// which uses it for /auth/debug introspection. The playground is mounted
+// only when DEV_PLAYGROUND_ENABLED=true — see internal/server/playground.go.
+func (s *Server) SetupRoutes(userHandler *user.Handler, provider auth.AuthProvider) {
+	SetupRouter(s.router, userHandler, provider)
+	s.router.GET("/health", healthHandler)
 	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	mountPlayground(s.router, s.cfg, provider)
 }
 
+// healthHandler is exported via Swagger so `/health` is discoverable in the
+// generated API doc. Plain liveness check — no auth, no DB ping.
+//
+// @Summary     Liveness probe
+// @Description Returns 200 if the process is up. No auth required, no dependency checks.
+// @Tags        operations
+// @Produce     json
+// @Success     200 {object} map[string]string
+// @Router      /health [get]
+func healthHandler(c *gin.Context) {
+	c.JSON(200, gin.H{"status": "ok"})
+}
+
+// Start blocks listening on the given port.
 func (s *Server) Start(port string) {
 	log.Info("Server is running on port " + port)
-	s.router.Run(":" + port)
+	if err := s.router.Run(":" + port); err != nil {
+		log.Fatal("server stopped: " + err.Error())
+	}
 }

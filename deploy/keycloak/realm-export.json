@@ -1,0 +1,106 @@
+{
+  "accessTokenLifespan": 3600,
+  "bruteForceProtected": true,
+  "clients": [
+    {
+      "clientId": "saas-backend",
+      "directAccessGrantsEnabled": true,
+      "enabled": true,
+      "name": "lightweight-saas-backend API",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "redirectUris": [
+        "http://localhost:8080/*"
+      ],
+      "secret": "saas-backend-secret",
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": true,
+      "webOrigins": [
+        "http://localhost:8080"
+      ]
+    },
+    {
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/dev/auth"
+      },
+      "clientId": "saas-dev-playground",
+      "description": "DEV-ONLY public PKCE client for the in-browser auth playground at /dev/auth. Disable in non-local environments.",
+      "directAccessGrantsEnabled": false,
+      "enabled": true,
+      "name": "lightweight-saas-backend — Dev Auth Playground",
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "redirectUris": [
+        "http://localhost:8080/dev/auth"
+      ],
+      "serviceAccountsEnabled": false,
+      "standardFlowEnabled": true,
+      "webOrigins": [
+        "http://localhost:8080"
+      ]
+    }
+  ],
+  "displayName": "lightweight-saas-backend",
+  "duplicateEmailsAllowed": false,
+  "editUsernameAllowed": false,
+  "enabled": true,
+  "loginWithEmailAllowed": true,
+  "realm": "saas",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "description": "realm role: admin",
+        "name": "admin"
+      },
+      {
+        "description": "realm role: user",
+        "name": "user"
+      }
+    ]
+  },
+  "sslRequired": "none",
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "users": [
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "password"
+        }
+      ],
+      "email": "testuser@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Testuser",
+      "lastName": "User",
+      "realmRoles": [
+        "user"
+      ],
+      "username": "testuser"
+    },
+    {
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "password"
+        }
+      ],
+      "email": "adminuser@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Adminuser",
+      "lastName": "User",
+      "realmRoles": [
+        "admin",
+        "user"
+      ],
+      "username": "adminuser"
+    }
+  ]
+}

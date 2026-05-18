@@ -2,393 +2,278 @@ package user
 
 import (
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 
-	"golang.org/x/crypto/bcrypt"
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth"
 )
 
-// MockRepository is a simple mock implementation of the UserRepository interface.
-// It stores users in memory and allows test cases to set up
-// specific repository behaviors without external mocking libraries.
-type MockRepository struct {
-	// users stores users by email for retrieval
-	users map[string]*User
-
-	// findByEmailError allows tests to simulate database errors
-	findByEmailError error
-
-	// createError allows tests to simulate database errors
-	createError error
-
-	// Tracks method calls
-	FindByEmailCalls int
-	CreateCalls      int
+// mockRepo is an in-memory UserRepository for service tests. Lookups by
+// sub model the unique index; concurrent inserts return errUniqueConflict
+// so we can exercise Service.EnsureUser's race-recovery path.
+type mockRepo struct {
+	mu             sync.Mutex
+	bySub          map[string]*User
+	byID           map[uint]*User
+	nextID         uint
+	createErr      error
+	updateErr      error
+	findBySubErr   error
+	createCalls    atomic.Int32
+	updateCalls    atomic.Int32
+	findBySubCalls atomic.Int32
 }
 
-// NewMockRepository creates a new mock repository for testing.
-func NewMockRepository() *MockRepository {
-	return &MockRepository{
-		users: make(map[string]*User),
+var errUniqueConflict = errors.New("UNIQUE constraint failed: users.keycloak_sub")
+
+func newMockRepo() *mockRepo {
+	return &mockRepo{
+		bySub: map[string]*User{},
+		byID:  map[uint]*User{},
 	}
 }
 
-// FindByEmail implements UserRepository.FindByEmail
-func (m *MockRepository) FindByEmail(email string) (*User, error) {
-	m.FindByEmailCalls++
-
-	if m.findByEmailError != nil {
-		return nil, m.findByEmailError
+func (m *mockRepo) Create(u *User) error {
+	m.createCalls.Add(1)
+	if m.createErr != nil {
+		return m.createErr
 	}
-
-	user, exists := m.users[email]
-	if !exists {
-		return nil, nil
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.bySub[u.KeycloakSub]; exists {
+		return errUniqueConflict
 	}
-
-	return user, nil
-}
-
-// Create implements UserRepository.Create
-func (m *MockRepository) Create(user *User) error {
-	m.CreateCalls++
-
-	if m.createError != nil {
-		return m.createError
-	}
-
-	// Simulate GORM behavior: populate ID
-	if user.ID == 0 {
-		user.ID = uint(len(m.users) + 1)
-	}
-
-	m.users[user.Email] = user
+	m.nextID++
+	u.ID = m.nextID
+	m.bySub[u.KeycloakSub] = u
+	m.byID[u.ID] = u
 	return nil
 }
 
-// FindByID implements UserRepository.FindByID
-func (m *MockRepository) FindByID(id uint) (*User, error) {
-	for _, user := range m.users {
-		if user.ID == id {
-			return user, nil
-		}
+func (m *mockRepo) Update(u *User) error {
+	m.updateCalls.Add(1)
+	if m.updateErr != nil {
+		return m.updateErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bySub[u.KeycloakSub] = u
+	m.byID[u.ID] = u
+	return nil
+}
+
+func (m *mockRepo) FindBySub(sub string) (*User, error) {
+	m.findBySubCalls.Add(1)
+	if m.findBySubErr != nil {
+		return nil, m.findBySubErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if u, ok := m.bySub[sub]; ok {
+		return u, nil
 	}
 	return nil, nil
 }
 
-// TestRegisterSuccess verifies that a new user is successfully registered.
-func TestRegisterSuccess(t *testing.T) {
-	repo := NewMockRepository()
-	service := NewService(repo)
+func (m *mockRepo) FindByID(id uint) (*User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if u, ok := m.byID[id]; ok {
+		return u, nil
+	}
+	return nil, nil
+}
 
-	email := "test@example.com"
-	password := "securePassword123"
+func sampleIdentity() *auth.Identity {
+	return &auth.Identity{
+		Subject:  "kc-sub-1",
+		Email:    "user@test.com",
+		Username: "user",
+	}
+}
 
-	user, err := service.Register(email, password)
+func TestEnsureUser_FirstLogin_CreatesLocal(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
 
+	u, err := svc.EnsureUser(sampleIdentity())
 	if err != nil {
-		t.Fatalf("Register failed unexpectedly: %v", err)
+		t.Fatalf("EnsureUser: %v", err)
 	}
-
-	if user == nil {
-		t.Fatal("Register returned nil user")
+	if u.ID == 0 {
+		t.Fatalf("expected ID populated by Create")
 	}
-
-	if user.Email != email {
-		t.Errorf("expected email %q, got %q", email, user.Email)
+	if u.KeycloakSub != "kc-sub-1" || u.Email != "user@test.com" || u.Username != "user" {
+		t.Errorf("user fields wrong: %+v", u)
 	}
-
-	// Verify password was hashed (should not equal plain password)
-	if user.Password == password {
-		t.Error("password was not hashed")
+	if repo.createCalls.Load() != 1 {
+		t.Errorf("expected 1 Create, got %d", repo.createCalls.Load())
 	}
+	if repo.updateCalls.Load() != 0 {
+		t.Errorf("expected 0 Update, got %d", repo.updateCalls.Load())
+	}
+}
 
-	// Verify password hash is valid
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+func TestEnsureUser_SubsequentLogin_StableID_NoUpdate(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
+
+	first, _ := svc.EnsureUser(sampleIdentity())
+	second, err := svc.EnsureUser(sampleIdentity())
 	if err != nil {
-		t.Errorf("password hash verification failed: %v", err)
+		t.Fatalf("second EnsureUser: %v", err)
 	}
-
-	// Verify user was stored in repository
-	if repo.FindByEmailCalls != 1 {
-		t.Errorf("expected FindByEmail to be called once, got %d", repo.FindByEmailCalls)
+	if first.ID != second.ID {
+		t.Errorf("ID not stable across calls: %d vs %d", first.ID, second.ID)
 	}
-
-	if repo.CreateCalls != 1 {
-		t.Errorf("expected Create to be called once, got %d", repo.CreateCalls)
+	if repo.createCalls.Load() != 1 {
+		t.Errorf("Create called twice; expected once")
+	}
+	if repo.updateCalls.Load() != 0 {
+		t.Errorf("Update called when no claim drift: %d times", repo.updateCalls.Load())
 	}
 }
 
-// TestRegisterUserAlreadyExists verifies that registering with an existing email fails.
-func TestRegisterUserAlreadyExists(t *testing.T) {
-	repo := NewMockRepository()
-	service := NewService(repo)
+func TestEnsureUser_EmailChanged_Updates(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
 
-	email := "existing@example.com"
-	password := "password123"
+	_, _ = svc.EnsureUser(sampleIdentity())
 
-	// Create first user
-	user1, err := service.Register(email, password)
+	updated := sampleIdentity()
+	updated.Email = "new@test.com"
+
+	u, err := svc.EnsureUser(updated)
 	if err != nil {
-		t.Fatalf("first Register failed: %v", err)
+		t.Fatalf("EnsureUser: %v", err)
 	}
-
-	if user1 == nil {
-		t.Fatal("first Register returned nil user")
+	if u.Email != "new@test.com" {
+		t.Errorf("email not updated: %q", u.Email)
 	}
-
-	// Try to register with same email
-	user2, err := service.Register(email, "differentPassword")
-
-	if err == nil {
-		t.Fatal("expected ErrUserAlreadyExists, got nil")
-	}
-
-	if !errors.Is(err, ErrUserAlreadyExists) {
-		t.Errorf("expected ErrUserAlreadyExists, got %v", err)
-	}
-
-	if user2 != nil {
-		t.Fatal("expected nil user when registration fails")
-	}
-
-	// Verify FindByEmail was called to check for existing user
-	if repo.FindByEmailCalls != 2 {
-		t.Errorf("expected FindByEmail to be called twice, got %d", repo.FindByEmailCalls)
-	}
-
-	// Verify Create was not called for second registration
-	if repo.CreateCalls != 1 {
-		t.Errorf("expected Create to be called once, got %d", repo.CreateCalls)
+	if repo.updateCalls.Load() != 1 {
+		t.Errorf("expected 1 Update, got %d", repo.updateCalls.Load())
 	}
 }
 
-// TestRegisterRepositoryError verifies error handling when repository fails during user lookup.
-func TestRegisterRepositoryError(t *testing.T) {
-	repo := NewMockRepository()
-	repo.findByEmailError = errors.New("database connection error")
-	service := NewService(repo)
+func TestEnsureUser_UsernameChanged_Updates(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
 
-	user, err := service.Register("test@example.com", "password123")
+	_, _ = svc.EnsureUser(sampleIdentity())
 
-	if err == nil {
-		t.Fatal("expected error from repository, got nil")
-	}
+	updated := sampleIdentity()
+	updated.Username = "renamed"
 
-	if user != nil {
-		t.Fatal("expected nil user when error occurs")
-	}
-
-	if !errors.Is(err, repo.findByEmailError) {
-		t.Errorf("expected error %v, got %v", repo.findByEmailError, err)
-	}
-}
-
-// TestRegisterCreateError verifies error handling when repository fails during user creation.
-func TestRegisterCreateError(t *testing.T) {
-	repo := NewMockRepository()
-	repo.createError = errors.New("failed to insert user")
-	service := NewService(repo)
-
-	user, err := service.Register("test@example.com", "password123")
-
-	if err == nil {
-		t.Fatal("expected error from Create, got nil")
-	}
-
-	if user != nil {
-		t.Fatal("expected nil user when error occurs")
-	}
-
-	if !errors.Is(err, repo.createError) {
-		t.Errorf("expected error %v, got %v", repo.createError, err)
-	}
-}
-
-// TestLoginSuccess verifies successful login with correct credentials.
-func TestLoginSuccess(t *testing.T) {
-	repo := NewMockRepository()
-	service := NewService(repo)
-
-	email := "user@example.com"
-	password := "correctPassword123"
-
-	// Register a user first
-	_, err := service.Register(email, password)
+	u, err := svc.EnsureUser(updated)
 	if err != nil {
-		t.Fatalf("Register failed: %v", err)
+		t.Fatalf("EnsureUser: %v", err)
 	}
+	if u.Username != "renamed" {
+		t.Errorf("username not updated: %q", u.Username)
+	}
+	if repo.updateCalls.Load() != 1 {
+		t.Errorf("expected 1 Update, got %d", repo.updateCalls.Load())
+	}
+}
 
-	// Reset call counter for clean test
-	repo.FindByEmailCalls = 0
+func TestEnsureUser_EmptyClaimsDoNotClearLocal(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
 
-	// Login with correct credentials
-	user, err := service.Login(email, password)
+	_, _ = svc.EnsureUser(sampleIdentity())
 
+	// Token without email/username (e.g. minimal scope) must not erase
+	// previously-stored values.
+	stripped := &auth.Identity{Subject: "kc-sub-1"}
+	u, err := svc.EnsureUser(stripped)
 	if err != nil {
-		t.Fatalf("Login failed unexpectedly: %v", err)
+		t.Fatalf("EnsureUser: %v", err)
 	}
-
-	if user == nil {
-		t.Fatal("Login returned nil user")
+	if u.Email != "user@test.com" {
+		t.Errorf("email was wiped: %q", u.Email)
 	}
-
-	if user.Email != email {
-		t.Errorf("expected email %q, got %q", email, user.Email)
+	if u.Username != "user" {
+		t.Errorf("username was wiped: %q", u.Username)
 	}
-
-	// Verify FindByEmail was called
-	if repo.FindByEmailCalls != 1 {
-		t.Errorf("expected FindByEmail to be called once, got %d", repo.FindByEmailCalls)
+	if repo.updateCalls.Load() != 0 {
+		t.Errorf("expected no Update for empty claims, got %d", repo.updateCalls.Load())
 	}
 }
 
-// TestLoginWrongPassword verifies login fails with incorrect password.
-func TestLoginWrongPassword(t *testing.T) {
-	repo := NewMockRepository()
-	service := NewService(repo)
+func TestEnsureUser_NilOrEmptySub_Rejected(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
 
-	email := "user@example.com"
-	correctPassword := "correctPassword123"
-	wrongPassword := "wrongPassword456"
-
-	// Register a user
-	_, err := service.Register(email, correctPassword)
-	if err != nil {
-		t.Fatalf("Register failed: %v", err)
+	if _, err := svc.EnsureUser(nil); !errors.Is(err, ErrInvalidIdentity) {
+		t.Errorf("nil identity: got %v", err)
 	}
-
-	// Reset call counter
-	repo.FindByEmailCalls = 0
-
-	// Try login with wrong password
-	user, err := service.Login(email, wrongPassword)
-
-	if err == nil {
-		t.Fatal("expected ErrInvalidCredentials, got nil")
+	if _, err := svc.EnsureUser(&auth.Identity{}); !errors.Is(err, ErrInvalidIdentity) {
+		t.Errorf("empty sub: got %v", err)
 	}
-
-	if !errors.Is(err, ErrInvalidCredentials) {
-		t.Errorf("expected ErrInvalidCredentials, got %v", err)
-	}
-
-	if user != nil {
-		t.Fatal("expected nil user when login fails")
-	}
-
-	// Verify FindByEmail was called
-	if repo.FindByEmailCalls != 1 {
-		t.Errorf("expected FindByEmail to be called once, got %d", repo.FindByEmailCalls)
+	if repo.findBySubCalls.Load() != 0 {
+		t.Errorf("repo touched on invalid identity")
 	}
 }
 
-// TestLoginUserNotFound verifies login fails when user doesn't exist.
-func TestLoginUserNotFound(t *testing.T) {
-	repo := NewMockRepository()
-	service := NewService(repo)
+func TestEnsureUser_RaceCondition_NeverDuplicates(t *testing.T) {
+	repo := newMockRepo()
+	svc := NewService(repo)
 
-	email := "nonexistent@example.com"
-	password := "anyPassword123"
+	const goroutines = 50
+	var wg sync.WaitGroup
+	ids := make([]uint, goroutines)
+	errs := make([]error, goroutines)
 
-	// Try to login with non-existent user
-	user, err := service.Login(email, password)
-
-	if err == nil {
-		t.Fatal("expected ErrInvalidCredentials, got nil")
-	}
-
-	if !errors.Is(err, ErrInvalidCredentials) {
-		t.Errorf("expected ErrInvalidCredentials, got %v", err)
-	}
-
-	if user != nil {
-		t.Fatal("expected nil user when user not found")
-	}
-
-	// Verify FindByEmail was called
-	if repo.FindByEmailCalls != 1 {
-		t.Errorf("expected FindByEmail to be called once, got %d", repo.FindByEmailCalls)
-	}
-}
-
-// TestLoginRepositoryError verifies error handling when repository fails.
-func TestLoginRepositoryError(t *testing.T) {
-	repo := NewMockRepository()
-	repo.findByEmailError = errors.New("database connection failed")
-	service := NewService(repo)
-
-	user, err := service.Login("test@example.com", "password123")
-
-	if err == nil {
-		t.Fatal("expected error from Login, got nil")
-	}
-
-	if user != nil {
-		t.Fatal("expected nil user when error occurs")
-	}
-
-	if !errors.Is(err, repo.findByEmailError) {
-		t.Errorf("expected error %v, got %v", repo.findByEmailError, err)
-	}
-}
-
-// TestRegisterAndLoginFlow verifies the complete registration and login flow.
-func TestRegisterAndLoginFlow(t *testing.T) {
-	repo := NewMockRepository()
-	service := NewService(repo)
-
-	testCases := []struct {
-		name     string
-		email    string
-		password string
-	}{
-		{
-			name:     "simple credentials",
-			email:    "user1@example.com",
-			password: "password123",
-		},
-		{
-			name:     "complex password",
-			email:    "user2@example.com",
-			password: "P@ssw0rd!#$%Complex123",
-		},
-		{
-			name:     "multiple registrations",
-			email:    "user3@example.com",
-			password: "anotherPassword",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Register
-			regUser, err := service.Register(tc.email, tc.password)
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			u, err := svc.EnsureUser(sampleIdentity())
 			if err != nil {
-				t.Fatalf("Register failed: %v", err)
+				errs[i] = err
+				return
 			}
+			ids[i] = u.ID
+		}(i)
+	}
+	wg.Wait()
 
-			if regUser.Email != tc.email {
-				t.Errorf("Register: expected email %q, got %q", tc.email, regUser.Email)
-			}
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("goroutine %d errored: %v", i, err)
+		}
+	}
+	// All goroutines must observe the same local id.
+	for i := 1; i < goroutines; i++ {
+		if ids[i] != ids[0] {
+			t.Fatalf("ID drift under contention: ids[0]=%d ids[%d]=%d", ids[0], i, ids[i])
+		}
+	}
+	// Exactly one row created across the whole burst.
+	if len(repo.bySub) != 1 {
+		t.Errorf("expected 1 row, got %d", len(repo.bySub))
+	}
+}
 
-			// Login with correct password
-			loginUser, err := service.Login(tc.email, tc.password)
-			if err != nil {
-				t.Fatalf("Login failed: %v", err)
-			}
+func TestEnsureUser_FindBySubFails(t *testing.T) {
+	repo := newMockRepo()
+	repo.findBySubErr = errors.New("db down")
+	svc := NewService(repo)
 
-			if loginUser.Email != tc.email {
-				t.Errorf("Login: expected email %q, got %q", tc.email, loginUser.Email)
-			}
+	_, err := svc.EnsureUser(sampleIdentity())
+	if err == nil || err.Error() != "db down" {
+		t.Errorf("expected db down error, got %v", err)
+	}
+}
 
-			// Login with wrong password should fail
-			_, err = service.Login(tc.email, "wrongPassword")
-			if err == nil {
-				t.Error("Login with wrong password should fail")
-			}
+func TestEnsureUser_CreateFailsAndNoRowFound_PropagatesCreateErr(t *testing.T) {
+	repo := newMockRepo()
+	repo.createErr = errors.New("disk full")
+	svc := NewService(repo)
 
-			if !errors.Is(err, ErrInvalidCredentials) {
-				t.Errorf("expected ErrInvalidCredentials, got %v", err)
-			}
-		})
+	_, err := svc.EnsureUser(sampleIdentity())
+	if err == nil || err.Error() != "disk full" {
+		t.Errorf("expected create error to propagate, got %v", err)
 	}
 }
