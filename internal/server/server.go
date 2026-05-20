@@ -1,9 +1,13 @@
 package server
 
 import (
+	"fmt"
+
 	_ "github.com/JoaoGabrielVianna/lightweight-saas-backend/docs"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config"
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity"
+	identitykc "github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user"
 	"github.com/gin-gonic/gin"
@@ -20,6 +24,45 @@ func SetupUser(db *gorm.DB) *user.Handler {
 	repo := user.NewRepository(db)
 	service := user.NewService(repo)
 	return user.NewHandler(service)
+}
+
+// SetupIdentity composes the identity-management wiring (Keycloak admin
+// provider → service → handler). Returns (nil, nil) when the admin client
+// credentials aren't configured — the router uses that signal to OMIT the
+// /users routes entirely (404 vs 503 — caller can't tell the feature exists).
+//
+// Returns a non-nil error only on misconfiguration that the operator should
+// fix before serving traffic; today that's "client id set but secret empty"
+// (or vice versa). Network failures don't surface here — the admin client
+// is lazy, the first /users request triggers token acquisition.
+func SetupIdentity(cfg *config.Config) (*identity.Handler, error) {
+	idEmpty := cfg.KeycloakAdminClientID == ""
+	secretEmpty := cfg.KeycloakAdminClientSecret == ""
+	if idEmpty && secretEmpty {
+		log.Warn("Identity management routes disabled: KEYCLOAK_ADMIN_CLIENT_ID and KEYCLOAK_ADMIN_CLIENT_SECRET are unset")
+		return nil, nil
+	}
+	if idEmpty != secretEmpty {
+		return nil, fmt.Errorf("identity: half-configured admin client (id_set=%v, secret_set=%v) — set both or neither", !idEmpty, !secretEmpty)
+	}
+
+	adminURL := cfg.KeycloakAdminBaseURL
+	if adminURL == "" {
+		adminURL = cfg.KeycloakURL
+	}
+
+	provider, err := identitykc.NewProvider(identitykc.AdminConfig{
+		BaseURL:      adminURL,
+		Realm:        cfg.KeycloakRealm,
+		ClientID:     cfg.KeycloakAdminClientID,
+		ClientSecret: cfg.KeycloakAdminClientSecret,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("identity provider init: %w", err)
+	}
+
+	log.Info("identity management enabled (admin client=" + cfg.KeycloakAdminClientID + ", base=" + adminURL + ")")
+	return identity.NewHandler(identity.NewService(provider)), nil
 }
 
 // Server is the HTTP entry shell. It owns the Gin engine and exposes
@@ -42,14 +85,14 @@ func NewServer(db *gorm.DB, cfg *config.Config) *Server {
 
 // SetupRoutes mounts user routes plus operational endpoints (health, swagger).
 // The auth provider is threaded through to the router which wires it into
-// the RequireAuth middleware, AND into the DEV-ONLY playground/debug surface
-// which uses it for /auth/debug introspection. The playground is mounted
-// only when DEV_PLAYGROUND_ENABLED=true — see internal/server/playground.go.
-func (s *Server) SetupRoutes(userHandler *user.Handler, provider auth.AuthProvider) {
-	SetupRouter(s.router, userHandler, provider)
+// the RequireAuth middleware, AND into the DEV-ONLY playground/debug surface.
+// The identity handler may be nil — the router gates /users routes on that.
+func (s *Server) SetupRoutes(userHandler *user.Handler, identityHandler *identity.Handler, provider auth.AuthProvider) {
+	SetupRouter(s.router, userHandler, identityHandler, provider)
 	s.router.GET("/health", healthHandler)
 	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	mountPlayground(s.router, s.cfg, provider)
+	mountAdminConsole(s.router, s.cfg)
 }
 
 // healthHandler is exported via Swagger so `/health` is discoverable in the

@@ -23,6 +23,7 @@ import (
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/database"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logging"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/server"
 )
 
@@ -37,10 +38,22 @@ func main() {
 	provider := mustBuildAuthProvider(cfg)
 	auth.SetEventHook(authEventLogger)
 
+	// Wire the audit subsystem (internal/audit) to the structured-log sink
+	// (internal/logging.AuditSink). Until this runs every audit.Record call
+	// is silently dropped by the package-level noop recorder.
+	logging.WireDefault()
+
 	userHandler := server.SetupUser(db)
 
+	// Identity-management routes (admin-gated). When the admin client isn't
+	// configured this returns (nil, nil) and the router omits /users entirely.
+	identityHandler, err := server.SetupIdentity(cfg)
+	if err != nil {
+		log.Fatal("init identity: " + err.Error())
+	}
+
 	srv := server.NewServer(db, cfg)
-	srv.SetupRoutes(userHandler, provider)
+	srv.SetupRoutes(userHandler, identityHandler, provider)
 	srv.Start(cfg.Port)
 }
 

@@ -75,6 +75,20 @@ type Config struct {
 	KeycloakJWKSURL          string
 	KeycloakAllowedClientIDs []string
 
+	// Service-account credentials for Keycloak Admin REST API calls.
+	// Distinct from KeycloakClientID/Secret so the token-validation client
+	// and the admin client have independent secrets. The identity module
+	// fails to initialize when these are empty; the rest of the API still
+	// runs (auth + /me unaffected).
+	//
+	// KeycloakAdminBaseURL is the URL the API uses to REACH Keycloak for
+	// admin calls (e.g. http://keycloak:8080 inside docker). When empty,
+	// falls back to KeycloakURL. Distinct from KeycloakURL (used for `iss`
+	// claim matching) because in docker those are different hostnames.
+	KeycloakAdminClientID     string
+	KeycloakAdminClientSecret string
+	KeycloakAdminBaseURL      string
+
 	// DEV-ONLY auth playground (served at /dev/auth when enabled).
 	// Driven by features.dev_playground in config/project.json.
 	DevPlaygroundEnabled  bool
@@ -127,18 +141,21 @@ func LoadConfig() *Config {
 	}
 
 	cfg := &Config{
-		Port:                     getEnv("PORT", "8080"),
-		DBUrl:                    getEnv("DB_URL", ""),
-		GinLogEnabled:            parseBool(getEnv("GIN_LOG_ENABLED", "true")),
-		GinAccessLogEnabled:      parseBool(getEnv("GIN_ACCESS_LOG_ENABLED", "true")),
-		KeycloakURL:              getEnv("KEYCLOAK_URL", ""),
-		KeycloakRealm:            getEnv("KEYCLOAK_REALM", ""),
-		KeycloakClientID:         getEnv("KEYCLOAK_CLIENT_ID", ""),
-		KeycloakClientSecret:     getEnv("KEYCLOAK_CLIENT_SECRET", ""),
-		KeycloakJWKSURL:          getEnv("KEYCLOAK_JWKS_URL", ""),
-		KeycloakAllowedClientIDs: parseCSV(getEnv("KEYCLOAK_ALLOWED_CLIENT_IDS", "")),
-		DevPlaygroundEnabled:     parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
-		DevPlaygroundClientID:    getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
+		Port:                      getEnv("PORT", "8080"),
+		DBUrl:                     getEnv("DB_URL", ""),
+		GinLogEnabled:             parseBool(getEnv("GIN_LOG_ENABLED", "true")),
+		GinAccessLogEnabled:       parseBool(getEnv("GIN_ACCESS_LOG_ENABLED", "true")),
+		KeycloakURL:               getEnv("KEYCLOAK_URL", ""),
+		KeycloakRealm:             getEnv("KEYCLOAK_REALM", ""),
+		KeycloakClientID:          getEnv("KEYCLOAK_CLIENT_ID", ""),
+		KeycloakClientSecret:      getEnv("KEYCLOAK_CLIENT_SECRET", ""),
+		KeycloakJWKSURL:           getEnv("KEYCLOAK_JWKS_URL", ""),
+		KeycloakAllowedClientIDs:  parseCSV(getEnv("KEYCLOAK_ALLOWED_CLIENT_IDS", "")),
+		KeycloakAdminClientID:     getEnv("KEYCLOAK_ADMIN_CLIENT_ID", ""),
+		KeycloakAdminClientSecret: getEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", ""),
+		KeycloakAdminBaseURL:      getEnv("KEYCLOAK_ADMIN_BASE_URL", ""),
+		DevPlaygroundEnabled:      parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
+		DevPlaygroundClientID:     getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
 	}
 
 	if cfg.KeycloakJWKSURL == "" && cfg.KeycloakURL != "" && cfg.KeycloakRealm != "" {
