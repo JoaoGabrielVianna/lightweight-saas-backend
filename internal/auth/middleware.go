@@ -70,6 +70,67 @@ func RequireAuth(p AuthProvider) gin.HandlerFunc {
 	}
 }
 
+// RequireRole returns a Gin middleware that gates a route group on the
+// caller possessing the given realm role. Must be mounted AFTER RequireAuth
+// in the same group — it expects Identity in gin context.
+//
+// On denial: emits an AuthEvent{Kind: EventForbidden} so RBAC failures show
+// up in observability alongside auth failures, then responds 403.
+func RequireRole(role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, ok := IdentityFrom(c)
+		if !ok {
+			// Defensive: shouldn't happen if RequireAuth ran first, but if a
+			// caller wires this directly we return 401 (not 403) — there's
+			// no identity to check the role against.
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+		if !id.HasRole(role) {
+			EmitEvent(AuthEvent{
+				Kind:    EventForbidden,
+				Subject: id.Subject,
+				Reason:  "missing role: " + role,
+				Path:    c.Request.URL.Path,
+				Method:  c.Request.Method,
+			})
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// RequireAnyRole is RequireRole's disjunction — caller must possess at
+// least one of the listed roles.
+func RequireAnyRole(roles ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, ok := IdentityFrom(c)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
+		for _, r := range roles {
+			if id.HasRole(r) {
+				c.Next()
+				return
+			}
+		}
+		EmitEvent(AuthEvent{
+			Kind:    EventForbidden,
+			Subject: id.Subject,
+			Reason:  "missing any of roles: " + strings.Join(roles, ","),
+			Path:    c.Request.URL.Path,
+			Method:  c.Request.Method,
+		})
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		c.Abort()
+	}
+}
+
 // extractBearer returns the raw token string and an event kind describing
 // the input quality (missing header vs malformed header) when the token
 // is unusable.

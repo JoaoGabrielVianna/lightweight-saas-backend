@@ -15,6 +15,9 @@ const (
 	EventValidationFailed AuthEventKind = "validation_failed"
 	EventMissingHeader    AuthEventKind = "missing_header"
 	EventMalformedHeader  AuthEventKind = "malformed_header"
+	// EventForbidden fires when a token validates correctly but the caller
+	// lacks a required role to reach the endpoint (RBAC denial).
+	EventForbidden AuthEventKind = "forbidden"
 )
 
 // AuthEvent is emitted by the authentication middleware for every protected
