@@ -1,5 +1,189 @@
 basePath: /
 definitions:
+  identity.AssignRolesRequestBody:
+    properties:
+      roles:
+        example:
+        - editor
+        items:
+          type: string
+        type: array
+    type: object
+  identity.CreateInvitationRequestBody:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      expires_at:
+        example: "2026-12-31T23:59:59Z"
+        type: string
+      first_name:
+        example: Jane
+        type: string
+      invited_by:
+        example: adminuser
+        type: string
+      last_name:
+        example: Doe
+        type: string
+      roles:
+        example:
+        - user
+        items:
+          type: string
+        type: array
+    type: object
+  identity.CreateRoleRequestBody:
+    properties:
+      description:
+        example: Support team role
+        type: string
+      name:
+        example: support
+        type: string
+    type: object
+  identity.InvitationResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      invited_by:
+        type: string
+      required_actions:
+        items:
+          type: string
+        type: array
+      status:
+        type: string
+      username:
+        type: string
+    type: object
+  identity.ListInvitationsResponse:
+    properties:
+      count:
+        type: integer
+      invitations:
+        items:
+          $ref: '#/definitions/identity.InvitationResponse'
+        type: array
+    type: object
+  identity.ListRolesResponse:
+    properties:
+      count:
+        type: integer
+      roles:
+        items:
+          $ref: '#/definitions/identity.RoleResponse'
+        type: array
+    type: object
+  identity.ListSessionsResponse:
+    properties:
+      count:
+        type: integer
+      sessions:
+        items:
+          $ref: '#/definitions/identity.SessionResponse'
+        type: array
+    type: object
+  identity.ListUsersResponse:
+    properties:
+      count:
+        description: length of users array, NOT total
+        type: integer
+      first:
+        type: integer
+      max:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/identity.UserResponse'
+        type: array
+    type: object
+  identity.RoleResponse:
+    properties:
+      builtin:
+        type: boolean
+      composite:
+        type: boolean
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  identity.SessionResponse:
+    properties:
+      clients:
+        additionalProperties:
+          type: string
+        type: object
+      id:
+        type: string
+      ip_address:
+        type: string
+      last_access:
+        type: string
+      started_at:
+        type: string
+      user_agent:
+        type: string
+      user_id:
+        type: string
+      username:
+        type: string
+    type: object
+  identity.UpdateRoleRequestBody:
+    properties:
+      description:
+        example: Updated support team description
+        type: string
+    type: object
+  identity.UpdateUserRequestBody:
+    properties:
+      email:
+        example: jane@example.com
+        type: string
+      enabled:
+        example: true
+        type: boolean
+      first_name:
+        example: Jane
+        type: string
+      last_name:
+        example: Doe
+        type: string
+    type: object
+  identity.UserResponse:
+    properties:
+      attributes:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+      created_at:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      enabled:
+        type: boolean
+      first_name:
+        type: string
+      id:
+        type: string
+      last_name:
+        type: string
+      username:
+        type: string
+    type: object
   user.UserResponse:
     properties:
       created_at:
@@ -24,6 +208,1171 @@ info:
   title: Lightweight SaaS Backend API
   version: "1.0"
 paths:
+  /admin/invitations:
+    get:
+      description: |-
+        Synthesizes an "invitations" view from Keycloak users whose
+        state implies an invitation: required actions pending, or
+        users carrying the `invited_by` user attribute (written by
+        POST /admin/users/invite when that lands in Stage B).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListInvitationsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List pending invitations (admin)
+      tags:
+      - invitations
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Provisions a Keycloak user in invited-but-incomplete state,
+        assigns initial realm roles, and dispatches the action email
+        (VERIFY_EMAIL + UPDATE_PASSWORD). The new user is enabled but
+        cannot fully sign in until they complete both actions.
+        When the request body omits `invited_by`, the handler
+        defaults it to the authenticated admin's email (or sub).
+      parameters:
+      - description: invitation
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identity.CreateInvitationRequestBody'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/identity.InvitationResponse'
+        "400":
+          description: invalid email, empty roles, past expires_at, etc.
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: one of the requested roles does not exist
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: a user with this email already exists
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: 'upstream identity provider unavailable (often: SMTP not configured)'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: identity management not configured
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create invitation (admin)
+      tags:
+      - invitations
+  /admin/invitations/{id}:
+    delete:
+      description: |-
+        Deletes the underlying Keycloak user. Guarded against
+        self-delete.
+      parameters:
+      - description: Invitation id (= Keycloak user UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Revoke an invitation (admin)
+      tags:
+      - invitations
+  /admin/invitations/{id}/resend:
+    post:
+      description: |-
+        Idempotent — re-dispatches the VERIFY_EMAIL + UPDATE_PASSWORD
+        action email. Returns the invitation as it stands now.
+      parameters:
+      - description: Invitation id (= Keycloak user UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.InvitationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Re-send an invitation email (admin)
+      tags:
+      - invitations
+  /admin/roles:
+    get:
+      description: |-
+        Returns every realm role in the Keycloak realm. Client roles
+        are filtered out. Built-in roles (offline_access,
+        uma_authorization, default-roles-*) are flagged via the
+        `builtin` field so callers can disable destructive actions.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListRolesResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List realm roles (admin)
+      tags:
+      - roles
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates a new realm role in Keycloak. The service normalizes
+        the name (lowercase + trim) and rejects reserved names
+        (admin, user, offline_access, uma_authorization, default-roles-*).
+        Duplicates surface as 409.
+      parameters:
+      - description: role definition
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identity.CreateRoleRequestBody'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/identity.RoleResponse'
+        "400":
+          description: invalid name (empty, too long, reserved, or bad characters)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: role already exists
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: upstream identity provider unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: identity management not configured
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create realm role (admin)
+      tags:
+      - roles
+  /admin/roles/{name}:
+    delete:
+      description: |-
+        Protected roles (admin, user, default-roles-*,
+        offline_access, uma_authorization) are rejected with 403.
+      parameters:
+      - description: realm role name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: protected role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a realm role (admin)
+      tags:
+      - roles
+    get:
+      parameters:
+      - description: realm role name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.RoleResponse'
+        "400":
+          description: malformed name
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get realm role by name (admin)
+      tags:
+      - roles
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Only the description field is mutable. Protected roles
+        (admin, user, default-roles-*, offline_access, uma_authorization)
+        are rejected with 403.
+      parameters:
+      - description: realm role name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identity.UpdateRoleRequestBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.RoleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: protected role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a role's description (admin)
+      tags:
+      - roles
+  /admin/roles/{name}/users:
+    get:
+      parameters:
+      - description: realm role name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListUsersResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: no such role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List users carrying a role (admin)
+      tags:
+      - roles
+  /admin/sessions:
+    get:
+      description: |-
+        Aggregates user-sessions across every enabled client in the
+        realm. A session that has touched multiple clients yields a
+        single entry whose `clients` map carries every client name.
+        One slow or failing client does not break the aggregation;
+        failures are silently skipped.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListSessionsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List active sessions across the realm (admin)
+      tags:
+      - sessions
+  /admin/sessions/{id}:
+    delete:
+      parameters:
+      - description: session UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Revoke a single session (admin)
+      tags:
+      - sessions
+  /admin/users:
+    get:
+      description: |-
+        Returns a page of users from the Keycloak realm. Requires the
+        caller's token to carry the realm `admin` role. Pagination
+        is offset-based; `max` is clamped to [1, 100] server-side.
+      parameters:
+      - description: substring match on username/email/firstName/lastName
+        in: query
+        name: search
+        type: string
+      - description: offset (default 0)
+        in: query
+        name: first
+        type: integer
+      - description: page size (default 20, max 100)
+        in: query
+        name: max
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListUsersResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: upstream identity provider unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: identity management not configured
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List users (admin)
+      tags:
+      - users
+  /admin/users/{id}:
+    delete:
+      description: |-
+        Guarded: refuses to delete your own account; refuses to
+        delete the last enabled admin.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: self-delete / last-admin guard
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a user (admin)
+      tags:
+      - users
+    get:
+      description: |-
+        Returns a single user by Keycloak `sub` UUID. Requires the
+        caller's token to carry the realm `admin` role.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.UserResponse'
+        "400":
+          description: malformed id (not a UUID)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: no user with that id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: upstream identity provider unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: identity management not configured
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user by id (admin)
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Partial update — omitted fields are preserved. Guarded
+        against self-disable and last-admin removal. Returns the
+        updated user representation.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identity.UpdateUserRequestBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.UserResponse'
+        "400":
+          description: malformed id or body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: self-disable / last-admin guard
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a user (admin)
+      tags:
+      - users
+  /admin/users/{id}/reset-password:
+    post:
+      description: |-
+        Queues UPDATE_PASSWORD as a required action and dispatches
+        the action email via Keycloak's execute-actions-email
+        endpoint. Requires realm SMTP to be configured (a 502
+        usually means it isn't).
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: SMTP not configured / upstream failure
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send a password-reset email (admin)
+      tags:
+      - users
+  /admin/users/{id}/roles:
+    get:
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListRolesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List a user's realm roles (admin)
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Grants the named realm roles. Roles are resolved by name —
+        a missing role short-circuits with 404 before any
+        partial-assignment happens.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: role names to grant
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identity.AssignRolesRequestBody'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: user or role not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Assign realm roles to a user (admin)
+      tags:
+      - users
+  /admin/users/{id}/roles/{name}:
+    delete:
+      description: |-
+        Guarded: refuses to remove your own admin role; refuses to
+        remove the last enabled admin.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: realm role name to remove
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: self-strip admin / last-admin guard
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove a realm role from a user (admin)
+      tags:
+      - users
+  /admin/users/{id}/sessions:
+    delete:
+      description: |-
+        Logs the target user out of every client. Not blocked for
+        self-logout; an admin doing this to themselves invalidates
+        their current token too.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Revoke every session of a user (admin)
+      tags:
+      - sessions
+    get:
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListSessionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List a user's active sessions (admin)
+      tags:
+      - sessions
   /health:
     get:
       description: Returns 200 if the process is up. No auth required, no dependency
