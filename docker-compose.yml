@@ -42,6 +42,28 @@ services:
       retries: 10
 
   # =====================================================
+  # Mailpit — dev SMTP catch-all + web UI.
+  # Keycloak dispatches invitation / password-reset / verify-email
+  # messages to mailpit:1025 (SMTP). View intercepted mail at
+  # http://localhost:8025.
+  # =====================================================
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: saas-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8025/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # =====================================================
   # Keycloak identity provider
   # Realm "saas" is imported from deploy/keycloak/realm-export.json
   # =====================================================
@@ -69,6 +91,8 @@ services:
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
     depends_on:
       keycloak-postgres:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     healthcheck:
       test:
@@ -104,6 +128,11 @@ services:
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
       KEYCLOAK_ALLOWED_CLIENT_IDS: ${KEYCLOAK_ALLOWED_CLIENT_IDS:-${KEYCLOAK_CLIENT_ID}}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
+      # admin client reaches keycloak over the docker network — distinct from
+      # KEYCLOAK_URL (host-facing, drives iss matching)
+      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
       DEV_PLAYGROUND_ENABLED: ${DEV_PLAYGROUND_ENABLED:-false}
       DEV_PLAYGROUND_CLIENT_ID: ${DEV_PLAYGROUND_CLIENT_ID:-saas-dev-playground}
     ports:

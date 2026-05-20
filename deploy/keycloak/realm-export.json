@@ -74,6 +74,15 @@
       }
     ]
   },
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@saas.local",
+    "fromDisplayName": "lightweight-saas-backend",
+    "auth": "false",
+    "starttls": "false",
+    "ssl": "false"
+  },
   "sslRequired": "none",
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
