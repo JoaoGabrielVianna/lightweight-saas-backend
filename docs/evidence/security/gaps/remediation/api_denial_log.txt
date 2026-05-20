@@ -1,0 +1,9 @@
+2026-05-20 17:22:42 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=missing role: admin dur=0s
+2026-05-20 17:22:42 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=missing role: admin dur=0s
+2026-05-20 17:22:42 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=missing role: admin dur=0s
+2026-05-20 17:23:53 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=missing role: admin dur=0s
+2026-05-20 17:23:53 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=live admin check denied: token role no longer present server-side dur=0s
+2026-05-20 17:23:53 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=PATCH path=/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6 reason=live admin check denied: token role no longer present server-side dur=0s
+2026-05-20 17:24:02 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=missing role: admin dur=0s
+2026-05-20 17:24:02 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=GET path=/admin/users reason=live admin check denied: token role no longer present server-side dur=0s
+2026-05-20 17:24:02 [43m[30m WARN  [0m [ auth       ] denied kind=forbidden method=PATCH path=/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6 reason=live admin check denied: token role no longer present server-side dur=0s

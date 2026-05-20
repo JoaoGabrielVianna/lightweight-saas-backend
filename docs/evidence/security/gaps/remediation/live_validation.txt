@@ -1,0 +1,20 @@
+## tokens: admin=1161 testuser-pre=1145
+## ids: admin=ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6 test=2219e074-2f70-4904-bcd5-f9399ef401b9
+## snapshot adminuser.first_name=Adminuser
+
+PASS  G1.1  exp=200 actual=200
+PASS  G1.9  exp=403 actual=403
+PASS  G1.2  exp=204 actual=204
+## post-grant testuser token len=1155
+PASS  G1.3  exp=200 actual=200
+PASS  G1.4  exp=200 actual=200
+PASS  G1.5  exp=204 actual=204
+PASS  G1.6  exp=403 actual=403
+PASS  G1.7  exp=403 actual=403
+PASS  G1.7b  adminuser.first_name unchanged (Adminuser)
+PASS  G1.8  exp=200 actual=200
+PASS  G1.10  exp=200 actual=200
+
+─────────────────────────────────────────────
+TOTAL: 11   PASS: 11   FAIL: 0
+Result: PASS — GAP-1 closed

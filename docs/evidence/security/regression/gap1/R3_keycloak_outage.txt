@@ -1,0 +1,20 @@
+── R3 — Keycloak outage → 503 (cache expired during outage) ──
+PRE (KC up)         /admin/users → 200 (expect 200; warms cache)
+Stopping saas-keycloak...
+Sleeping 33s (>TTL=30s) so the warmed cache expires...
+OUTAGE+TTL  /admin/users  → 503 (expect 503 — cache miss + KC down = fail closed)
+OUTAGE+TTL  /me           → 200 (expect 200; JWKS cached so RequireAuth unaffected)
+OUTAGE+TTL  /health       → {"status":"ok"}
+Restarting saas-keycloak...
+## KC ready
+RECOVERY    /admin/users  → 200 (expect 200)
+
+── api log: live admin check failed (fail-closed marker) ──
+auth ] denied kind=forbidden method=GET path=/admin/users
+       reason=live admin check failed: identity: admin API unavailable:
+              Get "http://keycloak:8080/admin/realms/saas/users/.../role-mappings/realm":
+              dial tcp: lookup keycloak on 127.0.0.11:53: server misbehaving
+
+Verdict: PASS — RequireLiveAdmin fails closed (503, not 200) when Keycloak
+is unreachable AND the cache has no fresh answer to serve. /me and /health
+are intentionally unaffected.

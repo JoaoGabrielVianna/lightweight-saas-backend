@@ -1,0 +1,2 @@
+ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6  adminuser
+3680a75c-0c69-4ad3-8b06-2c5a2db0815f  user@example.com

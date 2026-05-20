@@ -1,0 +1,4 @@
+DELETE /admin/users http=404
+DELETE /admin/roles http=404
+DELETE /admin/sessions/_all http=400
+DELETE /admin/users/_all http=400

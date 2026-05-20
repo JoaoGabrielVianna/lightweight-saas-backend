@@ -1,0 +1,27 @@
+## bootstrap: admin=ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6 test=2219e074-2f70-4904-bcd5-f9399ef401b9  admin-tok=1161  user-pre=1145  kc-svc=1533
+
+── R1 — Stale JWT after revocation → 403 ─────────────────────────
+PASS  R1  promoted=200, after-revoke=403 (expected 200→403)
+
+── R5 — Positive cache: in-band revoke invalidates → deny immediately ──
+PASS  R5  deny within 0ms of revoke (no TTL wait)
+
+── R4/R2 — Negative cache cleared on grant; access restored immediately ──
+PASS  R4  negative cache flipped by Invalidate; allow within 0ms of regrant
+PASS  R2  full cycle grant→revoke→grant with same stale token: 200→403→200 verified across R1+R5+R4
+
+── R6 — 100 concurrent admin checks (race / stampede / panic) ──
+PASS  R6a  100/100 admin requests → 200 (100x200 )
+PASS  R6b  100/100 stale-admin requests → 403 (100x403 )
+
+── R7 — TTL expiration: out-of-band change closes within TTL ──
+## kc admin role payload: [{"id":"60153e8e-3f6a-420f-a8d4-12a13710e682","name":"admin"}]
+## OOB grant via KC Admin API → 204 (expect 204)
+## t=0 after OOB grant (cache stale, expected 403): 403
+## configured TTL: 30s — sleeping 32s for cache to expire
+## t>TTL after OOB grant (cache expired, fresh lookup → 200 expected): 200
+PASS  R7  OOB change masked by cache for t<TTL (403), then propagated after TTL (200)
+
+─────────────────────────────────────────────
+TOTAL: 7   PASS: 7   FAIL: 0
+Result: PASS — RequireLiveAdmin survives all attempted breaks

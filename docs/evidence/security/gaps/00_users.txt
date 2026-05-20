@@ -1,0 +1,3 @@
+ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6  adminuser  enabled=true
+2219e074-2f70-4904-bcd5-f9399ef401b9  testuser  enabled=true
+3680a75c-0c69-4ad3-8b06-2c5a2db0815f  user@example.com  enabled=true
