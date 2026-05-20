@@ -1,0 +1,10 @@
+{
+  "status": 201,
+  "body": {
+    "id": "1a3e5010-4c3f-4b13-9606-2b02ff6d478f",
+    "name": "crud-e2e-20260520075515",
+    "description": "crud e2e role (initial)",
+    "composite": false,
+    "builtin": false
+  }
+}

@@ -1,0 +1,37 @@
+=== RUN   TestAudit_CreateRole_Success
+--- PASS: TestAudit_CreateRole_Success (0.00s)
+=== RUN   TestAudit_CreateInvitation_EmitsBothInvitationAndUser
+--- PASS: TestAudit_CreateInvitation_EmitsBothInvitationAndUser (0.00s)
+=== RUN   TestAudit_UpdateUser_Success
+--- PASS: TestAudit_UpdateUser_Success (0.00s)
+=== RUN   TestAudit_UpdateRole_Success
+--- PASS: TestAudit_UpdateRole_Success (0.00s)
+=== RUN   TestAudit_AssignRolesToUser_CarriesRolesInExtra
+--- PASS: TestAudit_AssignRolesToUser_CarriesRolesInExtra (0.00s)
+=== RUN   TestAudit_UnassignRoleFromUser_Success
+--- PASS: TestAudit_UnassignRoleFromUser_Success (0.00s)
+=== RUN   TestAudit_ResetUserPassword_Success
+--- PASS: TestAudit_ResetUserPassword_Success (0.00s)
+=== RUN   TestAudit_ResendInvitation_Success
+--- PASS: TestAudit_ResendInvitation_Success (0.00s)
+=== RUN   TestAudit_DeleteUser_Success
+--- PASS: TestAudit_DeleteUser_Success (0.00s)
+=== RUN   TestAudit_DeleteRole_Success
+--- PASS: TestAudit_DeleteRole_Success (0.00s)
+=== RUN   TestAudit_DeleteSession_Success
+--- PASS: TestAudit_DeleteSession_Success (0.00s)
+=== RUN   TestAudit_LogoutUserSessions_Success
+--- PASS: TestAudit_LogoutUserSessions_Success (0.00s)
+=== RUN   TestAudit_DeleteInvitation_Success
+--- PASS: TestAudit_DeleteInvitation_Success (0.00s)
+=== RUN   TestAudit_DeleteUser_Failure_CarriesReason
+2026-05-20 04:48:02 [41m[97m ERROR [0m [ identity   ] identity: upstream rejected delete
+--- PASS: TestAudit_DeleteUser_Failure_CarriesReason (0.00s)
+=== RUN   TestAudit_AssignRoles_Failure_CarriesReason
+2026-05-20 04:48:02 [41m[97m ERROR [0m [ identity   ] identity: role not found
+--- PASS: TestAudit_AssignRoles_Failure_CarriesReason (0.00s)
+=== RUN   TestAudit_CreateRole_Failure_StillEmitsForBothInvitationAndUser
+2026-05-20 04:48:02 [41m[97m ERROR [0m [ identity   ] identity: upstream conflict
+--- PASS: TestAudit_CreateRole_Failure_StillEmitsForBothInvitationAndUser (0.00s)
+PASS
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity	0.433s

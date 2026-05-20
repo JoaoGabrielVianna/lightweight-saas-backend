@@ -1,0 +1,21 @@
+{
+  "status": 201,
+  "text": "{\"id\":\"8c33fdbe-765f-491b-80c0-ea602ca08f0d\",\"email\":\"crud-validate-20260520050323-a@example.com\",\"username\":\"crud-validate-20260520050323-a@example.com\",\"required_actions\":[\"VERIFY_EMAIL\",\"UPDATE_PASSWORD\"],\"created_at\":\"2026-05-20T08:03:24.202Z\",\"status\":\"pending\"}",
+  "json": {
+    "id": "8c33fdbe-765f-491b-80c0-ea602ca08f0d",
+    "email": "crud-validate-20260520050323-a@example.com",
+    "username": "crud-validate-20260520050323-a@example.com",
+    "required_actions": [
+      "VERIFY_EMAIL",
+      "UPDATE_PASSWORD"
+    ],
+    "created_at": "2026-05-20T08:03:24.202Z",
+    "status": "pending"
+  },
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Wed, 20 May 2026 08:03:24 GMT",
+    "Content-Length": "267",
+    "Connection": "close"
+  }
+}

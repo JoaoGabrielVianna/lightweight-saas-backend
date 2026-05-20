@@ -1,0 +1,77 @@
+# CRUD E2E log — 2026-05-20T07:55:15.555Z
+# stamp=20260520075515
+# test_role=crud-e2e-20260520075515
+# sandbox_user=crud-e2e-20260520075515@example.com
+# new_invite=crud-e2e-20260520075515-newinvite@example.com
+
+=== PHASE 0: LOGIN ===
+  login: token len=1201
+=== PHASE 1: SETUP — provision sandbox user via KC Admin REST ===
+  sandbox user id=641d6228-fbbb-4ee4-b7cf-4f296805631a email=crud-e2e-20260520075514@example.com
+=== PHASE 2: ROLES — CREATE via UI modal ===
+  login: token len=1201
+=== PHASE 1: SETUP — provision sandbox user via KC Admin REST ===
+  sandbox user id=50b3c373-82fc-4926-bbaf-279e5229bf18 email=crud-e2e-20260520075515@example.com
+=== PHASE 2: ROLES — CREATE via UI modal ===
+  role create: HTTP 201 name=crud-e2e-20260520075514
+=== PHASE 3: ROLES — EDIT via UI modal ===
+  role create: HTTP 201 name=crud-e2e-20260520075515
+=== PHASE 3: ROLES — EDIT via UI modal ===
+  role edit: HTTP 200 description=crud e2e role (edited)
+=== PHASE 4: ROLES — ASSIGN crud-e2e-20260520075514 → sandbox via UI ===
+  role edit: HTTP 200 description=crud e2e role (edited)
+=== PHASE 4: ROLES — ASSIGN crud-e2e-20260520075515 → sandbox via UI ===
+  role assign: HTTP 204
+  user roles after assign: ["default-roles-saas","crud-e2e-20260520075514"]
+=== PHASE 5: ROLES — REMOVE via UI ===
+  role assign: HTTP 204
+  user roles after assign: ["default-roles-saas","crud-e2e-20260520075515"]
+=== PHASE 5: ROLES — REMOVE via UI ===
+  role remove: HTTP 204
+=== PHASE 6: USERS — EDIT via UI modal ===
+  role remove: HTTP 204
+=== PHASE 6: USERS — EDIT via UI modal ===
+  user edit: HTTP 200 fn=Sandbox-Edited
+=== PHASE 7: USERS — DISABLE via UI modal ===
+  user edit: HTTP 200 fn=Sandbox-Edited
+=== PHASE 7: USERS — DISABLE via UI modal ===
+  user disable: HTTP 200 enabled=false
+=== PHASE 8: USERS — ENABLE via UI ===
+  user disable: HTTP 200 enabled=false
+=== PHASE 8: USERS — ENABLE via UI ===
+  user enable: HTTP 200 enabled=true
+=== PHASE 9: USERS — RESET PASSWORD via UI (SMTP-dependent) ===
+  user enable: HTTP 200 enabled=true
+=== PHASE 9: USERS — RESET PASSWORD via UI (SMTP-dependent) ===
+  reset pw: HTTP 204
+=== PHASE 10: SESSIONS — REVOKE one specific non-admin session via UI ===
+  reset pw: HTTP 204
+=== PHASE 10: SESSIONS — REVOKE one specific non-admin session via UI ===
+  no candidate non-admin session — SKIP
+=== PHASE 11: SESSIONS — REVOKE ALL (per-user) for testuser via UI ===
+  no candidate non-admin session — SKIP
+=== PHASE 11: SESSIONS — REVOKE ALL (per-user) for testuser via UI ===
+  logout-all: HTTP 204 target=2219e074-2f70-4904-bcd5-f9399ef401b9
+  logout-all: HTTP 204 target=2219e074-2f70-4904-bcd5-f9399ef401b9
+  realm-wide bulk: disabled=true (documented gap)
+=== PHASE 12: USERS — DELETE sandbox via UI modal ===
+  realm-wide bulk: disabled=true (documented gap)
+=== PHASE 12: USERS — DELETE sandbox via UI modal ===
+  user delete: HTTP 204
+=== PHASE 13: INVITATIONS — CREATE via UI modal (SMTP-dependent) ===
+  user delete: HTTP 204
+=== PHASE 13: INVITATIONS — CREATE via UI modal (SMTP-dependent) ===
+  invite create: HTTP 201
+=== PHASE 14: INVITATIONS — RESEND existing user@example.com via UI ===
+  invite create: HTTP 201
+=== PHASE 14: INVITATIONS — RESEND existing user@example.com via UI ===
+  no existing invitation — SKIP
+=== PHASE 15: INVITATIONS — REVOKE existing user@example.com via UI modal ===
+  no existing invitation — SKIP
+=== PHASE 15: INVITATIONS — REVOKE existing user@example.com via UI modal ===
+  no row to revoke — SKIP
+=== PHASE 16: ROLES — DELETE test role via UI modal ===
+  no row to revoke — SKIP
+=== PHASE 16: ROLES — DELETE test role via UI modal ===
+  role delete: HTTP 204
+  role delete: HTTP 204

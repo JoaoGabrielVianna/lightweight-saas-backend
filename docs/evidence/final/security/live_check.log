@@ -1,0 +1,26 @@
+security_live_check — 2026-05-20T07:51:12Z
+api=http://localhost:8080  keycloak=http://localhost:8081  realm=saas  client=saas-backend
+
+tokens acquired: user(len=1135) admin(len=1151)
+
+PASS  G01  expected=200 actual=200  GET /health (public)
+PASS  G02  expected=200 actual=200  GET /swagger/index.html (public)
+PASS  G03  expected=200 actual=200  GET /admin (HTML shell, public; actions gated)
+PASS  G04  expected=401 actual=401  GET /me without Authorization → 401
+PASS  G05  expected=401 actual=401  GET /admin/users without Authorization → 401
+PASS  G06  expected=401 actual=401  GET /me with empty Bearer token → 401
+PASS  G07  expected=401 actual=401  GET /me without Bearer prefix → 401
+PASS  G08  expected=401 actual=401  GET /me with non-JWT garbage token → 401
+PASS  G09  expected=401 actual=401  GET /me with tampered signature → 401
+PASS  G10  expected=200 actual=200  GET /me with valid user token → 200
+PASS  G11  expected=403 actual=403  GET /admin/users with user (no admin role) → 403
+PASS  G12  expected=200 actual=200  GET /admin/users with admin token → 200
+PASS  G13  expected=403 actual=403  GET /admin/static/../../../etc/passwd → 403
+PASS  G14  expected=401 actual=401  DELETE /admin/users/1 without Authorization → 401
+PASS  G15  expected=401 actual=401  POST /admin/roles without Authorization → 401
+PASS  G16  expected=403 actual=403  POST /admin/roles with user (no admin role) → 403
+PASS  G17  expected=401 actual=401  GET /me with single-segment token → 401
+
+─────────────────────────────────────────────────────────────
+TOTAL: 17   PASS: 17   FAIL: 0
+Result: PASS

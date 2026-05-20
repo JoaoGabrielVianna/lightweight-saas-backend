@@ -1,0 +1,163 @@
+=== RUN   TestAudit_CreateRole_Success
+--- PASS: TestAudit_CreateRole_Success (0.00s)
+=== RUN   TestAudit_CreateInvitation_EmitsBothInvitationAndUser
+--- PASS: TestAudit_CreateInvitation_EmitsBothInvitationAndUser (0.00s)
+=== RUN   TestAudit_UpdateUser_Success
+--- PASS: TestAudit_UpdateUser_Success (0.00s)
+=== RUN   TestAudit_UpdateRole_Success
+--- PASS: TestAudit_UpdateRole_Success (0.00s)
+=== RUN   TestAudit_AssignRolesToUser_CarriesRolesInExtra
+--- PASS: TestAudit_AssignRolesToUser_CarriesRolesInExtra (0.00s)
+=== RUN   TestAudit_UnassignRoleFromUser_Success
+--- PASS: TestAudit_UnassignRoleFromUser_Success (0.00s)
+=== RUN   TestAudit_ResetUserPassword_Success
+--- PASS: TestAudit_ResetUserPassword_Success (0.00s)
+=== RUN   TestAudit_ResendInvitation_Success
+--- PASS: TestAudit_ResendInvitation_Success (0.00s)
+=== RUN   TestAudit_DeleteUser_Success
+--- PASS: TestAudit_DeleteUser_Success (0.00s)
+=== RUN   TestAudit_DeleteRole_Success
+--- PASS: TestAudit_DeleteRole_Success (0.00s)
+=== RUN   TestAudit_DeleteSession_Success
+--- PASS: TestAudit_DeleteSession_Success (0.00s)
+=== RUN   TestAudit_LogoutUserSessions_Success
+--- PASS: TestAudit_LogoutUserSessions_Success (0.00s)
+=== RUN   TestAudit_DeleteInvitation_Success
+--- PASS: TestAudit_DeleteInvitation_Success (0.00s)
+=== RUN   TestAudit_DeleteUser_Failure_CarriesReason
+2026-05-20 04:48:32 [41m[97m ERROR [0m [ identity   ] identity: upstream rejected delete
+--- PASS: TestAudit_DeleteUser_Failure_CarriesReason (0.00s)
+=== RUN   TestAudit_AssignRoles_Failure_CarriesReason
+2026-05-20 04:48:32 [41m[97m ERROR [0m [ identity   ] identity: role not found
+--- PASS: TestAudit_AssignRoles_Failure_CarriesReason (0.00s)
+=== RUN   TestAudit_CreateRole_Failure_StillEmitsForBothInvitationAndUser
+2026-05-20 04:48:32 [41m[97m ERROR [0m [ identity   ] identity: upstream conflict
+--- PASS: TestAudit_CreateRole_Failure_StillEmitsForBothInvitationAndUser (0.00s)
+=== RUN   TestService_ListUsers_AppliesDefaultPageSize
+--- PASS: TestService_ListUsers_AppliesDefaultPageSize (0.00s)
+=== RUN   TestService_ListUsers_ClampsMaxPageSize
+--- PASS: TestService_ListUsers_ClampsMaxPageSize (0.00s)
+=== RUN   TestService_ListUsers_NormalizesNegativeFirst
+--- PASS: TestService_ListUsers_NormalizesNegativeFirst (0.00s)
+=== RUN   TestService_GetUser_RejectsNonUUID
+--- PASS: TestService_GetUser_RejectsNonUUID (0.00s)
+=== RUN   TestService_GetUser_AcceptsValidUUID
+--- PASS: TestService_GetUser_AcceptsValidUUID (0.00s)
+=== RUN   TestService_GetUser_PropagatesProviderErrors
+--- PASS: TestService_GetUser_PropagatesProviderErrors (0.00s)
+=== RUN   TestNewService_NilProvider_ReturnsNil
+--- PASS: TestNewService_NilProvider_ReturnsNil (0.00s)
+=== RUN   TestService_GetRole_RejectsMalformedName
+--- PASS: TestService_GetRole_RejectsMalformedName (0.00s)
+=== RUN   TestService_GetRole_AcceptsCommonNames
+--- PASS: TestService_GetRole_AcceptsCommonNames (0.00s)
+=== RUN   TestService_ListUserRoles_ValidatesUUID
+--- PASS: TestService_ListUserRoles_ValidatesUUID (0.00s)
+=== RUN   TestService_ListUserSessions_ValidatesUUID
+--- PASS: TestService_ListUserSessions_ValidatesUUID (0.00s)
+=== RUN   TestService_ListRoles_ProxiesProviderResult
+--- PASS: TestService_ListRoles_ProxiesProviderResult (0.00s)
+=== RUN   TestService_ListSessions_ProxiesProviderResult
+--- PASS: TestService_ListSessions_ProxiesProviderResult (0.00s)
+=== RUN   TestService_ListInvitations_ProxiesProviderResult
+--- PASS: TestService_ListInvitations_ProxiesProviderResult (0.00s)
+=== RUN   TestCreateRole_Success_NormalizesName
+--- PASS: TestCreateRole_Success_NormalizesName (0.00s)
+=== RUN   TestCreateRole_RejectsEmpty
+--- PASS: TestCreateRole_RejectsEmpty (0.00s)
+=== RUN   TestCreateRole_RejectsBuiltinNames
+--- PASS: TestCreateRole_RejectsBuiltinNames (0.00s)
+=== RUN   TestCreateRole_RejectsTooLong
+--- PASS: TestCreateRole_RejectsTooLong (0.00s)
+=== RUN   TestCreateRole_RejectsInvalidCharacters
+--- PASS: TestCreateRole_RejectsInvalidCharacters (0.00s)
+=== RUN   TestCreateRole_PropagatesProviderConflict
+--- PASS: TestCreateRole_PropagatesProviderConflict (0.00s)
+=== RUN   TestCreateInvitation_Success_DefaultsInvitedByFromIdentity
+--- PASS: TestCreateInvitation_Success_DefaultsInvitedByFromIdentity (0.00s)
+=== RUN   TestCreateInvitation_ExplicitInvitedByWins
+--- PASS: TestCreateInvitation_ExplicitInvitedByWins (0.00s)
+=== RUN   TestCreateInvitation_RejectsEmptyEmail
+--- PASS: TestCreateInvitation_RejectsEmptyEmail (0.00s)
+=== RUN   TestCreateInvitation_RejectsMalformedEmail
+--- PASS: TestCreateInvitation_RejectsMalformedEmail (0.00s)
+=== RUN   TestCreateInvitation_RejectsEmptyRoles
+--- PASS: TestCreateInvitation_RejectsEmptyRoles (0.00s)
+=== RUN   TestCreateInvitation_RejectsPastExpiresAt
+--- PASS: TestCreateInvitation_RejectsPastExpiresAt (0.00s)
+=== RUN   TestCreateInvitation_RejectsUnparseableExpiresAt
+--- PASS: TestCreateInvitation_RejectsUnparseableExpiresAt (0.00s)
+=== RUN   TestCreateInvitation_NormalizesExpiresAtToRFC3339UTC
+--- PASS: TestCreateInvitation_NormalizesExpiresAtToRFC3339UTC (0.00s)
+=== RUN   TestCreateInvitation_NormalizesEmailLowercase
+--- PASS: TestCreateInvitation_NormalizesEmailLowercase (0.00s)
+=== RUN   TestCreateInvitation_PropagatesProviderErrors
+=== RUN   TestCreateInvitation_PropagatesProviderErrors/duplicate_email
+=== RUN   TestCreateInvitation_PropagatesProviderErrors/missing_role
+=== RUN   TestCreateInvitation_PropagatesProviderErrors/upstream_down
+--- PASS: TestCreateInvitation_PropagatesProviderErrors (0.00s)
+    --- PASS: TestCreateInvitation_PropagatesProviderErrors/duplicate_email (0.00s)
+    --- PASS: TestCreateInvitation_PropagatesProviderErrors/missing_role (0.00s)
+    --- PASS: TestCreateInvitation_PropagatesProviderErrors/upstream_down (0.00s)
+=== RUN   TestUpdateUser_RejectsNonUUID
+--- PASS: TestUpdateUser_RejectsNonUUID (0.00s)
+=== RUN   TestUpdateUser_RejectsMalformedEmail
+--- PASS: TestUpdateUser_RejectsMalformedEmail (0.00s)
+=== RUN   TestUpdateUser_NormalizesEmailLowercase
+--- PASS: TestUpdateUser_NormalizesEmailLowercase (0.00s)
+=== RUN   TestUpdateUser_RejectsSelfDisable
+--- PASS: TestUpdateUser_RejectsSelfDisable (0.00s)
+=== RUN   TestUpdateUser_RejectsDisablingLastAdmin
+--- PASS: TestUpdateUser_RejectsDisablingLastAdmin (0.00s)
+=== RUN   TestUpdateUser_DisablingNonLastAdminAllowed
+--- PASS: TestUpdateUser_DisablingNonLastAdminAllowed (0.00s)
+=== RUN   TestUpdateRole_RejectsProtectedNames
+--- PASS: TestUpdateRole_RejectsProtectedNames (0.00s)
+=== RUN   TestUpdateRole_AllowsUserManagedRoles
+--- PASS: TestUpdateRole_AllowsUserManagedRoles (0.00s)
+=== RUN   TestAssignRolesToUser_RejectsNonUUID
+--- PASS: TestAssignRolesToUser_RejectsNonUUID (0.00s)
+=== RUN   TestAssignRolesToUser_RejectsEmptyList
+--- PASS: TestAssignRolesToUser_RejectsEmptyList (0.00s)
+=== RUN   TestAssignRolesToUser_NormalizesRoleNames
+--- PASS: TestAssignRolesToUser_NormalizesRoleNames (0.00s)
+=== RUN   TestUnassignRolesFromUser_RejectsSelfStripAdmin
+--- PASS: TestUnassignRolesFromUser_RejectsSelfStripAdmin (0.00s)
+=== RUN   TestUnassignRolesFromUser_RejectsLastAdmin
+--- PASS: TestUnassignRolesFromUser_RejectsLastAdmin (0.00s)
+=== RUN   TestUnassignRolesFromUser_AllowsRemovingNonAdminRole
+--- PASS: TestUnassignRolesFromUser_AllowsRemovingNonAdminRole (0.00s)
+=== RUN   TestUnassignRolesFromUser_NormalizesAdminCheck
+--- PASS: TestUnassignRolesFromUser_NormalizesAdminCheck (0.00s)
+=== RUN   TestSendResetPasswordEmail_RejectsNonUUID
+--- PASS: TestSendResetPasswordEmail_RejectsNonUUID (0.00s)
+=== RUN   TestSendResetPasswordEmail_ForwardsToProvider
+--- PASS: TestSendResetPasswordEmail_ForwardsToProvider (0.00s)
+=== RUN   TestResendInvitation_RejectsNonUUID
+--- PASS: TestResendInvitation_RejectsNonUUID (0.00s)
+=== RUN   TestDeleteUser_RejectsNonUUID
+--- PASS: TestDeleteUser_RejectsNonUUID (0.00s)
+=== RUN   TestDeleteUser_RejectsSelfDelete
+--- PASS: TestDeleteUser_RejectsSelfDelete (0.00s)
+=== RUN   TestDeleteUser_RejectsLastAdmin
+--- PASS: TestDeleteUser_RejectsLastAdmin (0.00s)
+=== RUN   TestDeleteUser_AllowsNonAdmin
+--- PASS: TestDeleteUser_AllowsNonAdmin (0.00s)
+=== RUN   TestDeleteUser_DisabledAdminsDontCount
+--- PASS: TestDeleteUser_DisabledAdminsDontCount (0.00s)
+=== RUN   TestDeleteRole_RejectsProtectedNames
+--- PASS: TestDeleteRole_RejectsProtectedNames (0.00s)
+=== RUN   TestDeleteRole_AllowsUserManagedRoles
+--- PASS: TestDeleteRole_AllowsUserManagedRoles (0.00s)
+=== RUN   TestDeleteRole_RejectsMalformedNames
+--- PASS: TestDeleteRole_RejectsMalformedNames (0.00s)
+=== RUN   TestDeleteSession_RejectsNonUUID
+--- PASS: TestDeleteSession_RejectsNonUUID (0.00s)
+=== RUN   TestLogoutUserSessions_RejectsNonUUID
+--- PASS: TestLogoutUserSessions_RejectsNonUUID (0.00s)
+=== RUN   TestDeleteInvitation_RejectsSelfDelete
+--- PASS: TestDeleteInvitation_RejectsSelfDelete (0.00s)
+=== RUN   TestDeleteInvitation_DoesNotConsultLastAdminCheck
+--- PASS: TestDeleteInvitation_DoesNotConsultLastAdminCheck (0.00s)
+PASS
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity	0.289s

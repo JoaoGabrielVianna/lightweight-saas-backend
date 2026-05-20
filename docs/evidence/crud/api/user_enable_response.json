@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": {
+    "id": "50b3c373-82fc-4926-bbaf-279e5229bf18",
+    "username": "crud-e2e-20260520075515@example.com",
+    "email": "crud-e2e-20260520075515@example.com",
+    "first_name": "Sandbox-Edited",
+    "last_name": "User-Edited",
+    "enabled": true,
+    "email_verified": true,
+    "created_at": "2026-05-20T07:55:20.574Z"
+  }
+}

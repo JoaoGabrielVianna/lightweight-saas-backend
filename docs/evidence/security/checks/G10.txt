@@ -1,0 +1,14 @@
+# G10 — GET /me with valid user token → 200
+expected_status: 200
+actual_status:   200
+curl_args:       -H Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI5Wm9PZlB6YVRkRTU5TUVXNFRCUWZfa2hyWEQ3azM5RGVnQUNXMTZxd2ljIn0.eyJleHAiOjE3NzkyNjcwNzIsImlhdCI6MTc3OTI2MzQ3MiwianRpIjoiNWRmMDlmMDItMjA4ZS00NDA4LWFlNDgtODgyYjJjYjE0MTQwIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgxL3JlYWxtcy9zYWFzIiwic3ViIjoiMjIxOWUwNzQtMmY3MC00OTA0LWJjZDUtZjkzOTllZjQwMWI5IiwidHlwIjoiQmVhcmVyIiwiYXpwIjoic2Fhcy1iYWNrZW5kIiwic2lkIjoiMmJiM2E2OTctZjc5Yi00MjJhLWE5ZDAtNjg4OWM2ZDVhMDA0IiwiYWNyIjoiMSIsImFsbG93ZWQtb3JpZ2lucyI6WyJodHRwOi8vbG9jYWxob3N0OjgwODAiXSwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbInVzZXIiXX0sInNjb3BlIjoicHJvZmlsZSBlbWFpbCIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJuYW1lIjoiVGVzdHVzZXIgVXNlciIsInByZWZlcnJlZF91c2VybmFtZSI6InRlc3R1c2VyIiwiZ2l2ZW5fbmFtZSI6IlRlc3R1c2VyIiwiZmFtaWx5X25hbWUiOiJVc2VyIiwiZW1haWwiOiJ0ZXN0dXNlckB0ZXN0LmNvbSJ9.QaOyP_eWD3llE2B-hBl2orXxwWqGyfxIIYQFLAoM7VpUbGJ4zNb0Tqud6lmreOsPiYBDrNiWBApZCosTO1qeAYs10_A8JptkfGZBxcdWOg4aCPdc4TiHaCJ-N8ScXrHyIX4j-zGWfbOxJEaSPYROm23TjOkUMel6By_JDTvyxyy-mFiFA5-jfDskFkNL8xYgASoSc81Z19cdJqsblLEVdSQ38LKg0cLKK7y2pnmpWMj9XrPFSxv7ZdCpHB3G7pDqPldNI0DUd2NHtvK8Ese6-DZwMoD33zkVSvLySkWgq_GvQsxqgc0zmX6gsvGsZ8rkb4Mq8Si0RIS1b8aM-CtDeg http://localhost:8080/me
+
+--- response headers ---
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Date: Wed, 20 May 2026 07:51:12 GMT
+Content-Length: 198
+
+
+--- response body (truncated to 2KB) ---
+{"id":4,"keycloak_sub":"2219e074-2f70-4904-bcd5-f9399ef401b9","email":"testuser@test.com","username":"testuser","created_at":"2026-05-19T18:57:22.008627Z","updated_at":"2026-05-19T18:57:22.008627Z"}

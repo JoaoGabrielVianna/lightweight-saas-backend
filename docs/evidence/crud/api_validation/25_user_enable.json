@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "text": "{\"id\":\"8c33fdbe-765f-491b-80c0-ea602ca08f0d\",\"username\":\"crud-validate-20260520050323-a@example.com\",\"email\":\"crud-validate-20260520050323-a@example.com\",\"first_name\":\"Edited\",\"last_name\":\"Validate\",\"enabled\":true,\"email_verified\":false,\"created_at\":\"2026-05-20T08:03:24.202Z\"}",
+  "json": {
+    "id": "8c33fdbe-765f-491b-80c0-ea602ca08f0d",
+    "username": "crud-validate-20260520050323-a@example.com",
+    "email": "crud-validate-20260520050323-a@example.com",
+    "first_name": "Edited",
+    "last_name": "Validate",
+    "enabled": true,
+    "email_verified": false,
+    "created_at": "2026-05-20T08:03:24.202Z"
+  },
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Wed, 20 May 2026 08:03:26 GMT",
+    "Content-Length": "277",
+    "Connection": "close"
+  }
+}

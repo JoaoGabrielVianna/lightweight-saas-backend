@@ -1,0 +1,37 @@
+{
+  "status": 200,
+  "text": "{\"users\":[{\"id\":\"ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6\",\"username\":\"adminuser\",\"email\":\"adminuser@test.com\",\"first_name\":\"Adminuser\",\"last_name\":\"User\",\"enabled\":true,\"email_verified\":true,\"created_at\":\"0001-01-01T00:00:00Z\"},{\"id\":\"2219e074-2f70-4904-bcd5-f9399ef401b9\",\"username\":\"testuser\",\"email\":\"testuser@test.com\",\"first_name\":\"Testuser\",\"last_name\":\"User\",\"enabled\":true,\"email_verified\":true,\"created_at\":\"0001-01-01T00:00:00Z\"}],\"first\":0,\"max\":100,\"count\":2}",
+  "json": {
+    "users": [
+      {
+        "id": "ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6",
+        "username": "adminuser",
+        "email": "adminuser@test.com",
+        "first_name": "Adminuser",
+        "last_name": "User",
+        "enabled": true,
+        "email_verified": true,
+        "created_at": "0001-01-01T00:00:00Z"
+      },
+      {
+        "id": "2219e074-2f70-4904-bcd5-f9399ef401b9",
+        "username": "testuser",
+        "email": "testuser@test.com",
+        "first_name": "Testuser",
+        "last_name": "User",
+        "enabled": true,
+        "email_verified": true,
+        "created_at": "0001-01-01T00:00:00Z"
+      }
+    ],
+    "first": 0,
+    "max": 100,
+    "count": 2
+  },
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Wed, 20 May 2026 08:03:24 GMT",
+    "Content-Length": "468",
+    "Connection": "close"
+  }
+}

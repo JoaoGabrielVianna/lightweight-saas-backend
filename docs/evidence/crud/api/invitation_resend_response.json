@@ -1,0 +1,4 @@
+{
+  "status": 502,
+  "body": "{\"error\":\"upstream identity provider unavailable\"}"
+}

@@ -1,6 +1,9 @@
 # Lightweight SaaS Backend
 
-> **Status:** Sprint 3 complete — Keycloak-based auth, end-to-end validated.
+> **Status:** v0.2.0 — Identity Management. Keycloak-based auth plus an
+> admin-only HTTP surface for user/role/session/invitation administration.
+> Release notes: [docs/RELEASE_v0.2.md](docs/RELEASE_v0.2.md) ·
+> Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 A reusable Go backend foundation for SaaS-style products. Authentication is
 delegated to [Keycloak](https://www.keycloak.org/) (or any future OIDC
@@ -42,9 +45,15 @@ Full onboarding walkthrough: **[docs/KEYCLOAK_SETUP.md](docs/KEYCLOAK_SETUP.md)*
 - **Day-one DX.** Categorized `make help`, `make doctor` toolchain probe,
   `make reset-dev` one-command rescue.
 - **Structured auth events.** Hookable via `auth.SetEventHook` — plug
-  Prometheus or OpenTelemetry without touching middleware.
-- **Tested.** 41 unit tests including a 50-goroutine race on user
-  provisioning; CI gate includes `swagger-check` for doc drift.
+  Prometheus or OpenTelemetry without touching middleware. RBAC denials
+  emit `EventForbidden` on the same channel as authn failures.
+- **Identity Management** (since v0.2). Admin-only `/admin/*` surface
+  wrapping the Keycloak Admin API for users, realm roles, sessions, and
+  invitations. Gated by `features.identity_management` and the realm
+  role `admin` at the route-group level.
+- **Tested.** Unit tests across `auth`, `bootstrap`, `user`, and
+  `identity`, including a 50-goroutine race on user provisioning;
+  CI gate includes `swagger-check` for doc drift.
 
 ---
 
@@ -56,13 +65,27 @@ The canonical reference is the generated OpenAPI:
 http://localhost:8080/swagger/index.html
 ```
 
-Today the surface is intentionally tiny:
+The public surface:
 
 | Method | Path       | Auth          | Purpose                                                  |
 |--------|------------|---------------|----------------------------------------------------------|
 | `GET`  | `/health`  | none          | Liveness probe (200 always).                             |
 | `GET`  | `/me`      | Bearer        | Returns the local user row; JIT-creates it on first call.|
 | `GET`  | `/swagger/*` | none        | Swagger UI for the generated OpenAPI spec.              |
+
+The Identity Management surface (mounted when
+`features.identity_management: true`, gated by `Bearer` + realm role `admin`):
+
+| Method | Path                                              | Purpose                                                  |
+|--------|---------------------------------------------------|----------------------------------------------------------|
+| `*`    | `/admin/users[...]`                               | Users CRUD, password-reset email, per-user roles & sessions. |
+| `*`    | `/admin/invitations[...]`                         | List / create / revoke / resend invitations.             |
+| `*`    | `/admin/roles[...]`                               | Realm roles CRUD + "users carrying a role".              |
+| `*`    | `/admin/sessions[...]`                            | Realm-wide active sessions; revoke by id.                |
+
+Full route × verb matrix and schemas live in the Swagger spec; release
+notes for the admin surface are in
+[docs/RELEASE_v0.2.md §2.1](docs/RELEASE_v0.2.md#21-admin-http-surface).
 
 **There is no `/register` or `/login` here by design** — Keycloak owns
 identity. Clients obtain tokens directly from Keycloak (Authorization Code
@@ -154,7 +177,16 @@ Full diagrams and rationale: [docs/KEYCLOAK_SETUP.md §1](docs/KEYCLOAK_SETUP.md
 │   │   ├── service.go              # EnsureUser (idempotent JIT provisioning)
 │   │   ├── handler.go              # /me handler
 │   │   └── dto.go                  # UserResponse
-│   ├── server/                     # gin engine + route composition + swagger mount
+│   ├── identity/                   # v0.2 — admin surface over Keycloak Admin API
+│   │   ├── provider.go             # IdentityProvider interface
+│   │   ├── service.go / handler.go # /admin/* business + HTTP layers
+│   │   ├── dto.go / errors.go      # request/response shapes + sentinel errors
+│   │   └── keycloak/               # Keycloak-backed IdentityProvider impl
+│   │       ├── admin.go users.go roles.go sessions.go invitations.go
+│   │       └── provider.go         # client wiring (admin service account)
+│   ├── server/
+│   │   ├── server.go router.go     # gin engine + route composition + swagger mount
+│   │   └── admin.go                # /admin/* group wiring (RequireAuth + RequireRole)
 │   ├── config/                     # env loader + fail-fast Validate()
 │   ├── database/                   # gorm connect + AutoMigrate
 │   ├── logger/                     # structured (text) logger
@@ -164,10 +196,13 @@ Full diagrams and rationale: [docs/KEYCLOAK_SETUP.md §1](docs/KEYCLOAK_SETUP.md
 │   └── project.schema.json         # JSON Schema (mirror of embedded canonical)
 ├── deploy/
 │   └── keycloak/realm-export.json  # imported by Keycloak on first boot
+├── web/
+│   └── admin/                      # v0.2 — minimal static admin UI (dev-only)
 ├── docs/
 │   ├── KEYCLOAK_SETUP.md           # onboarding + troubleshooting
 │   ├── bootstrap.md                # bootstrap design + lifecycle commands
 │   ├── VALIDATION_PHASE3.md        # Sprint 3 sign-off
+│   ├── RELEASE_v0.2.md             # v0.2 Identity Management release notes
 │   ├── migrations/                 # breaking change records
 │   ├── docs.go / swagger.json / swagger.yaml  # generated by `make docs`
 ├── scripts/

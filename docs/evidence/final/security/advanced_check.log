@@ -1,0 +1,42 @@
+security_advanced_check — 2026-05-20T07:51:15Z
+api=http://localhost:8080  keycloak=http://localhost:8081  realm=saas  client=saas-backend
+
+tokens acquired: user(len=1145) admin(len=1161) refresh(len=657)
+
+── T1 — Rate limiting probe ─────────────────────────────────────
+T1a  /me authed       dominant=200  (expect 200; no API rate limit claimed)
+INFO  T1a  no rate limit on /me with valid token (recorded)
+T1b  /admin unauthed  dominant=401  (expect 401)
+INFO  T1b  no rate limit on unauthenticated /admin/users; consistent 401 (401)
+T1c  /health          dominant=200  (expect 200)
+INFO  T1c  no rate limit on /health (200)
+T1d  KC token burst   dominant=401  (Keycloak — informational)
+INFO  T1d  Keycloak token endpoint burst dominant=401
+
+── T2 — Brute-force protection ──────────────────────────────────
+T2 control: correct password before brute force → 200 (expect 200)
+T2 hammered 35 wrong-password attempts (see T2_brute_force_attempts.txt)
+PASS  T2.lockout  Keycloak rejected correct password after 35 failed attempts (lockout active; error="Invalid user credentials")
+T2 clear_brute_force returned http=204
+PASS  T2.recovery  admin unlock restored login (200)
+
+── T3 — Session fixation / post-logout token reuse ──────────────
+PASS  T3.refresh  refresh_token invalidated by OIDC logout (error="Session not active")
+INFO  T3.access  access_token STILL valid post-logout — JWT trade-off; documented finding
+
+── T4 — Token replay ────────────────────────────────────────────
+T4a sequential replays: 10/10 200s
+INFO  T4  token replays succeed (10/10 seq, 30x 200 parallel) — expected behavior for bearer JWTs; no nonce/jti tracking implemented
+
+── T5 — Concurrent admin actions ────────────────────────────────
+T5 firing 10x POST /admin/roles with name="sec-adv-1779263480-58641" in parallel
+T5 outcome: 201=1  409=9  (expect 1 / 9)
+PASS  T5  race-safe: 1 create / 9 conflict
+T5 cleanup DELETE /admin/roles/sec-adv-1779263480-58641 → 204
+
+── T6 — Privilege escalation ────────────────────────────────────
+PASS  T6  every admin verb + header injection + cross-client token denied
+
+─────────────────────────────────────────────────────────────
+TOTAL: 11   PASS: 5   FAIL: 0   INFO: 6
+Result: PASS (no FAILs; 6 informational findings recorded)

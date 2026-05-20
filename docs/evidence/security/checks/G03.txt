@@ -1,0 +1,56 @@
+# G03 — GET /admin (HTML shell, public; actions gated)
+expected_status: 200
+actual_status:   200
+curl_args:       http://localhost:8080/admin
+
+--- response headers ---
+HTTP/1.1 200 OK
+Accept-Ranges: bytes
+Cache-Control: no-store
+Content-Length: 1502
+Content-Type: text/html; charset=utf-8
+Last-Modified: Tue, 19 May 2026 18:40:12 GMT
+Date: Wed, 20 May 2026 07:51:12 GMT
+
+
+--- response body (truncated to 2KB) ---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="color-scheme" content="dark light">
+  <title>IAM Admin Console</title>
+  <link rel="stylesheet" href="/admin/static/css/base.css">
+  <link rel="stylesheet" href="/admin/static/css/layout.css">
+  <link rel="stylesheet" href="/admin/static/css/components.css">
+</head>
+<body class="theme-dark" data-route-loading="true">
+  <!--
+    Single-page shell. JS hydrates each region:
+      #sidebar    — populated by components/sidebar.js based on routes table
+      #topbar     — breadcrumbs + search + user badge
+      #main       — active view (one of views/*)
+      #toast      — bottom-right notification stack
+      #modal-root — overlay for modals
+  -->
+  <div id="app" class="app">
+    <aside id="sidebar" class="sidebar" aria-label="primary navigation"></aside>
+    <div class="content">
+      <header id="topbar" class="topbar" aria-label="page header"></header>
+      <main id="main" class="main" role="main" tabindex="-1">
+        <div class="boot-loading">
+          <div class="spinner"></div>
+          <p class="muted">loading console…</p>
+        </div>
+      </main>
+    </div>
+  </div>
+  <div id="toast" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+  <div id="modal-root"></div>
+
+  <script type="module" src="/admin/static/js/main.js"></script>
+</body>
+</html>
+

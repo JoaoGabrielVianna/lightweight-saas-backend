@@ -1,0 +1,17 @@
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/cmd/api	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/cmd/bootstrap	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/docs	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/audit	0.150s
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth	0.324s
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth/keycloak	1.008s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/banner	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/bootstrap	0.932s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/database	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/fonts	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity	1.037s
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak	1.420s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logging	1.201s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/server	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user	1.663s

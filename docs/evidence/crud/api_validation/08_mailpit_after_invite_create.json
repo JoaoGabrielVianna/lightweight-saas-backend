@@ -1,0 +1,68 @@
+{
+  "total": 2,
+  "unread": 2,
+  "count": 2,
+  "messages_count": 2,
+  "start": 0,
+  "tags": [],
+  "messages": [
+    {
+      "ID": "XuMHKgphgGceYcpSCBUoPC",
+      "MessageID": "951503078.29.1779264204257@05573a72cae7",
+      "Read": false,
+      "From": {
+        "Name": "lightweight-saas-backend",
+        "Address": "no-reply@saas.local"
+      },
+      "To": [
+        {
+          "Name": "",
+          "Address": "crud-validate-20260520050323-b@example.com"
+        }
+      ],
+      "Cc": [],
+      "Bcc": [],
+      "ReplyTo": [
+        {
+          "Name": "lightweight-saas-backend",
+          "Address": "no-reply@saas.local"
+        }
+      ],
+      "Subject": "Update Your Account",
+      "Created": "2026-05-20T08:03:24.258Z",
+      "Tags": [],
+      "Size": 3417,
+      "Attachments": 0,
+      "Snippet": "Your administrator has just requested that you update your lightweight-saas-backend account by performing the following action(s): Verify Email, Update Password. Click on the link below to start this ..."
+    },
+    {
+      "ID": "iNxD8qejetbTVLHYwdPfRA",
+      "MessageID": "566964260.27.1779264204227@05573a72cae7",
+      "Read": false,
+      "From": {
+        "Name": "lightweight-saas-backend",
+        "Address": "no-reply@saas.local"
+      },
+      "To": [
+        {
+          "Name": "",
+          "Address": "crud-validate-20260520050323-a@example.com"
+        }
+      ],
+      "Cc": [],
+      "Bcc": [],
+      "ReplyTo": [
+        {
+          "Name": "lightweight-saas-backend",
+          "Address": "no-reply@saas.local"
+        }
+      ],
+      "Subject": "Update Your Account",
+      "Created": "2026-05-20T08:03:24.231Z",
+      "Tags": [],
+      "Size": 3413,
+      "Attachments": 0,
+      "Snippet": "Your administrator has just requested that you update your lightweight-saas-backend account by performing the following action(s): Verify Email, Update Password. Click on the link below to start this ..."
+    }
+  ]
+}

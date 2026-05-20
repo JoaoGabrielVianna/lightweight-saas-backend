@@ -1,0 +1,35 @@
+# T1c — /health x200 parallel
+## status-code distribution (count=200, parallelism=50):
+ 200 200
+
+## first 30 raw responses (chronological):
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200

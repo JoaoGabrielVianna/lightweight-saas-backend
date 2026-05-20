@@ -1,0 +1,35 @@
+# T4b — /me x30 parallel, same token
+## status-code distribution (count=30, parallelism=30):
+  30 200
+
+## first 30 raw responses (chronological):
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200

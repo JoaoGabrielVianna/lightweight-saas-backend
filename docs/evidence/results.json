@@ -1,0 +1,42 @@
+{
+  "login": {
+    "status": "pass",
+    "notes": [
+      "access_token len=1201"
+    ]
+  },
+  "overview": {
+    "status": "pass",
+    "notes": [
+      "tbody/row count=1"
+    ]
+  },
+  "users": {
+    "status": "pass",
+    "notes": [
+      "GET /admin/users?max=20 → 200",
+      "tbody/row count=5"
+    ]
+  },
+  "roles": {
+    "status": "pass",
+    "notes": [
+      "GET /admin/roles → 200",
+      "tbody/row count=12"
+    ]
+  },
+  "sessions": {
+    "status": "pass",
+    "notes": [
+      "GET /admin/sessions → 200",
+      "tbody/row count=6"
+    ]
+  },
+  "invitations": {
+    "status": "pass",
+    "notes": [
+      "GET /admin/invitations → 200",
+      "tbody/row count=4"
+    ]
+  }
+}

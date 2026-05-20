@@ -1,0 +1,328 @@
+{
+  "stamp": "20260520050323",
+  "summary": {
+    "PASS": 35
+  },
+  "role_name": "crud-validate-20260520050323",
+  "inv_a_email": "crud-validate-20260520050323-a@example.com",
+  "inv_b_email": "crud-validate-20260520050323-b@example.com",
+  "user_a_id": "8c33fdbe-765f-491b-80c0-ea602ca08f0d",
+  "user_b_id": "990faaa8-821f-4e1a-bedd-362f6c31aaa9",
+  "results": [
+    {
+      "phase": 0,
+      "resource": "login",
+      "action": "obtain admin token",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "01_login_token.json",
+      "notes": ""
+    },
+    {
+      "phase": 1,
+      "resource": "users",
+      "action": "list",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "02_list_users.json",
+      "notes": ""
+    },
+    {
+      "phase": 1,
+      "resource": "roles",
+      "action": "list",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "03_list_roles.json",
+      "notes": ""
+    },
+    {
+      "phase": 1,
+      "resource": "sessions",
+      "action": "list",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "04_list_sessions.json",
+      "notes": ""
+    },
+    {
+      "phase": 1,
+      "resource": "invitations",
+      "action": "list",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "05_list_invitations.json",
+      "notes": ""
+    },
+    {
+      "phase": 2,
+      "resource": "invitations",
+      "action": "create (A)",
+      "verdict": "PASS",
+      "http": 201,
+      "evidence": "06_invitation_create_A.json",
+      "notes": ""
+    },
+    {
+      "phase": 2,
+      "resource": "invitations",
+      "action": "create (B)",
+      "verdict": "PASS",
+      "http": 201,
+      "evidence": "07_invitation_create_B.json",
+      "notes": ""
+    },
+    {
+      "phase": 2,
+      "resource": "invitations",
+      "action": "email actually dispatched (mailpit)",
+      "verdict": "PASS",
+      "http": null,
+      "evidence": "08_mailpit_after_invite_create.json",
+      "notes": "A=1 B=1"
+    },
+    {
+      "phase": 3,
+      "resource": "users",
+      "action": "get by id",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "09_get_user_A.json",
+      "notes": ""
+    },
+    {
+      "phase": 3,
+      "resource": "users",
+      "action": "get user sessions (per-user)",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "10_get_user_A_sessions.json",
+      "notes": ""
+    },
+    {
+      "phase": 3,
+      "resource": "users",
+      "action": "get user roles (per-user)",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "11_get_user_A_roles.json",
+      "notes": ""
+    },
+    {
+      "phase": 4,
+      "resource": "invitations",
+      "action": "resend",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "12_invitation_resend_A.json",
+      "notes": "mailpit re-delivered: 1"
+    },
+    {
+      "phase": 5,
+      "resource": "invitations",
+      "action": "revoke",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "13_invitation_revoke_B.json",
+      "notes": "user removed: True"
+    },
+    {
+      "phase": 6,
+      "resource": "roles",
+      "action": "create",
+      "verdict": "PASS",
+      "http": 201,
+      "evidence": "14_role_create.json",
+      "notes": ""
+    },
+    {
+      "phase": 7,
+      "resource": "roles",
+      "action": "get by id (name)",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "15_role_get_by_name.json",
+      "notes": ""
+    },
+    {
+      "phase": 8,
+      "resource": "users",
+      "action": "assign role",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "16_user_assign_role.json",
+      "notes": "user_roles=['default-roles-saas', 'user', 'crud-validate-20260520050323'] role_users_count=1"
+    },
+    {
+      "phase": 8,
+      "resource": "roles",
+      "action": "assign users (inverse of user/assign)",
+      "verdict": "PASS",
+      "http": null,
+      "evidence": "role_users_after_assign",
+      "notes": "verified via GET /admin/roles/{name}/users"
+    },
+    {
+      "phase": 9,
+      "resource": "roles",
+      "action": "list users for role",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "19_role_users_list.json",
+      "notes": "users_count=1"
+    },
+    {
+      "phase": 10,
+      "resource": "users",
+      "action": "remove role",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "20_user_remove_role.json",
+      "notes": "user_roles=['default-roles-saas', 'user'] role_still_has_user=False"
+    },
+    {
+      "phase": 10,
+      "resource": "roles",
+      "action": "remove users (inverse)",
+      "verdict": "PASS",
+      "http": null,
+      "evidence": "role_users_after_remove",
+      "notes": "verified via GET /admin/roles/{name}/users delta"
+    },
+    {
+      "phase": 11,
+      "resource": "users",
+      "action": "update",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "23_user_patch.json",
+      "notes": ""
+    },
+    {
+      "phase": 12,
+      "resource": "users",
+      "action": "disable",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "24_user_disable.json",
+      "notes": ""
+    },
+    {
+      "phase": 13,
+      "resource": "users",
+      "action": "enable",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "25_user_enable.json",
+      "notes": ""
+    },
+    {
+      "phase": 14,
+      "resource": "users",
+      "action": "reset password",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "26_user_reset_password.json",
+      "notes": "mailpit delivered: 1"
+    },
+    {
+      "phase": 15,
+      "resource": "sessions",
+      "action": "list (re-confirm after activity)",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "27_sessions_list_all.json",
+      "notes": "count=12"
+    },
+    {
+      "phase": 16,
+      "resource": "sessions",
+      "action": "revoke one",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "28_session_revoke_one.json",
+      "notes": "target=d5d0d234-f267-4740-9013-5566c58395f3 user=testuser"
+    },
+    {
+      "phase": 16,
+      "resource": "sessions",
+      "action": "revoke one \u2014 idempotency",
+      "verdict": "PASS",
+      "http": 404,
+      "evidence": "29_session_revoke_one_repeat.json",
+      "notes": "second DELETE on the same id (already-revoked path)"
+    },
+    {
+      "phase": 17,
+      "resource": "users",
+      "action": "revoke all sessions",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "30_user_revoke_all_sessions.json",
+      "notes": "sessions_after=0"
+    },
+    {
+      "phase": 18,
+      "resource": "users",
+      "action": "delete",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "32_user_delete_A.json",
+      "notes": "get after delete: 404"
+    },
+    {
+      "phase": 19,
+      "resource": "roles",
+      "action": "update",
+      "verdict": "PASS",
+      "http": 200,
+      "evidence": "33_role_patch.json",
+      "notes": ""
+    },
+    {
+      "phase": 20,
+      "resource": "roles",
+      "action": "delete",
+      "verdict": "PASS",
+      "http": 204,
+      "evidence": "34_role_delete.json",
+      "notes": "get after delete: 404"
+    },
+    {
+      "phase": 21,
+      "resource": "users",
+      "action": "guard: self-delete blocked",
+      "verdict": "PASS",
+      "http": 403,
+      "evidence": "35_guard_self_delete.json",
+      "notes": "expected 403 (service.DeleteUser self-check)"
+    },
+    {
+      "phase": 21,
+      "resource": "roles",
+      "action": "guard: protected-role delete blocked",
+      "verdict": "PASS",
+      "http": 403,
+      "evidence": "36_guard_protected_role_delete.json",
+      "notes": "expected 403 (service.DeleteRole protected-name check)"
+    },
+    {
+      "phase": 21,
+      "resource": "roles",
+      "action": "guard: malformed name rejected",
+      "verdict": "PASS",
+      "http": 400,
+      "evidence": "37_guard_role_create_malformed.json",
+      "notes": "expected 400 (service.CreateRole pattern check)"
+    },
+    {
+      "phase": 21,
+      "resource": "roles",
+      "action": "guard: duplicate name \u2192 409",
+      "verdict": "PASS",
+      "http": 409,
+      "evidence": "38_guard_role_duplicate.json",
+      "notes": ""
+    }
+  ]
+}

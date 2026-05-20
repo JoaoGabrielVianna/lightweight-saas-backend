@@ -1,0 +1,3 @@
+# T2 — correct-password attempt AFTER brute force
+response: {"error":"invalid_grant","error_description":"Invalid user credentials"}
+has_access_token: no

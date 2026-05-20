@@ -1,0 +1,17 @@
+{
+  "status": 201,
+  "text": "{\"id\":\"cdd86b37-161e-446b-8eb2-c448245c9f86\",\"name\":\"crud-validate-20260520050323\",\"description\":\"crud-validate (initial)\",\"composite\":false,\"builtin\":false}",
+  "json": {
+    "id": "cdd86b37-161e-446b-8eb2-c448245c9f86",
+    "name": "crud-validate-20260520050323",
+    "description": "crud-validate (initial)",
+    "composite": false,
+    "builtin": false
+  },
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Wed, 20 May 2026 08:03:26 GMT",
+    "Content-Length": "157",
+    "Connection": "close"
+  }
+}

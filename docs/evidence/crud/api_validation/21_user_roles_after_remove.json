@@ -1,0 +1,29 @@
+{
+  "status": 200,
+  "text": "{\"roles\":[{\"id\":\"44797416-5383-49a4-8713-a688729ec705\",\"name\":\"default-roles-saas\",\"description\":\"${role_default-roles}\",\"composite\":true,\"builtin\":true},{\"id\":\"4b038316-5a70-4092-b599-244638fe6687\",\"name\":\"user\",\"description\":\"realm role: user\",\"composite\":false,\"builtin\":false}],\"count\":2}",
+  "json": {
+    "roles": [
+      {
+        "id": "44797416-5383-49a4-8713-a688729ec705",
+        "name": "default-roles-saas",
+        "description": "${role_default-roles}",
+        "composite": true,
+        "builtin": true
+      },
+      {
+        "id": "4b038316-5a70-4092-b599-244638fe6687",
+        "name": "user",
+        "description": "realm role: user",
+        "composite": false,
+        "builtin": false
+      }
+    ],
+    "count": 2
+  },
+  "headers": {
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Wed, 20 May 2026 08:03:26 GMT",
+    "Content-Length": "292",
+    "Connection": "close"
+  }
+}

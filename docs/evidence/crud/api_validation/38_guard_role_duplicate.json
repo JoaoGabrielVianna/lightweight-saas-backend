@@ -1,0 +1,32 @@
+{
+  "first": {
+    "status": 201,
+    "text": "{\"id\":\"1502a1c6-59a5-4659-ae90-f8ce28796dc8\",\"name\":\"crud-validate-dup-20260520050323\",\"description\":\"\",\"composite\":false,\"builtin\":false}",
+    "json": {
+      "id": "1502a1c6-59a5-4659-ae90-f8ce28796dc8",
+      "name": "crud-validate-dup-20260520050323",
+      "description": "",
+      "composite": false,
+      "builtin": false
+    },
+    "headers": {
+      "Content-Type": "application/json; charset=utf-8",
+      "Date": "Wed, 20 May 2026 08:03:27 GMT",
+      "Content-Length": "138",
+      "Connection": "close"
+    }
+  },
+  "second": {
+    "status": 409,
+    "text": "{\"error\":\"conflict\"}",
+    "json": {
+      "error": "conflict"
+    },
+    "headers": {
+      "Content-Type": "application/json; charset=utf-8",
+      "Date": "Wed, 20 May 2026 08:03:27 GMT",
+      "Content-Length": "20",
+      "Connection": "close"
+    }
+  }
+}

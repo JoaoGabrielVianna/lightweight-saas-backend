@@ -1,0 +1,9 @@
+# T5 — 10 concurrent POST /admin/roles name=sec-adv-1779263480-58641
+## status-code distribution (count=10, parallelism=10):
+   9 409
+   1 201
+
+## ROLE name used: sec-adv-1779263480-58641
+## raw histogram (count code):
+   9 409
+   1 201

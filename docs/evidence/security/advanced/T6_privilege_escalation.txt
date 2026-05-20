@@ -1,0 +1,23 @@
+# T6 — privilege escalation matrix
+## non-admin user attempting every admin verb
+
+GET     /admin/roles                                       expected=403 actual=403
+GET     /admin/users                                       expected=403 actual=403
+GET     /admin/sessions                                    expected=403 actual=403
+GET     /admin/invitations                                 expected=403 actual=403
+POST    /admin/roles                                       expected=403 actual=403
+POST    /admin/invitations                                 expected=403 actual=403
+PATCH   /admin/users/00000000-0000-0000-0000-000000000000  expected=403 actual=403
+PATCH   /admin/roles/admin                                 expected=403 actual=403
+POST    /admin/users/00000000-0000-0000-0000-000000000000/roles expected=403 actual=403
+POST    /admin/users/00000000-0000-0000-0000-000000000000/reset-password expected=403 actual=403
+DELETE  /admin/users/00000000-0000-0000-0000-000000000000  expected=403 actual=403
+DELETE  /admin/users/00000000-0000-0000-0000-000000000000/roles/admin expected=403 actual=403
+DELETE  /admin/users/00000000-0000-0000-0000-000000000000/sessions expected=403 actual=403
+DELETE  /admin/roles/admin                                 expected=403 actual=403
+
+## header injection attempt (X-User-Role: admin etc.)
+GET /admin/users → 403 (expect 403)
+
+## cross-client token (client_credentials grant, client_id=saas-backend-admin)
+GET /admin/users → 401 (expect 401 — client_id not in KEYCLOAK_ALLOWED_CLIENT_IDS)

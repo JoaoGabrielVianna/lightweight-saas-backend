@@ -1,0 +1,217 @@
+{
+  "stamp": "20260520075515",
+  "test_role": "crud-e2e-20260520075515",
+  "sandbox_user": {
+    "email": "crud-e2e-20260520075515@example.com",
+    "id": "50b3c373-82fc-4926-bbaf-279e5229bf18"
+  },
+  "new_invite_email": "crud-e2e-20260520075515-newinvite@example.com",
+  "browser_errors": [],
+  "results": [
+    {
+      "phase": "Login",
+      "action": "PKCE login",
+      "status": "PASS",
+      "evidence": {
+        "token_len": 1201,
+        "screenshot": "01_post_login.png"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Roles",
+      "action": "create",
+      "status": "PASS",
+      "evidence": {
+        "http": 201,
+        "screenshot": "03_role_created.png",
+        "body": {
+          "id": "1a3e5010-4c3f-4b13-9606-2b02ff6d478f",
+          "name": "crud-e2e-20260520075515",
+          "description": "crud e2e role (initial)",
+          "composite": false,
+          "builtin": false
+        }
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Roles",
+      "action": "edit",
+      "status": "PASS",
+      "evidence": {
+        "http": 200,
+        "screenshot": "05_role_edited.png",
+        "body": {
+          "id": "1a3e5010-4c3f-4b13-9606-2b02ff6d478f",
+          "name": "crud-e2e-20260520075515",
+          "description": "crud e2e role (edited)",
+          "composite": false,
+          "builtin": false
+        }
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Roles",
+      "action": "assign",
+      "status": "PASS",
+      "evidence": {
+        "http": 204,
+        "screenshot": "08_role_assigned.png"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Roles",
+      "action": "remove",
+      "status": "PASS",
+      "evidence": {
+        "http": 204,
+        "screenshot": "11_role_unassigned.png"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Users",
+      "action": "edit",
+      "status": "PASS",
+      "evidence": {
+        "http": 200,
+        "screenshot": "13_user_edited.png",
+        "body": {
+          "id": "50b3c373-82fc-4926-bbaf-279e5229bf18",
+          "username": "crud-e2e-20260520075515@example.com",
+          "email": "crud-e2e-20260520075515@example.com",
+          "first_name": "Sandbox-Edited",
+          "last_name": "User-Edited",
+          "enabled": true,
+          "email_verified": true,
+          "created_at": "2026-05-20T07:55:20.574Z"
+        }
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Users",
+      "action": "disable",
+      "status": "PASS",
+      "evidence": {
+        "http": 200,
+        "screenshot": "15_user_disabled.png",
+        "body": {
+          "id": "50b3c373-82fc-4926-bbaf-279e5229bf18",
+          "username": "crud-e2e-20260520075515@example.com",
+          "email": "crud-e2e-20260520075515@example.com",
+          "first_name": "Sandbox-Edited",
+          "last_name": "User-Edited",
+          "enabled": false,
+          "email_verified": true,
+          "created_at": "2026-05-20T07:55:20.574Z"
+        }
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Users",
+      "action": "enable",
+      "status": "PASS",
+      "evidence": {
+        "http": 200,
+        "screenshot": "16_user_enabled.png",
+        "body": {
+          "id": "50b3c373-82fc-4926-bbaf-279e5229bf18",
+          "username": "crud-e2e-20260520075515@example.com",
+          "email": "crud-e2e-20260520075515@example.com",
+          "first_name": "Sandbox-Edited",
+          "last_name": "User-Edited",
+          "enabled": true,
+          "email_verified": true,
+          "created_at": "2026-05-20T07:55:20.574Z"
+        }
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Users",
+      "action": "reset password",
+      "status": "PASS",
+      "evidence": {
+        "http": 204,
+        "screenshot": "17_user_reset_clicked.png"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Sessions",
+      "action": "revoke one",
+      "status": "SKIP",
+      "evidence": {},
+      "notes": "No non-admin session present at run time."
+    },
+    {
+      "phase": "Sessions",
+      "action": "revoke all (per-user)",
+      "status": "PASS",
+      "evidence": {
+        "http": 204,
+        "screenshot": "23_logout_all_done.png",
+        "target_user": "2219e074-2f70-4904-bcd5-f9399ef401b9"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Sessions",
+      "action": "revoke all (realm-wide)",
+      "status": "NOT_IMPLEMENTED",
+      "evidence": {
+        "ui_disabled": true
+      },
+      "notes": "Realm-wide bulk terminate is intentionally not a v0.2 backend endpoint — sessions.js renders the button disabled with `coming-soon` badge."
+    },
+    {
+      "phase": "Users",
+      "action": "delete",
+      "status": "PASS",
+      "evidence": {
+        "http": 204,
+        "screenshot": "26_user_deleted.png"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Invitations",
+      "action": "create",
+      "status": "PASS",
+      "evidence": {
+        "http": 201,
+        "screenshot": "28_invite_create_response.png"
+      },
+      "notes": ""
+    },
+    {
+      "phase": "Invitations",
+      "action": "resend",
+      "status": "SKIP",
+      "evidence": {},
+      "notes": "No existing pending invitation present."
+    },
+    {
+      "phase": "Invitations",
+      "action": "revoke",
+      "status": "SKIP",
+      "evidence": {},
+      "notes": "No invitation row present."
+    },
+    {
+      "phase": "Roles",
+      "action": "delete",
+      "status": "PASS",
+      "evidence": {
+        "http": 204,
+        "screenshot": "33_role_deleted.png"
+      },
+      "notes": ""
+    }
+  ]
+}

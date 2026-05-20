@@ -1,0 +1,2 @@
+# /auth/debug → HTTP 200
+{"allowed_clients":["saas-backend","saas-dev-playground"],"aud":[],"email":"adminuser@test.com","exp":"2026-05-20T08:53:32Z","expired":false,"iat":"2026-05-20T07:53:32Z","issuer":"http://localhost:8081/realms/saas","reason":"","received_azp":"saas-dev-playground","received_sub":"ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6","roles":["admin","user"],"valid":true}

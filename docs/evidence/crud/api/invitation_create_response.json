@@ -1,0 +1,4 @@
+{
+  "status": 201,
+  "body": "{\"id\":\"fc8c7de3-6125-4385-8f6a-d85f0bf47dd2\",\"email\":\"crud-e2e-20260520075515-newinvite@example.com\",\"username\":\"crud-e2e-20260520075515-newinvite@example.com\",\"required_actions\":[\"VERIFY_EMAIL\",\"UPDATE_PASSWORD\"],\"created_at\":\"2026-05-20T07:55:54.95Z\",\"status\":\"pending\"}"
+}

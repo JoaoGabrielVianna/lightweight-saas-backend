@@ -1,0 +1,38 @@
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/cmd/api	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/cmd/bootstrap	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/docs	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/audit	0.965s
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth	(cached)
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth/keycloak	(cached)
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/banner	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/bootstrap	(cached)
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/database	[no test files]
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/fonts	[no test files]
+--- FAIL: TestAudit_AssignRolesToUser_CarriesRolesInExtra (0.00s)
+    handler_audit_test.go:239: status = 200, body=
+--- FAIL: TestAudit_UnassignRoleFromUser_Success (0.00s)
+    handler_audit_test.go:264: status = 200, body=
+--- FAIL: TestAudit_ResetUserPassword_Success (0.00s)
+    handler_audit_test.go:285: status = 200, body=
+--- FAIL: TestAudit_DeleteUser_Success (0.00s)
+    handler_audit_test.go:327: status = 200, body=
+--- FAIL: TestAudit_DeleteRole_Success (0.00s)
+    handler_audit_test.go:345: status = 200, body=
+--- FAIL: TestAudit_DeleteSession_Success (0.00s)
+    handler_audit_test.go:363: status = 200, body=
+--- FAIL: TestAudit_LogoutUserSessions_Success (0.00s)
+    handler_audit_test.go:381: status = 200, body=
+--- FAIL: TestAudit_DeleteInvitation_Success (0.00s)
+    handler_audit_test.go:399: status = 200, body=
+2026-05-20 04:46:42 [41m[97m ERROR [0m [ identity   ] identity: upstream rejected delete
+2026-05-20 04:46:42 [41m[97m ERROR [0m [ identity   ] identity: role not found
+2026-05-20 04:46:42 [41m[97m ERROR [0m [ identity   ] identity: upstream conflict
+FAIL
+FAIL	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity	0.996s
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak	1.420s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logging	1.189s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/server	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user	(cached)
+FAIL

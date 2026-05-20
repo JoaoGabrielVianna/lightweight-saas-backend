@@ -1,0 +1,35 @@
+# T1d — Keycloak token endpoint x50 parallel with bogus user
+## status-code distribution (count=50, parallelism=50):
+  50 401
+
+## first 30 raw responses (chronological):
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401

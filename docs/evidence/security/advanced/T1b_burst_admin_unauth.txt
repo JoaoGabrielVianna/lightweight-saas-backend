@@ -1,0 +1,35 @@
+# T1b — /admin/users x50 parallel no token
+## status-code distribution (count=50, parallelism=50):
+  50 401
+
+## first 30 raw responses (chronological):
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401
+401

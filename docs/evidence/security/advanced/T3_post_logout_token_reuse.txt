@@ -1,0 +1,9 @@
+# T3 — post-logout token reuse
+before_logout /me:    200    (expect 200)
+logout endpoint http: 204    (expect 204)
+after_logout  /me:    200    (JWT remains valid until expiry by design)
+refresh_token reuse:  has_access_token=no  error="Session not active"
+
+NOTE: This is the documented JWT trade-off. Access tokens are stateless and
+remain valid until 'exp'. A defense-in-depth measure would require backchannel-
+logout listening or short-lived access tokens. The refresh token MUST be invalid.

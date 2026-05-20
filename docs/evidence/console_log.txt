@@ -1,0 +1,28 @@
+# Browser smoke log — 2026-05-20T07:53:30.030Z
+
+STEP 1: load /admin
+STEP 2: navigate to /playground and start login
+  on keycloak login: http://localhost:8081/realms/saas/protocol/openid-connect/auth?response_type=code&client_id=saas-dev-playground&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fadmin&scope=openid+profile+email&state=aSfLiwuSgPYlQVUPQA2ejQ&code_challenge=7Udw-phcZuYKjKBQRsojHmMMDvjlA5ynlumI3WEq8t0&code_challenge_method=S256
+  back on admin: http://localhost:8080/admin#/overview
+  sessionStorage access_token: present=true len=1201
+STEP: visit /overview
+  rendered rows: 1
+STEP: visit /users
+  call GET /admin/users?max=20 → 200
+  rendered rows: 5
+STEP: visit /roles
+  call GET /admin/roles → 200
+  rendered rows: 12
+STEP: visit /sessions
+  call GET /admin/sessions → 200
+  rendered rows: 6
+STEP: visit /invitations
+  call GET /admin/invitations → 200
+  rendered rows: 4
+STEP 5: dump raw admin API responses
+  dumped users: HTTP 200 (1011 bytes)
+  dumped roles: HTTP 200 (850 bytes)
+  dumped sessions: HTTP 200 (1729 bytes)
+  dumped invitations: HTTP 200 (558 bytes)
+  dumped auth_debug: HTTP 200 (356 bytes)
+  dumped me: HTTP 200 (200 bytes)

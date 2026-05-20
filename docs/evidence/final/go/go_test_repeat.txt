@@ -1,0 +1,18 @@
+=== run 1 ===
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak	0.951s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logging	0.533s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/server	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user	0.952s
+=== run 2 ===
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak	0.751s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logging	0.851s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/server	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user	0.904s
+=== run 3 ===
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak	0.566s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logging	0.871s
+?   	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/server	[no test files]
+ok  	github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user	0.905s

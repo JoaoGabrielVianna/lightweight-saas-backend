@@ -1,0 +1,35 @@
+# T1a — /me x100 parallel with valid user token
+## status-code distribution (count=100, parallelism=50):
+ 100 200
+
+## first 30 raw responses (chronological):
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
+200
