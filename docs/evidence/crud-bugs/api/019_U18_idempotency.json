@@ -1,0 +1,18 @@
+{
+  "description": "Remove role NOT currently assigned",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles/no-such-role-20260520081722"
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    204,
+    404
+  ]
+}

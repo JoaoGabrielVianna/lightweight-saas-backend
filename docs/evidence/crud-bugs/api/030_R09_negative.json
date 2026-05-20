@@ -1,0 +1,20 @@
+{
+  "description": "PATCH /admin/roles/{non-existent}",
+  "request": {
+    "method": "PATCH",
+    "path": "/admin/roles/does-not-exist-20260520081722",
+    "body": {
+      "description": "x"
+    }
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

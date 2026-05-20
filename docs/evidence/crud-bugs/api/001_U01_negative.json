@@ -1,0 +1,17 @@
+{
+  "description": "GET /admin/users/{not-a-uuid}",
+  "request": {
+    "method": "GET",
+    "path": "/admin/users/not-a-uuid"
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

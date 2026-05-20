@@ -1,0 +1,23 @@
+{
+  "description": "POST /admin/invitations duplicate email (SUBJ exists)",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "destruct-20260520081722-a@example.com",
+      "roles": [
+        "user"
+      ]
+    }
+  },
+  "response": {
+    "status": 409,
+    "text": "{\"error\":\"conflict\"}",
+    "json": {
+      "error": "conflict"
+    }
+  },
+  "expected": [
+    409
+  ]
+}

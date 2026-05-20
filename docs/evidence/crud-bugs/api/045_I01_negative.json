@@ -1,0 +1,23 @@
+{
+  "description": "POST /admin/invitations empty email",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "",
+      "roles": [
+        "user"
+      ]
+    }
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

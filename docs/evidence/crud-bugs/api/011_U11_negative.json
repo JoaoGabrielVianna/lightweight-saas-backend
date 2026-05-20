@@ -1,0 +1,22 @@
+{
+  "description": "POST /admin/users/:id/roles non-existent role",
+  "request": {
+    "method": "POST",
+    "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+    "body": {
+      "roles": [
+        "does-not-exist-xyz"
+      ]
+    }
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

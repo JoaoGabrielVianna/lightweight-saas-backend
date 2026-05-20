@@ -1,0 +1,23 @@
+{
+  "description": "POST /admin/invitations with SMTP DOWN returns 502",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "destruct-20260520081722-smtp@example.com",
+      "roles": [
+        "user"
+      ]
+    }
+  },
+  "response": {
+    "status": 502,
+    "text": "{\"error\":\"upstream identity provider unavailable\"}",
+    "json": {
+      "error": "upstream identity provider unavailable"
+    }
+  },
+  "expected": [
+    502
+  ]
+}

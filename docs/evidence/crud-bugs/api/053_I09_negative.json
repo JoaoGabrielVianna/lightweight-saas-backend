@@ -1,0 +1,17 @@
+{
+  "description": "POST resend non-UUID id",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations/not-a-uuid/resend"
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

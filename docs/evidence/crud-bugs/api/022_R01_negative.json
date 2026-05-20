@@ -1,0 +1,20 @@
+{
+  "description": "POST /admin/roles empty name",
+  "request": {
+    "method": "POST",
+    "path": "/admin/roles",
+    "body": {
+      "name": ""
+    }
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

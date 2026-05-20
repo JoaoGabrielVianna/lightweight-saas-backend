@@ -1,0 +1,21 @@
+{
+  "description": "Re-assign the same role twice (idempotency)",
+  "request": {
+    "method": "POST x2",
+    "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+    "body": {
+      "roles": [
+        "destruct-20260520081722"
+      ]
+    }
+  },
+  "response": {
+    "status": 204,
+    "text": "",
+    "json": null
+  },
+  "expected": [
+    200,
+    204
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "stamp": "20260520111831",
+  "browser_errors": [
+    "console.error: Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "console.error: Failed to load resource: the server responded with a status of 400 (Bad Request)",
+    "console.error: Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "console.error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "results": [
+    {
+      "test_id": "UI00",
+      "scenario": "PKCE login completes",
+      "expected": "token in sessionStorage",
+      "observed": "token present",
+      "verdict": "PASS",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "test_id": "UI01",
+      "scenario": "built-in role delete button is disabled in UI",
+      "expected": "disabled=true",
+      "observed": "disabled=true",
+      "verdict": "PASS",
+      "evidence": "01_roles_list.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI02",
+      "scenario": "create role with UPPERCASE name (documented: silent lowercase)",
+      "expected": "HTTP 201 (round-tripped lowercase)",
+      "observed": "HTTP 201",
+      "verdict": "PASS",
+      "evidence": "03_role_create_uppercase_response.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI03",
+      "scenario": "create valid role",
+      "expected": "HTTP 201",
+      "observed": "HTTP 201",
+      "verdict": "PASS",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "test_id": "UI04",
+      "scenario": "duplicate role → 409 + visible toast",
+      "expected": "409 + toast says \"already exists\"",
+      "observed": "409 | toast=\"Role created\nRole \"uppercase-from-ui\" created.\nRole created\nRole \"ui-destruct-20260520111831\" created.\nCreate failed\nA r\"",
+      "verdict": "PASS",
+      "evidence": "04_role_create_duplicate.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI05",
+      "scenario": "invite with malformed email is rejected",
+      "expected": "either browser blocks submit OR server returns 400",
+      "observed": "HTTP 400",
+      "verdict": "PASS",
+      "evidence": "05_invite_bad_email_modal.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI06a",
+      "scenario": "seed duplicate-target invite",
+      "expected": "HTTP 201",
+      "observed": "HTTP 201",
+      "verdict": "PASS",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "test_id": "UI06b",
+      "scenario": "invite-duplicate-email → 409 toast",
+      "expected": "HTTP 409 + toast",
+      "observed": "HTTP 409 | toast=\"Invite failed\nInvalid input. Check email format and expires_at is in the future.\nInvite failed\nA user with that email al\"",
+      "verdict": "PASS",
+      "evidence": "06_invite_duplicate.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI07",
+      "scenario": "revoke session via UI removes row on refresh",
+      "expected": "rows decreased from 18",
+      "observed": "rowsAfter=17 (delta=1)",
+      "verdict": "PASS",
+      "evidence": "08_sessions_after_revoke.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI08",
+      "scenario": "realm-wide bulk \"Terminate all\" button is disabled (coming-soon)",
+      "expected": "disabled=true",
+      "observed": "disabled=true",
+      "verdict": "PASS",
+      "evidence": "",
+      "notes": ""
+    },
+    {
+      "test_id": "UI09",
+      "scenario": "user detail on non-existent UUID → empty-state",
+      "expected": "shows \"User not found\" or similar",
+      "observed": "emptyHasText=2",
+      "verdict": "PASS",
+      "evidence": "09_user_404.png",
+      "notes": ""
+    },
+    {
+      "test_id": "UI10",
+      "scenario": "sandbox role delete via UI",
+      "expected": "HTTP 204",
+      "observed": "HTTP 204",
+      "verdict": "PASS",
+      "evidence": "",
+      "notes": ""
+    }
+  ]
+}

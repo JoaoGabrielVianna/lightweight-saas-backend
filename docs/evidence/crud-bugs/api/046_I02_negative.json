@@ -1,0 +1,23 @@
+{
+  "description": "POST /admin/invitations malformed email",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "bad@@example",
+      "roles": [
+        "user"
+      ]
+    }
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

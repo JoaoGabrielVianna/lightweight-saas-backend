@@ -1,0 +1,1254 @@
+{
+  "stamp": "20260520081722",
+  "counts": {
+    "PASS": 59
+  },
+  "tests": [
+    {
+      "test_id": "U01",
+      "category": "NEGATIVE",
+      "description": "GET /admin/users/{not-a-uuid}",
+      "request": {
+        "method": "GET",
+        "path": "/admin/users/not-a-uuid"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "001_U01_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U02",
+      "category": "NEGATIVE",
+      "description": "GET /admin/users/{random-uuid that doesn't exist}",
+      "request": {
+        "method": "GET",
+        "path": "/admin/users/00000000-0000-4000-8000-000000000000"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "002_U02_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U03",
+      "category": "NEGATIVE",
+      "description": "PATCH /admin/users with malformed email",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799",
+        "body": {
+          "email": "not-an-email"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "003_U03_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U04",
+      "category": "NEGATIVE",
+      "description": "PATCH /admin/users with empty email",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799",
+        "body": {
+          "email": ""
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "004_U04_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U05",
+      "category": "GUARD",
+      "description": "PATCH self-disable",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6",
+        "body": {
+          "enabled": false
+        }
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "005_U05_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U06",
+      "category": "GUARD",
+      "description": "DELETE adminuser (self)",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6"
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "006_U06_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U07",
+      "category": "NEGATIVE",
+      "description": "DELETE non-UUID",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/garbage"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "007_U07_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U08",
+      "category": "NEGATIVE",
+      "description": "DELETE non-existent UUID",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/00000000-0000-4000-8000-000000000000"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "008_U08_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U09",
+      "category": "NEGATIVE",
+      "description": "POST /admin/users/:id/roles with empty array",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+        "body": {
+          "roles": []
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "009_U09_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U10",
+      "category": "NEGATIVE",
+      "description": "POST /admin/users/:id/roles missing roles field",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+        "body": {}
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "010_U10_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U11",
+      "category": "NEGATIVE",
+      "description": "POST /admin/users/:id/roles non-existent role",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+        "body": {
+          "roles": [
+            "does-not-exist-xyz"
+          ]
+        }
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "011_U11_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U12",
+      "category": "NEGATIVE",
+      "description": "POST /admin/users/:id/roles role with whitespace-only entry",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+        "body": {
+          "roles": [
+            "  "
+          ]
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "012_U12_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U13",
+      "category": "GUARD",
+      "description": "DELETE admin role from last admin (= adminuser is sole admin)",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6/roles/admin"
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "013_U13_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U14",
+      "category": "GUARD",
+      "description": "DELETE own admin role via PATH (self)",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6/roles/admin"
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "014_U14_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U15",
+      "category": "NEGATIVE",
+      "description": "POST reset-password non-UUID",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/not-uuid/reset-password"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "015_U15_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U16",
+      "category": "NEGATIVE",
+      "description": "POST reset-password non-existent UUID",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/00000000-0000-4000-8000-000000000000/reset-password"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "016_U16_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U17",
+      "category": "DUPLICATE",
+      "description": "Re-assign the same role twice (idempotency)",
+      "request": {
+        "method": "POST x2",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+        "body": {
+          "roles": [
+            "destruct-20260520081722"
+          ]
+        }
+      },
+      "response_status": 204,
+      "response_body": "",
+      "expected_status": [
+        200,
+        204
+      ],
+      "verdict": "PASS",
+      "evidence": "017_U17_duplicate.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U17b",
+      "category": "DUPLICATE",
+      "description": "Re-assign the SAME role again (2nd POST)",
+      "request": {
+        "method": "POST",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+        "body": {
+          "roles": [
+            "destruct-20260520081722"
+          ]
+        }
+      },
+      "response_status": 204,
+      "response_body": "",
+      "expected_status": [
+        200,
+        204,
+        409
+      ],
+      "verdict": "PASS",
+      "evidence": "018_U17b_duplicate.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U18",
+      "category": "IDEMPOTENCY",
+      "description": "Remove role NOT currently assigned",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles/no-such-role-20260520081722"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        204,
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "019_U18_idempotency.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U19",
+      "category": "BOUNDARY",
+      "description": "PATCH /admin/users with unknown field",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799",
+        "body": {
+          "is_root": true,
+          "first_name": "Probe"
+        }
+      },
+      "response_status": 200,
+      "response_body": {
+        "id": "38e834e8-da0c-4fee-9dba-fee4ac1d0799",
+        "username": "destruct-20260520081722-a@example.com",
+        "email": "destruct-20260520081722-a@example.com",
+        "first_name": "Probe",
+        "last_name": "Subj",
+        "enabled": true,
+        "email_verified": false,
+        "created_at": "2026-05-20T11:17:22.938Z"
+      },
+      "expected_status": [
+        200,
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "020_U19_boundary.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "U20",
+      "category": "BOUNDARY",
+      "description": "PATCH /admin/users with empty body (no-op)",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799",
+        "body": {}
+      },
+      "response_status": 200,
+      "response_body": {
+        "id": "38e834e8-da0c-4fee-9dba-fee4ac1d0799",
+        "username": "destruct-20260520081722-a@example.com",
+        "email": "destruct-20260520081722-a@example.com",
+        "first_name": "Probe",
+        "last_name": "Subj",
+        "enabled": true,
+        "email_verified": false,
+        "created_at": "2026-05-20T11:17:22.938Z"
+      },
+      "expected_status": [
+        200,
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "021_U20_boundary.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R01",
+      "category": "NEGATIVE",
+      "description": "POST /admin/roles empty name",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": ""
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "022_R01_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R02",
+      "category": "BOUNDARY",
+      "description": "POST /admin/roles uppercase name (documented: silent lowercase)",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "UPPERCASE"
+        }
+      },
+      "response_status": 201,
+      "response_body": {
+        "id": "1a65b2d2-b351-4163-b0e8-fb89e66ed0be",
+        "name": "uppercase",
+        "description": "",
+        "composite": false,
+        "builtin": false
+      },
+      "expected_status": [
+        200,
+        201
+      ],
+      "verdict": "PASS",
+      "evidence": "023_R02_boundary.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R03",
+      "category": "NEGATIVE",
+      "description": "POST /admin/roles whitespace in middle",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "bad name"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "024_R03_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R04",
+      "category": "NEGATIVE",
+      "description": "POST /admin/roles name > maxRoleNameLen (256 chars)",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "025_R04_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R05",
+      "category": "NEGATIVE",
+      "description": "POST /admin/roles reserved name `admin`",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "admin"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "026_R05_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R06",
+      "category": "NEGATIVE",
+      "description": "POST /admin/roles reserved name `offline_access`",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "offline_access"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "027_R06_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R07",
+      "category": "NEGATIVE",
+      "description": "POST /admin/roles default-roles- prefix",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "default-roles-evil"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "028_R07_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R08",
+      "category": "DUPLICATE",
+      "description": "POST /admin/roles duplicate name \u2192 409",
+      "request": {
+        "method": "POST",
+        "path": "/admin/roles",
+        "body": {
+          "name": "destruct-20260520081722"
+        }
+      },
+      "response_status": 409,
+      "response_body": {
+        "error": "conflict"
+      },
+      "expected_status": [
+        409
+      ],
+      "verdict": "PASS",
+      "evidence": "029_R08_duplicate.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R09",
+      "category": "NEGATIVE",
+      "description": "PATCH /admin/roles/{non-existent}",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/roles/does-not-exist-20260520081722",
+        "body": {
+          "description": "x"
+        }
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "030_R09_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R10",
+      "category": "GUARD",
+      "description": "PATCH protected role `admin`",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/roles/admin",
+        "body": {
+          "description": "hijacked"
+        }
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "031_R10_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R11",
+      "category": "GUARD",
+      "description": "PATCH built-in role `offline_access`",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/roles/offline_access",
+        "body": {
+          "description": "x"
+        }
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "032_R11_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R12",
+      "category": "NEGATIVE",
+      "description": "PATCH /admin/roles with malformed name (space encoded)",
+      "request": {
+        "method": "PATCH",
+        "path": "/admin/roles/bad%20name%20with%20multiple%20spaces",
+        "body": {
+          "description": "x"
+        }
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        400,
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "033_R12_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R13",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/roles/{non-existent}",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/roles/no-such-role-20260520081722"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "034_R13_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R14",
+      "category": "GUARD",
+      "description": "DELETE protected role `admin`",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/roles/admin"
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "035_R14_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R15",
+      "category": "GUARD",
+      "description": "DELETE built-in role `uma_authorization`",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/roles/uma_authorization"
+      },
+      "response_status": 403,
+      "response_body": {
+        "error": "forbidden"
+      },
+      "expected_status": [
+        403
+      ],
+      "verdict": "PASS",
+      "evidence": "036_R15_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R16",
+      "category": "GUARD",
+      "description": "DELETE role currently assigned to a user",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/roles/destruct-20260520081722"
+      },
+      "response_status": 204,
+      "response_body": "",
+      "expected_status": [
+        204
+      ],
+      "verdict": "PASS",
+      "evidence": "037_R16_guard.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "R16b",
+      "category": "GUARD",
+      "description": "verify in-use role deletion cascades \u2014 user's role list excludes ROLE",
+      "verdict": "PASS",
+      "response_status": null,
+      "evidence": "038_R16b_cascade_check.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "S01",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/sessions/{not-a-uuid}",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/sessions/not-a-uuid"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "039_S01_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "S02",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/sessions/{random-uuid-that-doesn't-exist}",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/sessions/00000000-0000-4000-8000-000000000000"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "040_S02_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "S03",
+      "category": "IDEMPOTENCY",
+      "description": "DELETE session once",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/sessions/a527eb5c-56c6-4320-b0fb-cc89b198691c"
+      },
+      "response_status": 204,
+      "response_body": "",
+      "expected_status": [
+        204
+      ],
+      "verdict": "PASS",
+      "evidence": "041_S03_idempotency.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "S04",
+      "category": "IDEMPOTENCY",
+      "description": "DELETE already-deleted session",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/sessions/a527eb5c-56c6-4320-b0fb-cc89b198691c"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "042_S04_idempotency.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "S05",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/users/{not-uuid}/sessions",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/not-uuid/sessions"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "043_S05_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "S06",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/users/{nonexistent-uuid}/sessions",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/users/00000000-0000-4000-8000-000000000000/sessions"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        204,
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "044_S06_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I01",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations empty email",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "",
+          "roles": [
+            "user"
+          ]
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "045_I01_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I02",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations malformed email",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "bad@@example",
+          "roles": [
+            "user"
+          ]
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "046_I02_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I03",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations missing roles",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-b@example.com"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "047_I03_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I04",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations roles=[]",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-b@example.com",
+          "roles": []
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "048_I04_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I05",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations non-existent role",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-b@example.com",
+          "roles": [
+            "nonexistent-role-9999"
+          ]
+        }
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "049_I05_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I06",
+      "category": "DUPLICATE",
+      "description": "POST /admin/invitations duplicate email (SUBJ exists)",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-a@example.com",
+          "roles": [
+            "user"
+          ]
+        }
+      },
+      "response_status": 409,
+      "response_body": {
+        "error": "conflict"
+      },
+      "expected_status": [
+        409
+      ],
+      "verdict": "PASS",
+      "evidence": "050_I06_duplicate.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I07",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations expires_at malformed",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-b@example.com",
+          "roles": [
+            "user"
+          ],
+          "expires_at": "not-a-date"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "051_I07_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I08",
+      "category": "NEGATIVE",
+      "description": "POST /admin/invitations expires_at in the past",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-b@example.com",
+          "roles": [
+            "user"
+          ],
+          "expires_at": "2020-01-01T00:00:00Z"
+        }
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "052_I08_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I09",
+      "category": "NEGATIVE",
+      "description": "POST resend non-UUID id",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations/not-a-uuid/resend"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "053_I09_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I10",
+      "category": "NEGATIVE",
+      "description": "POST resend non-existent UUID",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations/00000000-0000-4000-8000-000000000000/resend"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "054_I10_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I11",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/invitations/{not-a-uuid}",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/invitations/not-a-uuid"
+      },
+      "response_status": 400,
+      "response_body": {
+        "error": "bad request"
+      },
+      "expected_status": [
+        400
+      ],
+      "verdict": "PASS",
+      "evidence": "055_I11_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I12",
+      "category": "NEGATIVE",
+      "description": "DELETE /admin/invitations/{nonexistent-uuid}",
+      "request": {
+        "method": "DELETE",
+        "path": "/admin/invitations/00000000-0000-4000-8000-000000000000"
+      },
+      "response_status": 404,
+      "response_body": {
+        "error": "not found"
+      },
+      "expected_status": [
+        404
+      ],
+      "verdict": "PASS",
+      "evidence": "056_I12_negative.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I13",
+      "category": "BOUNDARY",
+      "description": "Invitation past expires_at flips to status=expired",
+      "request": {
+        "method": "GET",
+        "path": "/admin/invitations"
+      },
+      "response_status": 200,
+      "response_body": {
+        "status": "pending"
+      },
+      "expected_status": [
+        200
+      ],
+      "verdict": "PASS",
+      "evidence": "057_I13_boundary.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I14",
+      "category": "SMTP",
+      "description": "POST /admin/invitations with SMTP DOWN returns 502",
+      "request": {
+        "method": "POST",
+        "path": "/admin/invitations",
+        "body": {
+          "email": "destruct-20260520081722-smtp@example.com",
+          "roles": [
+            "user"
+          ]
+        }
+      },
+      "response_status": 502,
+      "response_body": {
+        "error": "upstream identity provider unavailable"
+      },
+      "expected_status": [
+        502
+      ],
+      "verdict": "PASS",
+      "evidence": "058_I14_smtp.json",
+      "hypothesis": ""
+    },
+    {
+      "test_id": "I14b",
+      "category": "SMTP",
+      "description": "After a 502 invite, compensating-DELETE removes the half-provisioned user (no orphans)",
+      "verdict": "PASS",
+      "response_status": null,
+      "evidence": "059_I14b_orphan_check.json",
+      "hypothesis": ""
+    }
+  ],
+  "bugs": []
+}

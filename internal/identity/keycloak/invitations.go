@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity"
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 )
+
+var log = logger.New("identity-kc")
 
 // invitationsPageSize bounds how many users we scan in ONE Keycloak call.
 // The pagination loop walks pages of this size until Keycloak returns a
@@ -306,13 +309,19 @@ func (p *Provider) CreateInvitation(ctx context.Context, req identity.CreateInvi
 // The caller's ctx may be cancelled (often the reason we're cleaning up),
 // so we mint a fresh background context with a short timeout.
 //
-// Failures are intentionally swallowed: we already have an error to return
-// to the caller, and a failed cleanup leaves a recoverable state (the
-// orphaned user can be re-deleted on retry).
+// Failures are logged but do NOT propagate — we already have an error to
+// return to the caller from the provisioning path, and a failed cleanup
+// leaves a recoverable state (the orphaned user can be re-deleted on
+// retry). The log line is the only signal an operator gets that an
+// orphan now exists.
 func (p *Provider) compensateInvitationCreate(userID string) {
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), compensatingDeleteTimeout)
 	defer cancel()
-	_ = p.client.doJSON(cleanupCtx, "DELETE", "/users/"+url.PathEscape(userID), nil, nil, nil)
+	if err := p.client.doJSON(cleanupCtx, "DELETE", "/users/"+url.PathEscape(userID), nil, nil, nil); err != nil {
+		log.Error("compensating delete failed for user_id=" + userID + ": " + err.Error())
+		return
+	}
+	log.Info("compensating delete ok user_id=" + userID)
 }
 
 // synthesizeFreshInvitation builds an Invitation from request fields when

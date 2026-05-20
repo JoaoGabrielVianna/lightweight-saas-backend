@@ -1,0 +1,17 @@
+{
+  "description": "POST reset-password non-UUID",
+  "request": {
+    "method": "POST",
+    "path": "/admin/users/not-uuid/reset-password"
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

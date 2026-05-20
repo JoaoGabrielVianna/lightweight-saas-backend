@@ -1,0 +1,23 @@
+{
+  "description": "POST /admin/invitations non-existent role",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "destruct-20260520081722-b@example.com",
+      "roles": [
+        "nonexistent-role-9999"
+      ]
+    }
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

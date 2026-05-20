@@ -1,0 +1,15 @@
+{
+  "description": "DELETE role currently assigned to a user",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/roles/destruct-20260520081722"
+  },
+  "response": {
+    "status": 204,
+    "text": "",
+    "json": null
+  },
+  "expected": [
+    204
+  ]
+}

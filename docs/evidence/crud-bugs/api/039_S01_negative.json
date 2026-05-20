@@ -1,0 +1,17 @@
+{
+  "description": "DELETE /admin/sessions/{not-a-uuid}",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/sessions/not-a-uuid"
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

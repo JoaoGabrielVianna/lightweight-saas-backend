@@ -1,0 +1,25 @@
+{
+  "description": "POST /admin/roles uppercase name (documented: silent lowercase)",
+  "request": {
+    "method": "POST",
+    "path": "/admin/roles",
+    "body": {
+      "name": "UPPERCASE"
+    }
+  },
+  "response": {
+    "status": 201,
+    "text": "{\"id\":\"1a65b2d2-b351-4163-b0e8-fb89e66ed0be\",\"name\":\"uppercase\",\"description\":\"\",\"composite\":false,\"builtin\":false}",
+    "json": {
+      "id": "1a65b2d2-b351-4163-b0e8-fb89e66ed0be",
+      "name": "uppercase",
+      "description": "",
+      "composite": false,
+      "builtin": false
+    }
+  },
+  "expected": [
+    200,
+    201
+  ]
+}

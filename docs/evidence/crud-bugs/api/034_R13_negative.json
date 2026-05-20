@@ -1,0 +1,17 @@
+{
+  "description": "DELETE /admin/roles/{non-existent}",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/roles/no-such-role-20260520081722"
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

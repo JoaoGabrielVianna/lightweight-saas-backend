@@ -1,0 +1,18 @@
+{
+  "description": "POST /admin/users/:id/roles missing roles field",
+  "request": {
+    "method": "POST",
+    "path": "/admin/users/38e834e8-da0c-4fee-9dba-fee4ac1d0799/roles",
+    "body": {}
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

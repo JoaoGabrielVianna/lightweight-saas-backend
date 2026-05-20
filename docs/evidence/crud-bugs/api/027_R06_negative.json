@@ -1,0 +1,20 @@
+{
+  "description": "POST /admin/roles reserved name `offline_access`",
+  "request": {
+    "method": "POST",
+    "path": "/admin/roles",
+    "body": {
+      "name": "offline_access"
+    }
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

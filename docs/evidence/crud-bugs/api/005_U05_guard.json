@@ -1,0 +1,20 @@
+{
+  "description": "PATCH self-disable",
+  "request": {
+    "method": "PATCH",
+    "path": "/admin/users/ddc2cf1b-3735-4f4c-90b5-ed0c4e06ffe6",
+    "body": {
+      "enabled": false
+    }
+  },
+  "response": {
+    "status": 403,
+    "text": "{\"error\":\"forbidden\"}",
+    "json": {
+      "error": "forbidden"
+    }
+  },
+  "expected": [
+    403
+  ]
+}

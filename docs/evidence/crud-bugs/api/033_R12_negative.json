@@ -1,0 +1,21 @@
+{
+  "description": "PATCH /admin/roles with malformed name (space encoded)",
+  "request": {
+    "method": "PATCH",
+    "path": "/admin/roles/bad%20name%20with%20multiple%20spaces",
+    "body": {
+      "description": "x"
+    }
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    400,
+    404
+  ]
+}

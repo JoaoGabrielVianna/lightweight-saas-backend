@@ -1,0 +1,24 @@
+{
+  "description": "POST /admin/invitations expires_at in the past",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "destruct-20260520081722-b@example.com",
+      "roles": [
+        "user"
+      ],
+      "expires_at": "2020-01-01T00:00:00Z"
+    }
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

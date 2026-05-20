@@ -1,0 +1,18 @@
+{
+  "description": "DELETE /admin/users/{nonexistent-uuid}/sessions",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/users/00000000-0000-4000-8000-000000000000/sessions"
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    204,
+    404
+  ]
+}

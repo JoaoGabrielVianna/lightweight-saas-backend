@@ -1,0 +1,17 @@
+{
+  "description": "DELETE /admin/sessions/{random-uuid-that-doesn't-exist}",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/sessions/00000000-0000-4000-8000-000000000000"
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

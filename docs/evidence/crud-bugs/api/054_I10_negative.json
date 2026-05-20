@@ -1,0 +1,17 @@
+{
+  "description": "POST resend non-existent UUID",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations/00000000-0000-4000-8000-000000000000/resend"
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

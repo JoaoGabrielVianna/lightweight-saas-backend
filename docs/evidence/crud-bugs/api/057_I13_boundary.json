@@ -1,0 +1,17 @@
+{
+  "description": "Invitation past expires_at flips to status=expired",
+  "request": {
+    "method": "GET",
+    "path": "/admin/invitations"
+  },
+  "response": {
+    "status": 200,
+    "json": {
+      "status": "pending"
+    },
+    "text": "{\"id\": \"84d33628-00f0-4de6-a7f9-9143d84451b4\", \"email\": \"destruct-20260520081722-c@example.com\", \"username\": \"destruct-20260520081722-c@example.com\", \"required_actions\": [\"VERIFY_EMAIL\", \"UPDATE_PASSWORD\"], \"created_at\": \"2026-05-20T11:17:24.011Z\", \"status\": \"pending\"}"
+  },
+  "expected": [
+    200
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "description": "DELETE non-UUID",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/users/garbage"
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

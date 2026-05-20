@@ -1,0 +1,20 @@
+{
+  "description": "PATCH protected role `admin`",
+  "request": {
+    "method": "PATCH",
+    "path": "/admin/roles/admin",
+    "body": {
+      "description": "hijacked"
+    }
+  },
+  "response": {
+    "status": 403,
+    "text": "{\"error\":\"forbidden\"}",
+    "json": {
+      "error": "forbidden"
+    }
+  },
+  "expected": [
+    403
+  ]
+}

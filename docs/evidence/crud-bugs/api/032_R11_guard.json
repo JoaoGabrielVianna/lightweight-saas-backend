@@ -1,0 +1,20 @@
+{
+  "description": "PATCH built-in role `offline_access`",
+  "request": {
+    "method": "PATCH",
+    "path": "/admin/roles/offline_access",
+    "body": {
+      "description": "x"
+    }
+  },
+  "response": {
+    "status": 403,
+    "text": "{\"error\":\"forbidden\"}",
+    "json": {
+      "error": "forbidden"
+    }
+  },
+  "expected": [
+    403
+  ]
+}

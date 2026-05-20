@@ -1,0 +1,17 @@
+{
+  "description": "DELETE already-deleted session",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/sessions/a527eb5c-56c6-4320-b0fb-cc89b198691c"
+  },
+  "response": {
+    "status": 404,
+    "text": "{\"error\":\"not found\"}",
+    "json": {
+      "error": "not found"
+    }
+  },
+  "expected": [
+    404
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "description": "POST /admin/invitations roles=[]",
+  "request": {
+    "method": "POST",
+    "path": "/admin/invitations",
+    "body": {
+      "email": "destruct-20260520081722-b@example.com",
+      "roles": []
+    }
+  },
+  "response": {
+    "status": 400,
+    "text": "{\"error\":\"bad request\"}",
+    "json": {
+      "error": "bad request"
+    }
+  },
+  "expected": [
+    400
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "description": "DELETE protected role `admin`",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/roles/admin"
+  },
+  "response": {
+    "status": 403,
+    "text": "{\"error\":\"forbidden\"}",
+    "json": {
+      "error": "forbidden"
+    }
+  },
+  "expected": [
+    403
+  ]
+}

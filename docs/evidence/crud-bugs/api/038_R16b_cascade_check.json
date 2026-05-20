@@ -1,0 +1,6 @@
+{
+  "user_roles_after_role_delete": [
+    "default-roles-saas",
+    "user"
+  ]
+}

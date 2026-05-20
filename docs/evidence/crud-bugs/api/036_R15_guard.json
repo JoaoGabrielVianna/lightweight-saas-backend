@@ -1,0 +1,17 @@
+{
+  "description": "DELETE built-in role `uma_authorization`",
+  "request": {
+    "method": "DELETE",
+    "path": "/admin/roles/uma_authorization"
+  },
+  "response": {
+    "status": 403,
+    "text": "{\"error\":\"forbidden\"}",
+    "json": {
+      "error": "forbidden"
+    }
+  },
+  "expected": [
+    403
+  ]
+}
