@@ -17,7 +17,9 @@ package config
 import (
 	"io"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 	"github.com/gin-gonic/gin"
@@ -93,6 +95,27 @@ type Config struct {
 	// Driven by features.dev_playground in config/project.json.
 	DevPlaygroundEnabled  bool
 	DevPlaygroundClientID string
+
+	// AdminLiveCheckTTLSeconds bounds how long the live-admin authorization
+	// cache may serve a positive/negative answer before re-consulting
+	// Keycloak. The GAP-1 remediation (see docs/SECURITY_REMEDIATION_GAP1.md)
+	// closes the "stale JWT" window from `accessTokenLifespan` to this TTL
+	// for out-of-band role changes; in-band changes through /admin/* hit
+	// the invalidation hooks immediately.
+	//
+	// 0 or unset means "use auth.DefaultAdminTTL (30 s)". A value > 0 in
+	// seconds is honored verbatim.
+	AdminLiveCheckTTLSeconds int
+}
+
+// AdminLiveCheckTTL returns the configured live-admin cache TTL as a
+// time.Duration, falling back to a safe default when unset. Centralized so
+// the wiring layer doesn't repeat the zero-handling logic.
+func (c *Config) AdminLiveCheckTTL() time.Duration {
+	if c.AdminLiveCheckTTLSeconds <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(c.AdminLiveCheckTTLSeconds) * time.Second
 }
 
 // =====================================================
@@ -156,6 +179,7 @@ func LoadConfig() *Config {
 		KeycloakAdminBaseURL:      getEnv("KEYCLOAK_ADMIN_BASE_URL", ""),
 		DevPlaygroundEnabled:      parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
 		DevPlaygroundClientID:     getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
+		AdminLiveCheckTTLSeconds:  parseIntDefault(getEnv("ADMIN_LIVE_CHECK_TTL_SECONDS", ""), 0),
 	}
 
 	if cfg.KeycloakJWKSURL == "" && cfg.KeycloakURL != "" && cfg.KeycloakRealm != "" {
@@ -270,6 +294,20 @@ func parseBool(value string) bool {
 	default:
 		return false
 	}
+}
+
+// parseIntDefault parses value as a base-10 integer, returning fallback for
+// empty / unparseable input. Kept tolerant so a typo in an env var falls back
+// to the safe default rather than crashing the process at boot.
+func parseIntDefault(value string, fallback int) int {
+	if value == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 // parseCSV splits a comma-separated env-var value into a clean string slice:

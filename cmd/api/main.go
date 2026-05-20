@@ -46,14 +46,17 @@ func main() {
 	userHandler := server.SetupUser(db)
 
 	// Identity-management routes (admin-gated). When the admin client isn't
-	// configured this returns (nil, nil) and the router omits /users entirely.
-	identityHandler, err := server.SetupIdentity(cfg)
+	// configured this returns (nil, nil, nil) and the router omits /admin/*
+	// entirely. adminChecker is the GAP-1 live-admin authorization seam —
+	// non-nil whenever identity is configured. Passing it to SetupRoutes
+	// mounts RequireLiveAdmin on /admin/*.
+	identityHandler, adminChecker, err := server.SetupIdentity(cfg)
 	if err != nil {
 		log.Fatal("init identity: " + err.Error())
 	}
 
 	srv := server.NewServer(db, cfg)
-	srv.SetupRoutes(userHandler, identityHandler, provider)
+	srv.SetupRoutes(userHandler, identityHandler, provider, adminChecker)
 	srv.Start(cfg.Port)
 }
 

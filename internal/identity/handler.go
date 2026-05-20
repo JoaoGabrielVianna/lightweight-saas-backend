@@ -16,15 +16,34 @@ var log = logger.New("identity")
 
 // Handler is the HTTP-layer surface for the identity module. It owns no
 // state — every call delegates to Service.
+//
+// adminInvalidator is the GAP-1 invalidation hook: handlers that mutate role
+// membership or user enabled-state call it with the target's subject so the
+// auth-tier live-admin cache (internal/auth.CachedAdminChecker) refreshes
+// on the next request rather than serving stale "is admin" for up to its
+// TTL. nil-safe — defaults to NoopAdminInvalidator at construction.
 type Handler struct {
-	service *Service
+	service          *Service
+	adminInvalidator auth.AdminInvalidator
 }
 
 // NewHandler constructs a Handler. service may be nil; the caller is
 // expected to gate route registration on that condition (rather than
 // returning 500 from every endpoint).
 func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
+	return &Handler{service: service, adminInvalidator: auth.NoopAdminInvalidator{}}
+}
+
+// SetAdminInvalidator wires the live-admin-cache invalidation hook. Called
+// by the server-tier composition root after constructing the cached
+// checker. Passing nil reverts to the no-op invalidator so the handler
+// stays safe even if the wiring forgets to wire it.
+func (h *Handler) SetAdminInvalidator(inv auth.AdminInvalidator) {
+	if inv == nil {
+		h.adminInvalidator = auth.NoopAdminInvalidator{}
+		return
+	}
+	h.adminInvalidator = inv
 }
 
 // ListUsers handles GET /admin/users.
@@ -465,6 +484,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	// Disabling a user invalidates admin authorization for them; refresh the
+	// auth-tier live-admin cache so the change takes effect on the next
+	// request rather than after the cache TTL. Invalidate on success even
+	// when no enabled change happened — cheap, and avoids matching on the
+	// optional-pointer to decide.
+	h.adminInvalidator.Invalidate(targetID)
 	c.JSON(http.StatusOK, toUserResponse(*user))
 }
 
@@ -549,6 +574,8 @@ func (h *Handler) AssignRolesToUser(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	// Role grant may have flipped admin status — drop cached admin check.
+	h.adminInvalidator.Invalidate(targetID)
 	c.Status(http.StatusNoContent)
 }
 
@@ -582,6 +609,9 @@ func (h *Handler) UnassignRoleFromUser(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	// The GAP-1 hot path: revoking admin must stop authorizing the target's
+	// in-flight token at the next request, not after the cache TTL.
+	h.adminInvalidator.Invalidate(targetID)
 	c.Status(http.StatusNoContent)
 }
 
@@ -674,6 +704,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	h.adminInvalidator.Invalidate(targetID)
 	c.Status(http.StatusNoContent)
 }
 
@@ -702,6 +733,10 @@ func (h *Handler) DeleteRole(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	// Realm-role deletion is rare but invalidates the admin set globally
+	// (the role itself or any role that composes admin could be gone) — wipe
+	// the whole cache rather than try to enumerate affected subjects.
+	h.adminInvalidator.InvalidateAll()
 	c.Status(http.StatusNoContent)
 }
 
@@ -787,6 +822,8 @@ func (h *Handler) DeleteInvitation(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	// Invitations are users — deleting one removes the underlying subject.
+	h.adminInvalidator.Invalidate(targetID)
 	c.Status(http.StatusNoContent)
 }
 

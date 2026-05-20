@@ -18,13 +18,21 @@ import (
 //
 //	public         — /health, /swagger, /dev/auth/* (auth optional or none)
 //	private (auth) — every endpoint requires a valid bearer token
-//	admin          — private + RequireRole("admin")
+//	admin          — private + RequireRole("admin") + RequireLiveAdmin
 //
 // identityHandler may be nil when the admin client credentials aren't
 // configured. In that case the admin group simply isn't registered — clients
 // see 404 (not 403/503) and there's no way for unauthenticated probing to
 // confirm the feature would exist with different config.
-func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, provider auth.AuthProvider) {
+//
+// adminChecker is the live-admin authorization seam (GAP-1 remediation). It
+// MUST be non-nil whenever identityHandler is non-nil; the wiring layer in
+// SetupRoutes builds the cached checker on top of the identity provider and
+// passes it through here. Mounting RequireLiveAdmin after RequireRole keeps
+// the JWT-claim short-circuit (cheap non-admin denial) and only consults
+// Keycloak for tokens whose claim says they SHOULD pass — collapsing the
+// out-of-band revocation window from accessTokenLifespan to the cache TTL.
+func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, provider auth.AuthProvider, adminChecker auth.AdminChecker) {
 	// Public routes (none today — Keycloak handles login). Reserved for
 	// public health/info endpoints.
 
@@ -43,6 +51,9 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 		admin := router.Group("/admin")
 		admin.Use(auth.RequireAuth(provider))
 		admin.Use(auth.RequireRole("admin"))
+		if adminChecker != nil {
+			admin.Use(auth.RequireLiveAdmin(adminChecker))
+		}
 		{
 			// Users
 			admin.GET("/users", identityHandler.ListUsers)
