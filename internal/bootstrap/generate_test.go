@@ -23,9 +23,10 @@ func freshConfig() *ProjectConfig {
 
 func freshSecrets() Secrets {
 	return Secrets{
-		AdminPassword:    "supersecret-admin",
-		ClientSecret:     "supersecret-client",
-		SeedUserPassword: "supersecret-seed",
+		AdminPassword:     "supersecret-admin",
+		ClientSecret:      "supersecret-client",
+		SeedUserPassword:  "supersecret-seed",
+		AdminClientSecret: "supersecret-admin-client",
 	}
 }
 
@@ -197,9 +198,20 @@ func TestGenerateRealmExport_EmitsDevPlaygroundClient_WhenFeatureOn(t *testing.T
 	if len(redirects) == 0 {
 		t.Errorf("playground client needs at least one redirect URI")
 	}
+	// Both frontends (/dev/auth + /admin) share this PKCE client; ensure
+	// each redirect target is registered.
+	wantTargets := map[string]bool{"/dev/auth": false, "/admin": false}
 	for _, r := range redirects {
-		if !strings.Contains(r.(string), "/dev/auth") {
-			t.Errorf("redirect URI %q should target /dev/auth", r)
+		uri := r.(string)
+		for target := range wantTargets {
+			if strings.Contains(uri, target) {
+				wantTargets[target] = true
+			}
+		}
+	}
+	for target, seen := range wantTargets {
+		if !seen {
+			t.Errorf("redirect URI for %q is missing from %v", target, redirects)
 		}
 	}
 }
@@ -271,6 +283,150 @@ func TestGenerateEnv_WritesKeycloakAllowedClientIDs(t *testing.T) {
 	want := "KEYCLOAK_ALLOWED_CLIENT_IDS=" + cfg.Auth.Client.ID + "," + DevPlaygroundClientID
 	if !strings.Contains(env, want) {
 		t.Errorf(".env missing %q\nfile:\n%s", want, env)
+	}
+}
+
+func TestGenerateRealmExport_EmitsIdentityAdminClient_WhenFeatureOn(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "config", "deploy/keycloak")
+	cfg := freshConfig()
+	cfg.Features["identity_management"] = true
+
+	if err := GenerateAll(root, cfg, freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(root, "deploy/keycloak/realm-export.json"))
+	var realm map[string]any
+	if err := json.Unmarshal(raw, &realm); err != nil {
+		t.Fatalf("parse realm: %v", err)
+	}
+
+	// 1. Admin client must be in the clients array.
+	clients, _ := realm["clients"].([]any)
+	var admin map[string]any
+	for _, c := range clients {
+		if m, _ := c.(map[string]any); m["clientId"] == IdentityAdminClientID {
+			admin = m
+		}
+	}
+	if admin == nil {
+		t.Fatalf("identity-admin client %q missing from clients", IdentityAdminClientID)
+	}
+
+	// Critical attributes — these gate the entire Sprint 5.1 admin API.
+	if admin["publicClient"] != false {
+		t.Errorf("admin client must be confidential")
+	}
+	if admin["serviceAccountsEnabled"] != true {
+		t.Errorf("admin client must have serviceAccountsEnabled=true")
+	}
+	if admin["standardFlowEnabled"] != false {
+		t.Errorf("admin client must have standardFlowEnabled=false (no user-facing flows)")
+	}
+	if admin["directAccessGrantsEnabled"] != false {
+		t.Errorf("admin client must have directAccessGrantsEnabled=false (no password grant)")
+	}
+	if admin["secret"] == "" || admin["secret"] == nil {
+		t.Errorf("admin client must carry a secret")
+	}
+
+	// 2. The service-account user must exist and be bound to the admin
+	//    client with realm-management → realm-admin role.
+	users, _ := realm["users"].([]any)
+	var svc map[string]any
+	for _, u := range users {
+		if m, _ := u.(map[string]any); m["serviceAccountClientId"] == IdentityAdminClientID {
+			svc = m
+		}
+	}
+	if svc == nil {
+		t.Fatalf("service-account user for %q missing — admin API calls would 403 at boot", IdentityAdminClientID)
+	}
+	cr, _ := svc["clientRoles"].(map[string]any)
+	rm, _ := cr["realm-management"].([]any)
+	hasAdmin := false
+	for _, r := range rm {
+		if r == "realm-admin" {
+			hasAdmin = true
+		}
+	}
+	if !hasAdmin {
+		t.Errorf("service-account must have realm-management→realm-admin; got %v", cr)
+	}
+}
+
+func TestGenerateRealmExport_OmitsIdentityAdminClient_WhenFeatureOff(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "config", "deploy/keycloak")
+	cfg := freshConfig()
+	cfg.Features["identity_management"] = false
+
+	if err := GenerateAll(root, cfg, freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(root, "deploy/keycloak/realm-export.json"))
+	var realm map[string]any
+	_ = json.Unmarshal(raw, &realm)
+
+	for _, c := range realm["clients"].([]any) {
+		if m, _ := c.(map[string]any); m["clientId"] == IdentityAdminClientID {
+			t.Errorf("admin client must not be present when feature is off")
+		}
+	}
+	for _, u := range realm["users"].([]any) {
+		if m, _ := u.(map[string]any); m["serviceAccountClientId"] == IdentityAdminClientID {
+			t.Errorf("service-account user must not be present when feature is off")
+		}
+	}
+}
+
+func TestGenerateEnv_WritesIdentityAdminCreds(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "config", "deploy/keycloak")
+
+	// feature ON → vars populated with the admin client id + secret
+	on := freshConfig()
+	on.Features["identity_management"] = true
+	if err := GenerateAll(root, on, freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll on: %v", err)
+	}
+	envOn, _ := os.ReadFile(filepath.Join(root, ".env"))
+	for _, must := range []string{
+		"KEYCLOAK_ADMIN_CLIENT_ID=" + IdentityAdminClientID,
+		"KEYCLOAK_ADMIN_CLIENT_SECRET=" + freshSecrets().AdminClientSecret,
+	} {
+		if !strings.Contains(string(envOn), must) {
+			t.Errorf(".env missing %q\nfile:\n%s", must, envOn)
+		}
+	}
+
+	// feature OFF → vars present but empty (so docker-compose interpolation
+	// doesn't fail; the API will treat empty as "admin disabled")
+	off := freshConfig()
+	off.Features["identity_management"] = false
+	if err := GenerateAll(root, off, freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll off: %v", err)
+	}
+	envOff, _ := os.ReadFile(filepath.Join(root, ".env"))
+	if !strings.Contains(string(envOff), "KEYCLOAK_ADMIN_CLIENT_ID=\n") {
+		t.Errorf("admin client id should be empty when feature off:\n%s", envOff)
+	}
+}
+
+func TestLoadSecrets_ReadsAdminClientSecret(t *testing.T) {
+	root := t.TempDir()
+	envContent := "" +
+		"KEYCLOAK_ADMIN_CLIENT_SECRET=from-env-admin-client\n" +
+		"KEYCLOAK_CLIENT_SECRET=from-env-token-client\n"
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte(envContent), 0o600); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+	s := LoadSecrets(root)
+	if s.AdminClientSecret != "from-env-admin-client" {
+		t.Errorf("admin client secret: got %q", s.AdminClientSecret)
+	}
+	if s.ClientSecret != "from-env-token-client" {
+		t.Errorf("token client secret: got %q", s.ClientSecret)
 	}
 }
 

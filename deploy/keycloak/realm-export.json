@@ -20,19 +20,32 @@
       ]
     },
     {
-      "attributes": {
-        "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:8080/dev/auth"
-      },
-      "clientId": "saas-dev-playground",
-      "description": "DEV-ONLY public PKCE client for the in-browser auth playground at /dev/auth. Disable in non-local environments.",
+      "clientId": "saas-backend-admin",
+      "description": "Service-account client used by the API to call Keycloak's Admin REST API. No user-facing flows.",
       "directAccessGrantsEnabled": false,
       "enabled": true,
-      "name": "lightweight-saas-backend — Dev Auth Playground",
+      "name": "lightweight-saas-backend — Identity Admin",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "saas-backend-admin-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false
+    },
+    {
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/dev/auth+http://localhost:8080/admin"
+      },
+      "clientId": "saas-dev-playground",
+      "description": "DEV-ONLY public PKCE client used by both the legacy /dev/auth playground and the new /admin console. Disable in non-local environments.",
+      "directAccessGrantsEnabled": false,
+      "enabled": true,
+      "name": "lightweight-saas-backend — Dev Auth Playground + Admin Console",
       "protocol": "openid-connect",
       "publicClient": true,
       "redirectUris": [
-        "http://localhost:8080/dev/auth"
+        "http://localhost:8080/dev/auth",
+        "http://localhost:8080/admin"
       ],
       "serviceAccountsEnabled": false,
       "standardFlowEnabled": true,
@@ -101,6 +114,17 @@
         "user"
       ],
       "username": "adminuser"
+    },
+    {
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      },
+      "emailVerified": true,
+      "enabled": true,
+      "serviceAccountClientId": "saas-backend-admin",
+      "username": "service-account-saas-backend-admin"
     }
   ]
 }

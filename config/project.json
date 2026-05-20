@@ -30,7 +30,8 @@
     "multi_tenant": true,
     "seed_users": true,
     "swagger": true,
-    "dev_playground": true
+    "dev_playground": true,
+    "identity_management": true
   },
   "seed_users": [
     {

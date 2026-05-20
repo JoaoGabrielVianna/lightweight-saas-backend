@@ -15,20 +15,30 @@ import (
 // whether it's registered at all.
 const DevPlaygroundClientID = "saas-dev-playground"
 
+// IdentityAdminClientID is the confidential OIDC client whose service-account
+// the API uses to call Keycloak's Admin REST API for identity management
+// (users, roles, sessions, password actions). Separate from the
+// auth.client.id (saas-backend) so the token-validation client and the
+// admin client have independent secrets and can be rotated independently.
+// Registered only when features.identity_management=true.
+const IdentityAdminClientID = "saas-backend-admin"
+
 // Secrets are the credentials that never enter project.json. They are read
 // from .env on regen and prompted for on `make init`.
 type Secrets struct {
-	AdminPassword    string
-	ClientSecret     string
-	SeedUserPassword string
+	AdminPassword     string // Keycloak bootstrap admin password
+	ClientSecret      string // saas-backend confidential client secret
+	SeedUserPassword  string // shared password for seed_users[]
+	AdminClientSecret string // saas-backend-admin service-account secret
 }
 
 // defaultSecrets returns dev-friendly placeholders used when no .env exists.
 func defaultSecrets() Secrets {
 	return Secrets{
-		AdminPassword:    "admin",
-		ClientSecret:     "saas-backend-secret",
-		SeedUserPassword: "password",
+		AdminPassword:     "admin",
+		ClientSecret:      "saas-backend-secret",
+		SeedUserPassword:  "password",
+		AdminClientSecret: "saas-backend-admin-secret",
 	}
 }
 
@@ -63,6 +73,10 @@ func LoadSecrets(repoRoot string) Secrets {
 		case "SEED_USER_PASSWORD":
 			if v != "" {
 				s.SeedUserPassword = v
+			}
+		case "KEYCLOAK_ADMIN_CLIENT_SECRET":
+			if v != "" {
+				s.AdminClientSecret = v
 			}
 		}
 	}
@@ -158,7 +172,16 @@ func writeEnv(path string, cfg *ProjectConfig, secrets Secrets, annotate bool) e
 	} else {
 		b.WriteString("DEV_PLAYGROUND_ENABLED=false\n")
 	}
-	b.WriteString(fmt.Sprintf("DEV_PLAYGROUND_CLIENT_ID=%s\n", DevPlaygroundClientID))
+	b.WriteString(fmt.Sprintf("DEV_PLAYGROUND_CLIENT_ID=%s\n\n", DevPlaygroundClientID))
+
+	hdr("IDENTITY MANAGEMENT (Keycloak Admin API)\n# Driven by features.identity_management in config/project.json.\n# Credentials for the service-account client used by /users, /roles, /sessions, /me endpoints.")
+	if cfg.Features["identity_management"] {
+		b.WriteString(fmt.Sprintf("KEYCLOAK_ADMIN_CLIENT_ID=%s\n", IdentityAdminClientID))
+		b.WriteString(fmt.Sprintf("KEYCLOAK_ADMIN_CLIENT_SECRET=%s\n", secrets.AdminClientSecret))
+	} else {
+		b.WriteString("KEYCLOAK_ADMIN_CLIENT_ID=\n")
+		b.WriteString("KEYCLOAK_ADMIN_CLIENT_SECRET=\n")
+	}
 
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
@@ -197,6 +220,29 @@ func writeRealmExport(path string, cfg *ProjectConfig, secrets Secrets) error {
 
 	clients := []map[string]any{client}
 
+	// When features.identity_management is on, register a confidential
+	// service-account client. The API uses this client's credentials to
+	// call Keycloak's Admin REST API (users, roles, sessions, password
+	// actions). Separate from the token-validation client (saas-backend)
+	// so a leak of one secret doesn't compromise the other capability.
+	//
+	// No user-facing flows (standardFlow + directAccessGrants both off)
+	// — this client exists solely for the client_credentials grant.
+	if cfg.Features["identity_management"] {
+		clients = append(clients, map[string]any{
+			"clientId":                  IdentityAdminClientID,
+			"name":                      cfg.Project.Name + " — Identity Admin",
+			"description":               "Service-account client used by the API to call Keycloak's Admin REST API. No user-facing flows.",
+			"enabled":                   true,
+			"protocol":                  "openid-connect",
+			"publicClient":              false,
+			"secret":                    secrets.AdminClientSecret,
+			"standardFlowEnabled":       false,
+			"directAccessGrantsEnabled": false,
+			"serviceAccountsEnabled":    true,
+		})
+	}
+
 	// When features.dev_playground is on, register a SECOND public client
 	// for the in-browser auth playground at /dev/auth. Public-PKCE-only:
 	// no client secret, S256 challenge enforced. Mirrors how a real
@@ -204,21 +250,26 @@ func writeRealmExport(path string, cfg *ProjectConfig, secrets Secrets) error {
 	if cfg.Features["dev_playground"] {
 		clients = append(clients, map[string]any{
 			"clientId":                  DevPlaygroundClientID,
-			"name":                      cfg.Project.Name + " — Dev Auth Playground",
-			"description":               "DEV-ONLY public PKCE client for the in-browser auth playground at /dev/auth. Disable in non-local environments.",
+			"name":                      cfg.Project.Name + " — Dev Auth Playground + Admin Console",
+			"description":               "DEV-ONLY public PKCE client used by both the legacy /dev/auth playground and the new /admin console. Disable in non-local environments.",
 			"enabled":                   true,
 			"protocol":                  "openid-connect",
 			"publicClient":              true,
 			"standardFlowEnabled":       true,
 			"directAccessGrantsEnabled": false,
 			"serviceAccountsEnabled":    false,
+			// Two redirect URIs because the same PKCE client backs two
+			// frontends now: the original playground at /dev/auth and the
+			// IAM admin console at /admin. Both are local-dev-only.
 			"redirectUris": []string{
 				fmt.Sprintf("http://localhost:%d/dev/auth", cfg.Ports.API),
+				fmt.Sprintf("http://localhost:%d/admin", cfg.Ports.API),
 			},
 			"webOrigins": []string{fmt.Sprintf("http://localhost:%d", cfg.Ports.API)},
 			"attributes": map[string]any{
 				"pkce.code.challenge.method": "S256",
-				"post.logout.redirect.uris":  fmt.Sprintf("http://localhost:%d/dev/auth", cfg.Ports.API),
+				// Keycloak accepts a "+"-separated list here.
+				"post.logout.redirect.uris": fmt.Sprintf("http://localhost:%d/dev/auth+http://localhost:%d/admin", cfg.Ports.API, cfg.Ports.API),
 			},
 		})
 	}
@@ -244,6 +295,29 @@ func writeRealmExport(path string, cfg *ProjectConfig, secrets Secrets) error {
 				"realmRoles": u.Roles,
 			})
 		}
+	}
+
+	// Service-account user for the identity-admin client. Keycloak auto-
+	// creates this user when serviceAccountsEnabled=true, but in a realm
+	// IMPORT we have to declare it explicitly to bind the realm-management
+	// client roles up front. Without this block the service account would
+	// be created at first boot with NO admin roles and every admin call
+	// would 403.
+	//
+	// realm-admin is the umbrella role under realm-management; it covers
+	// view-users / manage-users / view-realm / manage-realm / etc. We use
+	// the umbrella for simplicity; production deployments may want to
+	// scope down to the specific roles their identity flows actually need.
+	if cfg.Features["identity_management"] {
+		users = append(users, map[string]any{
+			"username":               "service-account-" + IdentityAdminClientID,
+			"enabled":                true,
+			"emailVerified":          true,
+			"serviceAccountClientId": IdentityAdminClientID,
+			"clientRoles": map[string]any{
+				"realm-management": []string{"realm-admin"},
+			},
+		})
 	}
 
 	// NOTE: Keycloak's realm parser rejects unknown top-level fields, so the
