@@ -1,8 +1,8 @@
 # Audit Wiring — v0.2 Mutation Coverage
 
 This doc records how every admin-driven mutation is wired to the audit
-subsystem ([`internal/audit`](../internal/audit)) via the
-[`internal/logging`](../internal/logging) sink. It is the companion to
+subsystem ([`internal/audit`](../../internal/audit)) via the
+[`internal/logging`](../../internal/logging) sink. It is the companion to
 [`docs/AUDIT_EVENTS.md`](AUDIT_EVENTS.md) (which defines the model and
 the action vocabulary). If you're adding a new mutation handler, the
 checklist at the bottom is the contract you must satisfy.
@@ -11,12 +11,12 @@ checklist at the bottom is the contract you must satisfy.
 
 | Concern                          | Status                                         |
 |----------------------------------|------------------------------------------------|
-| Event model + action constants   | ✅ shipped — [`internal/audit/event.go`](../internal/audit/event.go) |
-| Recorder registry                | ✅ shipped — [`internal/audit/recorder.go`](../internal/audit/recorder.go) |
-| Structured-log sink              | ✅ shipped — [`internal/logging/audit_sink.go`](../internal/logging/audit_sink.go) |
+| Event model + action constants   | ✅ shipped — [`internal/audit/event.go`](../../internal/audit/event.go) |
+| Recorder registry                | ✅ shipped — [`internal/audit/recorder.go`](../../internal/audit/recorder.go) |
+| Structured-log sink              | ✅ shipped — [`internal/logging/audit_sink.go`](../../internal/logging/audit_sink.go) |
 | Bootstrap registration           | ✅ wired in `cmd/api/main.go` via `logging.WireDefault()` |
-| Mutation call-site emission      | ✅ all 13 handlers in [`internal/identity/handler.go`](../internal/identity/handler.go) |
-| Required-fields invariant tests  | ✅ [`internal/identity/handler_audit_test.go`](../internal/identity/handler_audit_test.go) |
+| Mutation call-site emission      | ✅ all 13 handlers in [`internal/identity/handler.go`](../../internal/identity/handler.go) |
+| Required-fields invariant tests  | ✅ [`internal/identity/handler_audit_test.go`](../../internal/identity/handler_audit_test.go) |
 | Persisted `audit_log` table      | ⏳ Sprint 4 — out of v0.2 scope                |
 
 ## Invariants (per mission)
@@ -37,7 +37,7 @@ Failures MUST additionally emit:
 
 - **reason** — `err.Error()` of whatever the service returned.
 
-The helper [`logging.RecordMutation`](../internal/logging/gin_helpers.go)
+The helper [`logging.RecordMutation`](../../internal/logging/gin_helpers.go)
 encapsulates the success / failure branch so the 13 call sites can't
 drift apart:
 
@@ -103,7 +103,7 @@ don't care about).
 
 ## Test coverage
 
-[`internal/identity/handler_audit_test.go`](../internal/identity/handler_audit_test.go)
+[`internal/identity/handler_audit_test.go`](../../internal/identity/handler_audit_test.go)
 exercises every mutation handler with:
 
 - A capturing `audit.Recorder` swapped in via `audit.SetDefault`.
@@ -122,8 +122,8 @@ upstream error message:
 - `TestAudit_CreateRole_Failure_StillEmitsForBothInvitationAndUser`
 
 Helper-level tests for the sink and dispatcher live in
-[`internal/logging/audit_sink_test.go`](../internal/logging/audit_sink_test.go)
-and [`internal/audit/recorder_test.go`](../internal/audit/recorder_test.go).
+[`internal/logging/audit_sink_test.go`](../../internal/logging/audit_sink_test.go)
+and [`internal/audit/recorder_test.go`](../../internal/audit/recorder_test.go).
 
 Run the audit slice alone with:
 
@@ -135,7 +135,7 @@ go test ./internal/audit/... ./internal/logging/... \
 ## Checklist — adding a new mutation handler
 
 1. Pick (or add) an `audit.Action*` constant in
-   [`internal/audit/event.go`](../internal/audit/event.go). Lowercase
+   [`internal/audit/event.go`](../../internal/audit/event.go). Lowercase
    `kind.verb` form.
 2. After calling the service, emit:
    ```go
@@ -157,7 +157,7 @@ go test ./internal/audit/... ./internal/logging/... \
    ```
 4. Add a success-path and (when the failure mode is observable in tests)
    a failure-path test in
-   [`internal/identity/handler_audit_test.go`](../internal/identity/handler_audit_test.go).
+   [`internal/identity/handler_audit_test.go`](../../internal/identity/handler_audit_test.go).
 5. Update the handler→action table above.
 
 ## Forward path (Sprint 4)

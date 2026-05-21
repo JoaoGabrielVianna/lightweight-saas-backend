@@ -80,15 +80,15 @@ immediately so in-band changes take effect on the next request.
 
 | File | Change |
 |------|--------|
-| [internal/auth/admin_check.go](../internal/auth/admin_check.go) | **NEW.** `AdminChecker` interface, `AdminInvalidator` interface, `NoopAdminInvalidator`, `CachedAdminChecker` (TTL cache, concurrent-safe, injectable clock), `RequireLiveAdmin` middleware. |
-| [internal/auth/admin_check_test.go](../internal/auth/admin_check_test.go) | **NEW.** 16 unit tests covering middleware behavior, cache TTL semantics, fail-closed on upstream error, distinct denial telemetry, and the composed `RequireRole + RequireLiveAdmin` gate (GAP-1 attack reproduced in-process). |
-| [internal/identity/handler.go](../internal/identity/handler.go) | Handler gains `adminInvalidator` field + `SetAdminInvalidator(nil-safe)`. `UpdateUser`, `AssignRolesToUser`, `UnassignRoleFromUser`, `DeleteUser`, `DeleteInvitation` invalidate the target subject after success; `DeleteRole` calls `InvalidateAll` (role-graph change). |
-| [internal/identity/handler_admin_invalidation_test.go](../internal/identity/handler_admin_invalidation_test.go) | **NEW.** Asserts each mutation handler invokes the invalidator (and that failure paths do NOT). |
-| [internal/server/router.go](../internal/server/router.go) | `SetupRouter` accepts an `auth.AdminChecker`; mounts `RequireLiveAdmin` on the `/admin/*` group after `RequireRole("admin")`. |
-| [internal/server/server.go](../internal/server/server.go) | `SetupIdentity` returns `(*identity.Handler, *auth.CachedAdminChecker, error)`. Builds the cached checker from an in-tier adapter over `IdentityProvider.ListUserRoles` and wires it both into the router and into the handler's invalidator slot. |
-| [internal/config/config.go](../internal/config/config.go) | New optional `ADMIN_LIVE_CHECK_TTL_SECONDS` env var (default 30s). |
-| [cmd/api/main.go](../cmd/api/main.go) | Threads the new return value through `SetupRoutes`. |
-| [scripts/security_gap1_check.sh](../scripts/security_gap1_check.sh) | **NEW.** Focused live-stack validation: 11 probes covering baseline / grant / promoted-token-works / revoke / **stale-token-now-rejected (G1.6 + G1.7)** / current-admin-still-works / normal-user-still-denied / `/me`-unaffected. |
+| [internal/auth/admin_check.go](../../internal/auth/admin_check.go) | **NEW.** `AdminChecker` interface, `AdminInvalidator` interface, `NoopAdminInvalidator`, `CachedAdminChecker` (TTL cache, concurrent-safe, injectable clock), `RequireLiveAdmin` middleware. |
+| [internal/auth/admin_check_test.go](../../internal/auth/admin_check_test.go) | **NEW.** 16 unit tests covering middleware behavior, cache TTL semantics, fail-closed on upstream error, distinct denial telemetry, and the composed `RequireRole + RequireLiveAdmin` gate (GAP-1 attack reproduced in-process). |
+| [internal/identity/handler.go](../../internal/identity/handler.go) | Handler gains `adminInvalidator` field + `SetAdminInvalidator(nil-safe)`. `UpdateUser`, `AssignRolesToUser`, `UnassignRoleFromUser`, `DeleteUser`, `DeleteInvitation` invalidate the target subject after success; `DeleteRole` calls `InvalidateAll` (role-graph change). |
+| [internal/identity/handler_admin_invalidation_test.go](../../internal/identity/handler_admin_invalidation_test.go) | **NEW.** Asserts each mutation handler invokes the invalidator (and that failure paths do NOT). |
+| [internal/server/router.go](../../internal/server/router.go) | `SetupRouter` accepts an `auth.AdminChecker`; mounts `RequireLiveAdmin` on the `/admin/*` group after `RequireRole("admin")`. |
+| [internal/server/server.go](../../internal/server/server.go) | `SetupIdentity` returns `(*identity.Handler, *auth.CachedAdminChecker, error)`. Builds the cached checker from an in-tier adapter over `IdentityProvider.ListUserRoles` and wires it both into the router and into the handler's invalidator slot. |
+| [internal/config/config.go](../../internal/config/config.go) | New optional `ADMIN_LIVE_CHECK_TTL_SECONDS` env var (default 30s). |
+| [cmd/api/main.go](../../cmd/api/main.go) | Threads the new return value through `SetupRoutes`. |
+| [scripts/security_gap1_check.sh](../../scripts/security_gap1_check.sh) | **NEW.** Focused live-stack validation: 11 probes covering baseline / grant / promoted-token-works / revoke / **stale-token-now-rejected (G1.6 + G1.7)** / current-admin-still-works / normal-user-still-denied / `/me`-unaffected. |
 | [docs/SECURITY_GAPS.md](SECURITY_GAPS.md) | GAP-1 status updated to **FIXED** with cross-link to this document. |
 
 ---
@@ -166,7 +166,7 @@ $ make ci
 ### 4.3 Live-stack validation
 
 Reproduces the original GAP-1 attack flow against the running stack (see
-[scripts/security_gap1_check.sh](../scripts/security_gap1_check.sh) for the
+[scripts/security_gap1_check.sh](../../scripts/security_gap1_check.sh) for the
 host-runnable version; the canonical results below were captured with a
 docker-network sidecar because the host port 8080 was held by an unrelated
 local process during the run):
@@ -193,7 +193,7 @@ TOTAL: 11   PASS: 11   FAIL: 0
 Result: PASS — GAP-1 closed
 ```
 
-Evidence files: [docs/evidence/security/gaps/remediation/](evidence/security/gaps/remediation/).
+Evidence files: [docs/evidence/security/gaps/remediation/](../evidence/security/gaps/remediation/).
 
 API-side audit log lines corresponding to the GAP-1 denials (the
 `live admin check denied` marker is the GAP-1 fingerprint that ops
@@ -255,7 +255,7 @@ change.
 
 | Gate | Pre-fix | Post-fix |
 |------|---------|----------|
-| Functional ([FINAL_SMOKE.md](FINAL_SMOKE.md)) | GO | GO |
+| Functional ([FINAL_SMOKE.md](../release/FINAL_SMOKE.md)) | GO | GO |
 | Security ([SECURITY_GAPS.md](SECURITY_GAPS.md)) | **NO-GO for IAM-grade ops** | **GO** for IAM admin surface |
 
 The single HIGH-severity finding that gated NO-GO has been closed,

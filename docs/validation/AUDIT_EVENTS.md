@@ -32,7 +32,7 @@ Two optional fields exist for nuance:
 ## Action vocabulary
 
 Defined as `audit.Action` constants in
-[`internal/audit/event.go`](../internal/audit/event.go).
+[`internal/audit/event.go`](../../internal/audit/event.go).
 
 ### User mutations
 - `user.created`
@@ -163,10 +163,10 @@ Mapping of handler → action:
 
 ## Testing
 
-Unit tests in [`internal/audit/recorder_test.go`](../internal/audit/recorder_test.go)
+Unit tests in [`internal/audit/recorder_test.go`](../../internal/audit/recorder_test.go)
 cover the dispatcher (timestamp stamping, recorder swap, concurrent
 emission). Sink tests in
-[`internal/logging/audit_sink_test.go`](../internal/logging/audit_sink_test.go)
+[`internal/logging/audit_sink_test.go`](../../internal/logging/audit_sink_test.go)
 verify the on-disk JSON shape round-trips.
 
 Integration tests for mutation handlers should register a capturing

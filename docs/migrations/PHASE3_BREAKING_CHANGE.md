@@ -119,7 +119,7 @@ There is no rollback to Phase 2 short of `git revert` + `docker-compose down -v`
 - [x] `go test ./...` (41 tests total: 11 provider + 21 bootstrap + 9 user)
 - [x] `docker-compose config` parses cleanly
 - [x] `docker-compose up -d` (full stack runs — all 4 containers healthy)
-- [x] Keycloak token → `/me` works (see [VALIDATION_PHASE3.md](../VALIDATION_PHASE3.md) §3)
+- [x] Keycloak token → `/me` works (see [VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md) §3)
 - [x] Second + third `/me` calls return the same local `id` (stable identity verified)
 - [x] No duplicate local rows under repeated logins (DB row count = 1 per subject)
 - [x] Two distinct subjects yield two distinct local IDs (no collision)

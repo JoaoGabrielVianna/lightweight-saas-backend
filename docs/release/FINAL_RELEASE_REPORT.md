@@ -4,7 +4,7 @@
 **Auditor:** Agent E — Release Manager / Technical Auditor
 **Branch under audit:** `milestone/auth-v1`
 **Scope:** Independent gate review for the v0.2.0 (Identity Management) milestone. Consolidates and re-verifies the validation work of Agents A–D against the live tree.
-**Predecessor reports:** [RC1_REPORT.md](RC1_REPORT.md), [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
+**Predecessor reports:** [RC1_REPORT.md](RC1_REPORT.md), [KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
 
 ---
 
@@ -36,8 +36,8 @@ RC1 (closed earlier today) was a coordinator roll-up of four parallel agents. Th
 - Re-ran `go test ./... -count=1` end-to-end (RC1 quoted FINAL_SMOKE.md; this audit ran it).
 - Re-ran the audit-slice with `-race` (closes RC1's `FS-4` flake question — clean).
 - Ran `go vet ./...` (clean) and `gofmt -l` (found the new finding below).
-- Grepped the actual source to verify the audit-wiring claims in [AUDIT_WIRING.md](AUDIT_WIRING.md) — confirmed 14 emission sites across 13 handlers, `WireDefault()` at `cmd/api/main.go:44`.
-- Grepped `docker-compose.yml` + `realm-export.json` to verify the SMTP fix claimed in [CRUD_VALIDATION.md](CRUD_VALIDATION.md) — confirmed.
+- Grepped the actual source to verify the audit-wiring claims in [AUDIT_WIRING.md](../validation/AUDIT_WIRING.md) — confirmed 14 emission sites across 13 handlers, `WireDefault()` at `cmd/api/main.go:44`.
+- Grepped `docker-compose.yml` + `realm-export.json` to verify the SMTP fix claimed in [CRUD_VALIDATION.md](../validation/CRUD_VALIDATION.md) — confirmed.
 
 Nothing in this audit was taken on trust from any prior agent report. Every claim used for the verdict was re-verified against the live tree.
 
@@ -53,7 +53,7 @@ Items that are validated, tested, documented, and safe to ship as part of v0.2.0
 - Mounted only when `features.identity_management: true` in `config/project.json`.
 - Group-level RBAC: every route runs `RequireAuth` + `RequireRole("admin")`.
 - Race-safe under concurrent admin actions (1×201 / 9×409 on parallel POSTs of the same role name — Agent A T5).
-- Validated end-to-end by Agent A's `validate.py` driver: **35/35 PASS, 0 FAIL, 0 PARTIAL** ([CRUD_VALIDATION.md](CRUD_VALIDATION.md)).
+- Validated end-to-end by Agent A's `validate.py` driver: **35/35 PASS, 0 FAIL, 0 PARTIAL** ([CRUD_VALIDATION.md](../validation/CRUD_VALIDATION.md)).
 
 ### 3.2 RBAC primitives (`internal/auth`)
 
@@ -71,7 +71,7 @@ Items that are validated, tested, documented, and safe to ship as part of v0.2.0
 
 ### 3.4 Invitation reliability hardening
 
-Three pre-v0.2 failure modes closed (Agent C — [INVITATION_RELIABILITY_v0.2.md](INVITATION_RELIABILITY_v0.2.md)):
+Three pre-v0.2 failure modes closed (Agent C — [INVITATION_RELIABILITY_v0.2.md](../validation/INVITATION_RELIABILITY_v0.2.md)):
 
 1. **Compensating DELETE** on partial `CreateInvitation`; runs on fresh `context.Background()` with 5 s timeout so a cancelled caller context doesn't suppress the rollback.
 2. **`ResendInvitation` respects user state**: returns `ErrConflict` (HTTP 409) for disabled users or users with no pending invite actions; otherwise PUTs only the intersection of `{VERIFY_EMAIL, UPDATE_PASSWORD}` with the user's pending actions.
@@ -79,7 +79,7 @@ Three pre-v0.2 failure modes closed (Agent C — [INVITATION_RELIABILITY_v0.2.md
 
 9 new contract-changing tests cover all three; one prior test that asserted the bug was replaced.
 
-### 3.5 Audit / observability ([AUDIT_EVENTS.md](AUDIT_EVENTS.md), [AUDIT_WIRING.md](AUDIT_WIRING.md))
+### 3.5 Audit / observability ([AUDIT_EVENTS.md](../validation/AUDIT_EVENTS.md), [AUDIT_WIRING.md](../validation/AUDIT_WIRING.md))
 
 - `internal/audit` package: provider-agnostic event model (`Actor`, `Action`, `Target`, `Timestamp`, `IP`, `Reason`, `Extra`), 13 canonical action constants, swappable `Recorder` registry.
 - `internal/logging`: `AuditSink` writes one JSON-per-line entry prefixed with `audit ` to the project logger; `gin_helpers.go` extracts Actor + IP from `*gin.Context`; `RecordMutation(c, action, target, err)` encapsulates the success / failure branch.
@@ -100,7 +100,7 @@ Three pre-v0.2 failure modes closed (Agent C — [INVITATION_RELIABILITY_v0.2.md
 
 ### 3.8 Documentation + evidence
 
-- README banner / API surface / project layout updated for v0.2 ([README.md](../README.md)).
+- README banner / API surface / project layout updated for v0.2 ([README.md](../../README.md)).
 - `CHANGELOG.md` `[0.2.0]` entry plus long-form [docs/RELEASE_v0.2.md](RELEASE_v0.2.md).
 - Validation evidence under `docs/evidence/{api,screenshots,security,crud,final}/` — raw HTTP payloads, full-page PNGs, per-probe headers + bodies, Mailpit `.eml` proof of email dispatch.
 
@@ -134,7 +134,7 @@ Every load-bearing claim in the verdict is anchored in code or test output that 
 
 ## 5. Limitations carried into v0.2.0
 
-These are documented gaps, not defects. Same accounting convention as [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md): **Critical** = release-blocker · **High** = blocks final tag · **Medium** = 0.3 backlog · **Low** = noted.
+These are documented gaps, not defects. Same accounting convention as [KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md): **Critical** = release-blocker · **High** = blocks final tag · **Medium** = 0.3 backlog · **Low** = noted.
 
 ### 5.1 Resolved since RC1
 
@@ -149,7 +149,7 @@ These are documented gaps, not defects. Same accounting convention as [KNOWN_LIM
 |-----|----------|---------|------------|-----------------|
 | FS-1 / F4 | Low | Realm-wide "Terminate all sessions" | UI button rendered disabled with `coming-soon` badge; no backend route. | Intentional v0.2 scope; per-user `LogoutUserSessions` works. |
 | F1  | Medium   | Rate limiting           | No per-IP / per-`sub` throttling on `/me`, `/admin/*`, `/health`, or the KC token endpoint. | DoS surface, not a confidentiality regression. Mitigation: add API-level middleware in 0.3, or front the API with an existing rate-limiter (Cloudflare, nginx). |
-| F2  | Low–Med  | Logout                  | Access JWTs remain valid up to `accessTokenLifespan` (3600s) post-OIDC end-session. | Standard stateless-JWT trade-off. Bounded by lifespan. Hardening options enumerated in [FINAL_SECURITY.md §5](FINAL_SECURITY.md#5-findings-carried-forward--informational--not-failures). |
+| F2  | Low–Med  | Logout                  | Access JWTs remain valid up to `accessTokenLifespan` (3600s) post-OIDC end-session. | Standard stateless-JWT trade-off. Bounded by lifespan. Hardening options enumerated in [FINAL_SECURITY.md §5](../security/FINAL_SECURITY.md#5-findings-carried-forward--informational--not-failures). |
 | F3  | Low      | Token replay            | No DPoP / `jti` revocation; bearer token replayable until `exp`. | Expected for plain OAuth2 bearer. Revisit if regulatory scope warrants DPoP / mTLS. |
 | FS-2| Low      | CRUD invite resend / revoke test fixture | Depends on a pre-seeded `user@example.com` invitation that prior runs consume → SKIP. | Test-data drift only; production behaviour unaffected. Reseed via `make realm-reset` to re-cover. |
 | FS-3| Low      | CRUD single-session revoke fixture | Needs an active non-admin session at test time → SKIP if absent. | Test-data drift only; production behaviour unaffected. Future driver should provision a `testuser` login before phase 10. |
@@ -184,7 +184,7 @@ internal/server/router.go
 
 All four are pure whitespace / column-alignment differences inside struct literals — a typical artifact of multiple parallel commits adding fields with different widths. None of them change behaviour, none of them change tests. `go test ./...` is green even with the drift.
 
-**Why this matters.** [`Makefile`](../Makefile) defines `make ci` as `fmt-check + vet + build + test + swagger-check`. `fmt-check` runs `gofmt -l` and fails the build if it emits anything. So at this SHA:
+**Why this matters.** [`Makefile`](../../Makefile) defines `make ci` as `fmt-check + vet + build + test + swagger-check`. `fmt-check` runs `gofmt -l` and fails the build if it emits anything. So at this SHA:
 
 ```
 $ make ci

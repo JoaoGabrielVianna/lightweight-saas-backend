@@ -3,7 +3,7 @@
 **Date:** 2026-05-20
 **Codename:** `identity-management`
 **Predecessor:** [v0.1.0-auth-foundation](https://github.com/joaogabrielvianna/lightweight-saas-backend/releases/tag/v0.1.0-auth-foundation)
-**Tracking changelog entry:** [CHANGELOG.md §0.2.0](../CHANGELOG.md#020--2026-05-20)
+**Tracking changelog entry:** [CHANGELOG.md §0.2.0](../../CHANGELOG.md#020--2026-05-20)
 
 ---
 
@@ -56,7 +56,7 @@ handler" is structurally impossible inside the group.
 |              | `DELETE /admin/sessions/{id}`                       | Revoke a single session by id.                                          |
 
 Full request/response schemas are in the regenerated Swagger spec at
-`/swagger/index.html` (or [docs/swagger.yaml](swagger.yaml)).
+`/swagger/index.html` (or [docs/swagger.yaml](../swagger.yaml)).
 
 ### 2.2 RBAC primitives
 
@@ -179,7 +179,7 @@ mounted; routes return `404`.
   per process.
 - **Production hardening.** Treat `/admin/*` as power. The dev-only
   caveats already enumerated in
-  [docs/KEYCLOAK_SETUP.md §10](KEYCLOAK_SETUP.md#10-production-considerations)
+  [docs/KEYCLOAK_SETUP.md §10](../KEYCLOAK_SETUP.md#10-production-considerations)
   apply in full — TLS in front of the API, real secrets store for
   `KEYCLOAK_ADMIN_CLIENT_SECRET`, network-level restriction of the
   `/admin/*` prefix, and audit logging hooked via `SetEventHook`.

@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-20
 **Tester:** Agent F (Senior Security Engineer)
-**Target:** [internal/auth.RequireLiveAdmin](../internal/auth/admin_check.go) on `milestone/auth-v1`, against the live `docker-compose` stack.
+**Target:** [internal/auth.RequireLiveAdmin](../../internal/auth/admin_check.go) on `milestone/auth-v1`, against the live `docker-compose` stack.
 **Mission:** Actively try to break the GAP-1 remediation. Confirm every claim in [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) by adversarial probing — no implementation, only attack.
 **Method:** Black-box probes from a sidecar container on the same docker network, with `--resolve localhost:8081:<host-gateway>` so token issuer claims match the API's configured iss.
 **Forbidden:** code changes.
@@ -13,13 +13,13 @@
 
 | #  | Scenario                                                | Verdict | Evidence |
 |----|---------------------------------------------------------|---------|----------|
-| R1 | Admin revoked → stale JWT → 403                         | **PASS** | [R1_through_R7.txt](evidence/security/regression/gap1/R1_through_R7.txt) |
-| R2 | Admin granted → existing-claim session → access restored immediately | **PASS** | [R1_through_R7.txt](evidence/security/regression/gap1/R1_through_R7.txt) |
-| R3 | Keycloak outage → 503 (fail closed)                     | **PASS** | [R3_keycloak_outage.txt](evidence/security/regression/gap1/R3_keycloak_outage.txt) |
-| R4 | Negative cache cleared by grant invalidation → immediate allow | **PASS** | [R1_through_R7.txt](evidence/security/regression/gap1/R1_through_R7.txt) |
-| R5 | Positive cache cleared by revoke invalidation → deny immediately | **PASS** | [R1_through_R7.txt](evidence/security/regression/gap1/R1_through_R7.txt) |
-| R6 | 100 concurrent admin checks — race / stampede / panic   | **PASS** | [R1_through_R7.txt](evidence/security/regression/gap1/R1_through_R7.txt) |
-| R7 | TTL expiration — out-of-band change closes after cache expiry | **PASS** | [R1_through_R7.txt](evidence/security/regression/gap1/R1_through_R7.txt) |
+| R1 | Admin revoked → stale JWT → 403                         | **PASS** | [R1_through_R7.txt](../evidence/security/regression/gap1/R1_through_R7.txt) |
+| R2 | Admin granted → existing-claim session → access restored immediately | **PASS** | [R1_through_R7.txt](../evidence/security/regression/gap1/R1_through_R7.txt) |
+| R3 | Keycloak outage → 503 (fail closed)                     | **PASS** | [R3_keycloak_outage.txt](../evidence/security/regression/gap1/R3_keycloak_outage.txt) |
+| R4 | Negative cache cleared by grant invalidation → immediate allow | **PASS** | [R1_through_R7.txt](../evidence/security/regression/gap1/R1_through_R7.txt) |
+| R5 | Positive cache cleared by revoke invalidation → deny immediately | **PASS** | [R1_through_R7.txt](../evidence/security/regression/gap1/R1_through_R7.txt) |
+| R6 | 100 concurrent admin checks — race / stampede / panic   | **PASS** | [R1_through_R7.txt](../evidence/security/regression/gap1/R1_through_R7.txt) |
+| R7 | TTL expiration — out-of-band change closes after cache expiry | **PASS** | [R1_through_R7.txt](../evidence/security/regression/gap1/R1_through_R7.txt) |
 
 **Result: 7 / 7 PASS.** RequireLiveAdmin survives every attempted break. One nuance (R3) is documented below as **expected behavior**, not a defect.
 

@@ -6,9 +6,9 @@
 
 Added artifacts (all outside `internal/**` and `web/**`):
 
-- [scripts/security_advanced_check.sh](../scripts/security_advanced_check.sh) — runner.
-- [docs/evidence/security/advanced/](evidence/security/advanced/) — per-probe evidence.
-- [docs/evidence/security/advanced/summary.txt](evidence/security/advanced/summary.txt) — run roll-up.
+- [scripts/security_advanced_check.sh](../../scripts/security_advanced_check.sh) — runner.
+- [docs/evidence/security/advanced/](../evidence/security/advanced/) — per-probe evidence.
+- [docs/evidence/security/advanced/summary.txt](../evidence/security/advanced/summary.txt) — run roll-up.
 
 ---
 
@@ -43,10 +43,10 @@ Bursts of identical requests fired in parallel; status-code histogram recorded.
 
 | Probe | Count × parallelism | Dominant code | Evidence |
 |-------|---------------------|---------------|----------|
-| T1a `/me` with valid user token              | 100 × 50  | `100×200` | [T1a_burst_me_authed.txt](evidence/security/advanced/T1a_burst_me_authed.txt) |
-| T1b `/admin/users` unauthenticated           | 50  × 50  | `50×401`  | [T1b_burst_admin_unauth.txt](evidence/security/advanced/T1b_burst_admin_unauth.txt) |
-| T1c `/health`                                | 200 × 50  | `200×200` | [T1c_burst_health.txt](evidence/security/advanced/T1c_burst_health.txt) |
-| T1d Keycloak token endpoint (bad creds)      | 50  × 50  | `50×401`  | [T1d_burst_kc_token.txt](evidence/security/advanced/T1d_burst_kc_token.txt) |
+| T1a `/me` with valid user token              | 100 × 50  | `100×200` | [T1a_burst_me_authed.txt](../evidence/security/advanced/T1a_burst_me_authed.txt) |
+| T1b `/admin/users` unauthenticated           | 50  × 50  | `50×401`  | [T1b_burst_admin_unauth.txt](../evidence/security/advanced/T1b_burst_admin_unauth.txt) |
+| T1c `/health`                                | 200 × 50  | `200×200` | [T1c_burst_health.txt](../evidence/security/advanced/T1c_burst_health.txt) |
+| T1d Keycloak token endpoint (bad creds)      | 50  × 50  | `50×401`  | [T1d_burst_kc_token.txt](../evidence/security/advanced/T1d_burst_kc_token.txt) |
 
 **Finding F1 (carried to §10).** No per-IP, per-token, or per-route rate limiting at the API tier — bursts of 100+ requests/sec are served without `429`, slowdowns, or backpressure. Keycloak's own token endpoint also did not throttle 50-parallel requests in this run. This is consistent with the current architecture (no rate-limit middleware claimed); recorded as a DoS surface.
 
@@ -57,8 +57,8 @@ Bursts of identical requests fired in parallel; status-code histogram recorded.
 The realm's `bruteForceProtected: true` is verified at runtime:
 
 1. **Control.** Correct password before any failed attempts → `200`.
-2. **Hammer.** 35 sequential POSTs to the token endpoint with `username=testuser` and `password=wrong-pw-1 … wrong-pw-35`. All 35 → `401 invalid_grant "Invalid user credentials"`. Evidence: [T2_brute_force_attempts.txt](evidence/security/advanced/T2_brute_force_attempts.txt).
-3. **Lockout confirmed.** Immediately retry the **correct** password → `401 invalid_grant "Invalid user credentials"`. Same generic error as wrong-password (deliberate — Keycloak doesn't reveal the lockout state). Evidence: [T2_post_brute_correct_pw.txt](evidence/security/advanced/T2_post_brute_correct_pw.txt). **PASS T2.lockout.**
+2. **Hammer.** 35 sequential POSTs to the token endpoint with `username=testuser` and `password=wrong-pw-1 … wrong-pw-35`. All 35 → `401 invalid_grant "Invalid user credentials"`. Evidence: [T2_brute_force_attempts.txt](../evidence/security/advanced/T2_brute_force_attempts.txt).
+3. **Lockout confirmed.** Immediately retry the **correct** password → `401 invalid_grant "Invalid user credentials"`. Same generic error as wrong-password (deliberate — Keycloak doesn't reveal the lockout state). Evidence: [T2_post_brute_correct_pw.txt](../evidence/security/advanced/T2_post_brute_correct_pw.txt). **PASS T2.lockout.**
 4. **Admin-recoverable.** `DELETE /admin/realms/saas/attack-detection/brute-force/users` via the master-realm admin token → `204`. Retry the correct password → `200`. **PASS T2.recovery.**
 
 The runner unlocks all brute-force-tracked users on `EXIT` (trap), so an aborted run does not leave `testuser` disabled.
@@ -74,7 +74,7 @@ after_logout  /me:    200    (JWT remains valid until 'exp')
 refresh_token reuse:  has_access_token=no  error="Session not active"
 ```
 
-Full evidence: [T3_post_logout_token_reuse.txt](evidence/security/advanced/T3_post_logout_token_reuse.txt).
+Full evidence: [T3_post_logout_token_reuse.txt](../evidence/security/advanced/T3_post_logout_token_reuse.txt).
 
 - **PASS T3.refresh.** Post-logout, the refresh token is rejected by Keycloak with `Session not active`. An attacker who steals only a refresh token loses access at logout time.
 - **INFO T3.access (Finding F2).** The bearer access token continues to authorize `/me` after logout — the API does not consult Keycloak's session store on each request. This is the standard JWT trade-off (stateless verification = no per-request revocation). The blast radius is bounded by `accessTokenLifespan` (3600 s in this realm). Defense-in-depth options for the next iteration: shorten the access-token lifespan, listen to Keycloak backchannel-logout events, or call the userinfo endpoint on sensitive verbs.
@@ -85,8 +85,8 @@ Full evidence: [T3_post_logout_token_reuse.txt](evidence/security/advanced/T3_po
 
 A single valid bearer token used:
 
-- 10 sequential `GET /me` calls → 10/10 `200` ([T4_replay_sequential.txt](evidence/security/advanced/T4_replay_sequential.txt)).
-- 30 parallel `GET /me` calls → 30/30 `200` ([T4_replay_parallel.txt](evidence/security/advanced/T4_replay_parallel.txt)).
+- 10 sequential `GET /me` calls → 10/10 `200` ([T4_replay_sequential.txt](../evidence/security/advanced/T4_replay_sequential.txt)).
+- 30 parallel `GET /me` calls → 30/30 `200` ([T4_replay_parallel.txt](../evidence/security/advanced/T4_replay_parallel.txt)).
 
 **Finding F3 (carried to §10).** Bearer JWTs have no `jti` revocation list, no per-request nonce, and no proof-of-possession (DPoP). A captured token is replayable for its full TTL by any holder, from any IP. This is expected for plain OAuth2 bearer tokens and matches the contract — recorded because it bounds what `RequireAuth` actually proves about the caller.
 
@@ -102,7 +102,7 @@ Fired 10 parallel `POST /admin/roles` with the same role name (`sec-adv-<epoch>-
    1 201
 ```
 
-Full evidence: [T5_concurrent_admin_roles.txt](evidence/security/advanced/T5_concurrent_admin_roles.txt). The runner deletes the role afterward (`DELETE /admin/roles/<name>` → `204`) to keep the realm clean.
+Full evidence: [T5_concurrent_admin_roles.txt](../evidence/security/advanced/T5_concurrent_admin_roles.txt). The runner deletes the role afterward (`DELETE /admin/roles/<name>` → `204`) to keep the realm clean.
 
 **PASS T5.** Admin role creation is race-safe: no double-creates, no lost updates, no `500`s under contention. The same pattern would catch a logic-races regression introduced in the identity handler.
 
@@ -131,7 +131,7 @@ A non-admin user token (`testuser`, realm role `user`) was used to attempt every
 | GET     | /admin/users with `X-User-Role: admin` (+3 others)  | 403      | 403    |
 | GET     | /admin/users with cross-client token (`saas-backend-admin`, client_credentials grant) | 401 | 401 |
 
-Full matrix: [T6_privilege_escalation.txt](evidence/security/advanced/T6_privilege_escalation.txt).
+Full matrix: [T6_privilege_escalation.txt](../evidence/security/advanced/T6_privilege_escalation.txt).
 
 Two notes worth recording:
 

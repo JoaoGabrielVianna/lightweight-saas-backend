@@ -6,7 +6,7 @@ you will end with a working stack, a token in your terminal, and a 200
 response from `/me`.
 
 Tested against the state of the repo at commit `Sprint 3` (Phase 3 sign-off,
-[VALIDATION_PHASE3.md](./VALIDATION_PHASE3.md)).
+[VALIDATION_PHASE3.md](./validation/VALIDATION_PHASE3.md)).
 
 ---
 
@@ -126,7 +126,7 @@ of these are missing — the API will refuse to start, by design.
 | `SEED_USER_PASSWORD`      | Shared password for all `seed_users[]` entries in `config/project.json`. Consumed by `cmd/bootstrap` when generating `realm-export.json`. | `password` | `password` | Seeded users have a wrong password — login fails. |
 | `KEYCLOAK_ADMIN`          | Keycloak's bootstrap admin username (consumed by the Keycloak container at first start). | `admin` | none | Admin UI unreachable. |
 | `KEYCLOAK_ADMIN_PASSWORD` | Keycloak's bootstrap admin password.                     | `admin` (DEV ONLY)                     | none    | Admin UI unreachable. |
-| `DEV_PLAYGROUND_ENABLED`  | Mount the DEV-ONLY auth playground at `/dev/auth`. See [DEV_AUTH_PLAYGROUND.md](DEV_AUTH_PLAYGROUND.md). | `true` (local), `false` (anywhere else) | `false` | If `true` in production, the playground is exposed. |
+| `DEV_PLAYGROUND_ENABLED`  | Mount the DEV-ONLY auth playground at `/dev/auth`. See [DEV_AUTH_PLAYGROUND.md](./ui/DEV_AUTH_PLAYGROUND.md). | `true` (local), `false` (anywhere else) | `false` | If `true` in production, the playground is exposed. |
 | `DEV_PLAYGROUND_CLIENT_ID`| Public OIDC client id used by the playground. Matches the realm-imported client. | `saas-dev-playground`               | `saas-dev-playground` | Mismatch → login redirects fail with `unauthorized_client`. |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | App postgres init.            | `postgres` / `postgres` / `lightweight_saas_backend_db` | none | Postgres init fails. |
 | `KC_DB_USER`, `KC_DB_PASSWORD`, `KC_DB_NAME` | Keycloak postgres init.                  | `keycloak` / `keycloak` / `keycloak`   | none    | Keycloak can't connect to its DB. |
@@ -673,7 +673,7 @@ Source: [scripts/auth-test.sh](../scripts/auth-test.sh).
 ## 9. Troubleshooting
 
 These are all issues hit during the actual Phase 3 validation
-([VALIDATION_PHASE3.md §7](./VALIDATION_PHASE3.md#7-issues-found-during-validation-resolved-before-sign-off)).
+([VALIDATION_PHASE3.md §7](./validation/VALIDATION_PHASE3.md#7-issues-found-during-validation-resolved-before-sign-off)).
 Each entry is shaped Symptom / Cause / Fix.
 
 ### 9.1 API logs `key not found: kid "..."` and rejects all tokens
@@ -921,7 +921,7 @@ and file an issue.
 
 ## Related docs
 
-- [VALIDATION_PHASE3.md](./VALIDATION_PHASE3.md) — Sprint 3 sign-off report (proof this all works on a fresh clone)
+- [VALIDATION_PHASE3.md](./validation/VALIDATION_PHASE3.md) — Sprint 3 sign-off report (proof this all works on a fresh clone)
 - [migrations/PHASE3_BREAKING_CHANGE.md](./migrations/PHASE3_BREAKING_CHANGE.md) — how this state replaced the legacy HS256 path
 - [bootstrap.md](./bootstrap.md) — the bootstrap CLI and source-of-truth design
 - [AUDITORIA_TECNICA.md](../AUDITORIA_TECNICA.md) — pre-Phase-3 technical audit (now partially stale; keep for historical context)

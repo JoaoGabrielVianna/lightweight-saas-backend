@@ -25,7 +25,7 @@ This is a *release candidate*: it goes to RC1 with the understanding that the ga
 
 ## 2. Scope under test
 
-The v0.2 surface — admin-only `/admin/*` HTTP API plus minimal static UI under `web/admin/` — as described in [docs/RELEASE_v0.2.md](RELEASE_v0.2.md) and tracked in [CHANGELOG.md §0.2.0](../CHANGELOG.md#020--2026-05-20).
+The v0.2 surface — admin-only `/admin/*` HTTP API plus minimal static UI under `web/admin/` — as described in [docs/RELEASE_v0.2.md](RELEASE_v0.2.md) and tracked in [CHANGELOG.md §0.2.0](../../CHANGELOG.md#020--2026-05-20).
 
 Exercised against the running `docker-compose` stack at commit on `milestone/auth-v1` with seeded users `adminuser` (admin role) and `testuser` (user role) against realm `saas`.
 
@@ -37,9 +37,9 @@ Four isolated agents validated v0.2 in parallel. Each owned a disjoint scope; cr
 
 ### Agent A — Security
 
-**Reports:** [SECURITY_VALIDATION_v0.2.md](SECURITY_VALIDATION_v0.2.md) · [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md)
-**Runners:** [scripts/security_live_check.sh](../scripts/security_live_check.sh), [scripts/security_advanced_check.sh](../scripts/security_advanced_check.sh)
-**Evidence:** [docs/evidence/security/](evidence/security/)
+**Reports:** [SECURITY_VALIDATION_v0.2.md](../security/SECURITY_VALIDATION_v0.2.md) · [SECURITY_VALIDATION_v0.3.md](../security/SECURITY_VALIDATION_v0.3.md)
+**Runners:** [scripts/security_live_check.sh](../../scripts/security_live_check.sh), [scripts/security_advanced_check.sh](../../scripts/security_advanced_check.sh)
+**Evidence:** [docs/evidence/security/](../evidence/security/)
 
 | Suite                 | Probes | PASS | FAIL | INFO | Result |
 |-----------------------|-------:|-----:|-----:|-----:|--------|
@@ -52,7 +52,7 @@ Highlights:
 - Privilege escalation (T6): every admin verb denied to non-admin tokens; header injection (`X-User-Role: admin`) ignored; cross-client tokens rejected at `azp` check (401) *before* RBAC.
 - Concurrent admin actions (T5): 10 parallel `POST /admin/roles` with the same name → `1×201 / 9×409` (race-safe).
 
-Findings carried to [KNOWN_LIMITATIONS.md §1](KNOWN_LIMITATIONS.md#1-security--hardening-backlog): **F1** (no rate limiting, Medium), **F2** (post-logout JWT remains valid until `exp`, Low-Med), **F3** (no DPoP / `jti` revocation, Low). All three are consistent with the documented OAuth2 bearer model — not regressions, surfaced for the next iteration.
+Findings carried to [KNOWN_LIMITATIONS.md §1](../roadmap/KNOWN_LIMITATIONS.md#1-security--hardening-backlog): **F1** (no rate limiting, Medium), **F2** (post-logout JWT remains valid until `exp`, Low-Med), **F3** (no DPoP / `jti` revocation, Low). All three are consistent with the documented OAuth2 bearer model — not regressions, surfaced for the next iteration.
 
 **Agent A verdict: GO.**
 
@@ -60,9 +60,9 @@ Findings carried to [KNOWN_LIMITATIONS.md §1](KNOWN_LIMITATIONS.md#1-security--
 
 ### Agent B — Browser smoke + CRUD E2E
 
-**Reports:** [SMOKE_TEST_v0.2.md](SMOKE_TEST_v0.2.md) · [evidence/crud/CRUD_E2E_REPORT.md](evidence/crud/CRUD_E2E_REPORT.md)
+**Reports:** [SMOKE_TEST_v0.2.md](../validation/SMOKE_TEST_v0.2.md) · [evidence/crud/CRUD_E2E_REPORT.md](../evidence/crud/CRUD_E2E_REPORT.md)
 **Driver:** `/tmp/smoketest_v02/{smoke,crud}.spec.mjs` (headless Chromium · Playwright 1.60 · outside repo by design)
-**Evidence:** [docs/evidence/screenshots/](evidence/screenshots/), [docs/evidence/api/](evidence/api/), [docs/evidence/crud/](evidence/crud/)
+**Evidence:** [docs/evidence/screenshots/](../evidence/screenshots/), [docs/evidence/api/](../evidence/api/), [docs/evidence/crud/](../evidence/crud/)
 
 | Pass        | Surface                                       | Status            |
 |-------------|-----------------------------------------------|-------------------|
@@ -82,7 +82,7 @@ Browser console captured **3 errors**, all `Failed to load resource: 502 (Bad Ga
 
 ### Agent C — Invitation reliability
 
-**Report:** [INVITATION_RELIABILITY_v0.2.md](INVITATION_RELIABILITY_v0.2.md)
+**Report:** [INVITATION_RELIABILITY_v0.2.md](../validation/INVITATION_RELIABILITY_v0.2.md)
 **Code scope:** `internal/identity/keycloak/invitations.go` (reviewed, not modified by this aggregator)
 
 Three failure modes closed in v0.2:
@@ -93,11 +93,11 @@ Three failure modes closed in v0.2:
 | 2 | `ResendInvitation` re-added the full `[VERIFY_EMAIL, UPDATE_PASSWORD]` set on every call, including to fully-accepted or disabled users. | GETs user first; returns `ErrConflict` (HTTP 409) for disabled or no-pending-invite-actions; otherwise PUTs only the intersection. |
 | 3 | `deriveInvitationStatus` checked `expires_at` before `requiredActions` — accepted-but-stale invites were reported `expired`. | Explicit total ordering: `revoked > accepted > expired > pending`. Public status constants on `identity` package. |
 
-Pagination added to `ListInvitations` and `ListUsersByRole` (page size 200, hard cap 10,000). Stress test evidence in [INVITATION_RELIABILITY_v0.2.md §Pagination](INVITATION_RELIABILITY_v0.2.md#pagination-added-after-the-initial-reliability-pass). The `ListUsersByRole` fix matters for the `assertNotLastAdmin` guard in realms with >100 admins.
+Pagination added to `ListInvitations` and `ListUsersByRole` (page size 200, hard cap 10,000). Stress test evidence in [INVITATION_RELIABILITY_v0.2.md §Pagination](../validation/INVITATION_RELIABILITY_v0.2.md#pagination-added-after-the-initial-reliability-pass). The `ListUsersByRole` fix matters for the `assertNotLastAdmin` guard in realms with >100 admins.
 
 New tests cover all three changes plus the pagination ceiling; one prior test that asserted the bug was replaced.
 
-Remaining limitations explicitly enumerated by the agent — carried to [KNOWN_LIMITATIONS.md §3](KNOWN_LIMITATIONS.md#3-invitation-reliability-residual).
+Remaining limitations explicitly enumerated by the agent — carried to [KNOWN_LIMITATIONS.md §3](../roadmap/KNOWN_LIMITATIONS.md#3-invitation-reliability-residual).
 
 **Agent C verdict: GO.**
 
@@ -105,7 +105,7 @@ Remaining limitations explicitly enumerated by the agent — carried to [KNOWN_L
 
 ### Agent D — Audit / Observability foundation
 
-**Report:** [AUDIT_EVENTS.md](AUDIT_EVENTS.md)
+**Report:** [AUDIT_EVENTS.md](../validation/AUDIT_EVENTS.md)
 **Code scope:** `internal/audit/`, `internal/logging/` (audit sink) — model + log sink shipped
 
 What landed in RC1:
@@ -117,9 +117,9 @@ What landed in RC1:
 
 What is **not** landed in RC1 (handed off to the identity owner):
 1. `logging.WireDefault()` call at bootstrap (likely `cmd/api/main.go` or `internal/server/server.go`).
-2. `audit.Record(...)` call sites in `internal/identity/handler.go` (mapping table of 13 handlers → 13 actions in [AUDIT_EVENTS.md "Call sites"](AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo)).
+2. `audit.Record(...)` call sites in `internal/identity/handler.go` (mapping table of 13 handlers → 13 actions in [AUDIT_EVENTS.md "Call sites"](../validation/AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo)).
 
-Until both are wired, every `audit.Record` call is silently dropped. **This is the most material limitation of RC1** — see [§5](#5-known-gaps-at-rc1) and [KNOWN_LIMITATIONS.md §4](KNOWN_LIMITATIONS.md#4-audit-events-not-yet-emitted).
+Until both are wired, every `audit.Record` call is silently dropped. **This is the most material limitation of RC1** — see [§5](#5-known-gaps-at-rc1) and [KNOWN_LIMITATIONS.md §4](../roadmap/KNOWN_LIMITATIONS.md#4-audit-events-not-yet-emitted).
 
 **Agent D verdict: GO with explicit handoff** — infrastructure is shipped and stable; the wiring step is a separate, low-risk follow-up that does not affect any other v0.2 contract.
 
@@ -144,7 +144,7 @@ Nothing in cross-cutting synthesis blocks RC1.
 
 ## 5. Known gaps at RC1
 
-The full enumeration is in [docs/KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md). Tier-1 items (most material to RC1):
+The full enumeration is in [docs/KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md). Tier-1 items (most material to RC1):
 
 - **L4 — Audit events not yet emitted.** Model + sink shipped; `audit.Record` call sites in identity handlers and the `logging.WireDefault()` bootstrap call are pending. Until wired, RC1 emits **no audit log lines** for admin mutations. *Mitigation:* `auth.AuthEvent` continues to emit authn/RBAC events as in v0.1.
 - **L5 — SMTP not configured in the dev stack.** Three endpoints (`/admin/invitations` POST, `/admin/invitations/{id}/resend`, `/admin/users/{id}/reset-password`) cannot complete in a `make up` environment; they return `502` with the compensating-DELETE contract observed. *Operational:* wire MailHog or equivalent.
@@ -211,7 +211,7 @@ Per [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md), before promoting RC1 → 
 This RC1 report aggregates four independent validations against the v0.2 surface. No agent reported a FAIL or a regression. The aggregator did not modify any code; the only files written by this mission are the three release artifacts:
 
 - [docs/RC1_REPORT.md](RC1_REPORT.md) (this file)
-- [docs/KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md)
+- [docs/KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md)
 - [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
 
 ```

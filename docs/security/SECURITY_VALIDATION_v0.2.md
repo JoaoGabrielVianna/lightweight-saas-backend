@@ -55,7 +55,7 @@ saas-postgres            Up 10 hours (healthy)   0.0.0.0:5432->5432/tcp
 | G16 | `POST /admin/roles` with user (no admin role) → forbidden     |      403 |    403 | PASS   |
 | G17 | `GET /me` with malformed single-segment token                 |      401 |    401 | PASS   |
 
-**Totals: 17 PASS / 0 FAIL.** Raw per-probe evidence (headers + body) in [docs/evidence/security/checks/](evidence/security/checks/); roll-up in [docs/evidence/security/summary.txt](evidence/security/summary.txt).
+**Totals: 17 PASS / 0 FAIL.** Raw per-probe evidence (headers + body) in [docs/evidence/security/checks/](../evidence/security/checks/); roll-up in [docs/evidence/security/summary.txt](../evidence/security/summary.txt).
 
 ---
 
@@ -63,7 +63,7 @@ saas-postgres            Up 10 hours (healthy)   0.0.0.0:5432->5432/tcp
 
 A few responses worth highlighting (see the linked evidence files for full headers + body):
 
-- **Auth failures return a single, fixed error body.** Both missing headers (G04) and forged signatures (G09) respond with `{"error":"unauthorized"}` and status `401`. The middleware does *not* leak the specific reason to the wire — the precise cause is only emitted via the structured `AuthEvent` stream observed at the server, which is the documented contract in [internal/auth/middleware.go](../internal/auth/middleware.go#L26-L27).
+- **Auth failures return a single, fixed error body.** Both missing headers (G04) and forged signatures (G09) respond with `{"error":"unauthorized"}` and status `401`. The middleware does *not* leak the specific reason to the wire — the precise cause is only emitted via the structured `AuthEvent` stream observed at the server, which is the documented contract in [internal/auth/middleware.go](../../internal/auth/middleware.go#L26-L27).
 - **RBAC denials are distinct from auth failures.** A valid-but-underprivileged token (G11, G16) is answered with `403 {"error":"forbidden"}`, not `401`. Clients can therefore differentiate "log in again" from "you don't have access."
 - **Path traversal is short-circuited before disk I/O.** G13's response is a `403` with `Content-Length: 0` — the handler refuses the request as soon as `..` is detected, never reaching `filepath.Join`. The check uses `curl --path-as-is` so the traversal segments actually leave the client.
 - **The HTML shell at `/admin` is intentionally public (G03).** It is a single-page bootstrap; every action it invokes goes through the gated `/admin/*` API surface, which G05/G11/G12/G14/G15/G16 cover.
@@ -99,7 +99,7 @@ Out of scope for v0.2 (recorded so the next iteration can pick them up):
 - **Token expiration and clock skew.** Forging an expired token requires either waiting an hour or signing one — neither was performed here. The Keycloak `accessTokenLifespan` is 3600s.
 - **Token-`aud` / `azp` enforcement** against unexpected client IDs. The middleware accepts the listed `KEYCLOAK_ALLOWED_CLIENT_IDS`; cross-client tokens were not tested in this run.
 - **Replay / nonce semantics.** No `nonce`/`jti` invalidation is implemented (none is claimed); a stolen bearer token is valid until expiry.
-- **Rate limiting / brute-force.** Keycloak's `bruteForceProtected` is enabled at the realm level (see [docs/VALIDATION_PHASE3.md](VALIDATION_PHASE3.md#L42)), but the API has no per-IP throttling and that surface was not probed.
+- **Rate limiting / brute-force.** Keycloak's `bruteForceProtected` is enabled at the realm level (see [docs/VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md#L42)), but the API has no per-IP throttling and that surface was not probed.
 - **CORS, CSP, secure cookies, HSTS.** No HTTP security headers were inspected here.
 - **Dependency / supply-chain audit.** This is a runtime-guard validation only; static analysis (`govulncheck`, etc.) is separate.
 
@@ -107,7 +107,7 @@ Out of scope for v0.2 (recorded so the next iteration can pick them up):
 
 ## 7. Notes on evidence hygiene
 
-`docs/evidence/security/checks/G07.txt`, `G09.txt`, `G10.txt`, `G11.txt`, `G12.txt`, `G16.txt`, `G17.txt` contain the access tokens used during the probe in their `curl_args:` lines. These are short-lived (1h TTL) tokens issued for the dev seed users `testuser` / `adminuser` against a local Keycloak whose admin credentials are themselves `admin/admin` (see [.env.example](../.env.example)) — i.e. there is no production credential exposure. Re-running the script overwrites this directory with fresh tokens; if the evidence is checked into a public repo, rotate the seed users (`make realm-reset` or `docker volume rm`) before publishing.
+`docs/evidence/security/checks/G07.txt`, `G09.txt`, `G10.txt`, `G11.txt`, `G12.txt`, `G16.txt`, `G17.txt` contain the access tokens used during the probe in their `curl_args:` lines. These are short-lived (1h TTL) tokens issued for the dev seed users `testuser` / `adminuser` against a local Keycloak whose admin credentials are themselves `admin/admin` (see [.env.example](../../.env.example)) — i.e. there is no production credential exposure. Re-running the script overwrites this directory with fresh tokens; if the evidence is checked into a public repo, rotate the seed users (`make realm-reset` or `docker volume rm`) before publishing.
 
 ---
 

@@ -289,7 +289,7 @@ The `<input type="email">` would normally trigger browser validation, but the bu
 
 **Path:** The pager uses `disabled: have < max`. When `have === max`, "next" is enabled even though there's nothing on the next page. Clicking it fetches an empty page → empty-state UI flashes. User must click "← prev" to get back.
 
-**Expected:** Either fetch total count from server (not currently returned by [internal/identity/handler.go ListUsers response](../internal/identity/handler.go) — outside this audit's scope) or detect short-page on render and disable "next" then.
+**Expected:** Either fetch total count from server (not currently returned by [internal/identity/handler.go ListUsers response](../../internal/identity/handler.go) — outside this audit's scope) or detect short-page on render and disable "next" then.
 
 **Suggested fix:** If `rows.length === max && rows.length > 0`, leave "next" enabled (we can't know). On empty next page, render "no more results, back to start" with a `← back` link in the empty state.
 

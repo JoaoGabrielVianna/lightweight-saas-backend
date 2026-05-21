@@ -11,7 +11,7 @@
 
 | # | Surface                              | Result | Severity |
 |---|--------------------------------------|--------|----------|
-| **GAP-1** | **Privilege revocation lag (stale JWT)** | **FIXED (2026-05-20)** — closed by a live-admin check (`internal/auth.RequireLiveAdmin`) on `/admin/*` with a short-lived cache and in-band invalidation. See [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) and live evidence at [evidence/security/gaps/remediation/](evidence/security/gaps/remediation/). Original finding preserved below for traceability. | **HIGH** (remediated) |
+| **GAP-1** | **Privilege revocation lag (stale JWT)** | **FIXED (2026-05-20)** — closed by a live-admin check (`internal/auth.RequireLiveAdmin`) on `/admin/*` with a short-lived cache and in-band invalidation. See [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) and live evidence at [evidence/security/gaps/remediation/](../evidence/security/gaps/remediation/). Original finding preserved below for traceability. | **HIGH** (remediated) |
 | GAP-2 | Session termination does not kill the JWT | EXPLOITABLE-adjacent — same root cause as GAP-1. Killing all of admin's sessions does not stop the same JWT from authorizing /admin/users. | MEDIUM |
 | GAP-3 | Realm-wide bulk session terminate    | NOT-IMPLEMENTED — `DELETE /admin/sessions` → 404. No "panic button" if a token leaks. | LOW (operational) |
 | GAP-4 | Strict JSON binding on PATCH         | INFO — unknown keys are silently dropped (Go default `json.Decoder` behavior). No state change, but defeats attack-detection on body fuzzing. | INFO |
@@ -63,7 +63,7 @@ Bodies all `{"error":"forbidden"}`. Source-side guards live at:
 
 **A note on last-admin.** The realm has *two* admins (adminuser, user@example.com). To trigger the last-admin guard cleanly via the API one needs a path that empties the admin set — but every such path passes through self-strip first when the caller is the only admin. So the last-admin guard's runtime behavior is asserted only through `TestUnassignRolesFromUser_RejectsLastAdmin`; the runtime behavior was not directly demonstrable here without setting up a deliberately fragile multi-admin pivot.
 
-Evidence: [A1_self_strip_admin_*](evidence/security/gaps/), [A3_self_delete_*](evidence/security/gaps/), [A4_self_disable_*](evidence/security/gaps/).
+Evidence: [A1_self_strip_admin_*](../evidence/security/gaps/), [A3_self_delete_*](../evidence/security/gaps/), [A4_self_disable_*](../evidence/security/gaps/).
 
 ---
 
@@ -79,7 +79,7 @@ Evidence: [A1_self_strip_admin_*](evidence/security/gaps/), [A3_self_delete_*](e
 
 `RequireRole("admin")` short-circuits all four non-admin attempts. The mass-assignment probe (B5) returns `200` but is functionally a no-op — Go's default JSON decoder silently discards keys not present in the `UpdateUserRequestBody` struct. The server-side role list confirms testuser still has only `user` after B5.
 
-Evidence: [B1_*](evidence/security/gaps/) … [B5_*](evidence/security/gaps/).
+Evidence: [B1_*](../evidence/security/gaps/) … [B5_*](../evidence/security/gaps/).
 
 ---
 
@@ -94,7 +94,7 @@ Evidence: [B1_*](evidence/security/gaps/) … [B5_*](evidence/security/gaps/).
 
 Same pattern: `RequireRole("admin")` rejects before the handler runs. Bodies all `{"error":"forbidden"}`.
 
-Evidence: [C1_*](evidence/security/gaps/) … [C4_*](evidence/security/gaps/).
+Evidence: [C1_*](../evidence/security/gaps/) … [C4_*](../evidence/security/gaps/).
 
 ---
 
@@ -122,11 +122,11 @@ Evidence: [C1_*](evidence/security/gaps/) … [C4_*](evidence/security/gaps/).
 
 ### Exploit
 
-3. `GET /admin/users` with `Authorization: Bearer D_TOK` → **200** (pre-revoke baseline; evidence [D3_pre_revoke_admin_users_headers.txt](evidence/security/gaps/D3_pre_revoke_admin_users_headers.txt)).
-4. `DELETE /admin/users/{testuser}/roles/admin` as **adminuser** → `204`. Server state confirmed: testuser's role list is now `["user"]` ([D5_post_revoke_server_roles.json](evidence/security/gaps/D5_post_revoke_server_roles.json)).
+3. `GET /admin/users` with `Authorization: Bearer D_TOK` → **200** (pre-revoke baseline; evidence [D3_pre_revoke_admin_users_headers.txt](../evidence/security/gaps/D3_pre_revoke_admin_users_headers.txt)).
+4. `DELETE /admin/users/{testuser}/roles/admin` as **adminuser** → `204`. Server state confirmed: testuser's role list is now `["user"]` ([D5_post_revoke_server_roles.json](../evidence/security/gaps/D5_post_revoke_server_roles.json)).
 5. **Re-test `D_TOK` AFTER revocation:**
-   - `GET /admin/users` → **200** ([D6](evidence/security/gaps/D6_post_revoke_admin_users_headers.txt)). The demoted user still reads the user directory.
-   - `PATCH /admin/users/{adminuser}` body `{"first_name":"PWNED"}` → **200**. The response body shows the mutation persisted: `"first_name":"PWNED"` ([D7_post_revoke_patch_admin_body.txt](evidence/security/gaps/D7_post_revoke_patch_admin_body.txt)). A demoted user successfully overwrote an admin's profile.
+   - `GET /admin/users` → **200** ([D6](../evidence/security/gaps/D6_post_revoke_admin_users_headers.txt)). The demoted user still reads the user directory.
+   - `PATCH /admin/users/{adminuser}` body `{"first_name":"PWNED"}` → **200**. The response body shows the mutation persisted: `"first_name":"PWNED"` ([D7_post_revoke_patch_admin_body.txt](../evidence/security/gaps/D7_post_revoke_patch_admin_body.txt)). A demoted user successfully overwrote an admin's profile.
 
 Rollback step: `PATCH /admin/users/{adminuser}` `{"first_name":"Adminuser"}` as adminuser → `200`. Field restored. testuser confirmed back to `["user"]`. Realm is clean.
 
@@ -162,17 +162,17 @@ GET /me           → 200
 GET /admin/users  → 200
 ```
 
-The same JWT continues to authenticate and authorize. ([E1_self_session_kill_headers.txt](evidence/security/gaps/E1_self_session_kill_headers.txt))
+The same JWT continues to authenticate and authorize. ([E1_self_session_kill_headers.txt](../evidence/security/gaps/E1_self_session_kill_headers.txt))
 
 This is the session-attack-vector restatement of GAP-1. Even after "log everyone out for this user", the existing bearer tokens still pass `RequireAuth` because validation is signature + claim, never a session-liveness lookup.
 
 ### E5 — Same effect through `DELETE /admin/sessions/{sid}`
 
-Pick adminuser's specific session ID from `/admin/sessions` and delete it → `204`. JWT still works → `/me` `200`, `/admin/users` `200`. ([E5_kill_own_sid_headers.txt](evidence/security/gaps/E5_kill_own_sid_headers.txt))
+Pick adminuser's specific session ID from `/admin/sessions` and delete it → `204`. JWT still works → `/me` `200`, `/admin/users` `200`. ([E5_kill_own_sid_headers.txt](../evidence/security/gaps/E5_kill_own_sid_headers.txt))
 
 ### E2 — Realm-wide bulk terminate is unimplemented — **GAP-3**
 
-`DELETE /admin/sessions` (no `:id`) → `404 page not found` (Gin's default 404, not the API's JSON 404). ([E2_realm_wide_kill_headers.txt](evidence/security/gaps/E2_realm_wide_kill_headers.txt))
+`DELETE /admin/sessions` (no `:id`) → `404 page not found` (Gin's default 404, not the API's JSON 404). ([E2_realm_wide_kill_headers.txt](../evidence/security/gaps/E2_realm_wide_kill_headers.txt))
 
 The SPA already renders the corresponding button as disabled with a `coming-soon` badge (`web/admin/static/js/views/sessions.js`). Operationally this is the "panic button" you would reach for if a master credential leaks. Its absence is a low-severity finding under the realm's current ops model but should be tracked.
 
@@ -189,11 +189,11 @@ The SPA already renders the corresponding button as disabled with a `coming-soon
 | `/admin/sessions/_all`        | DELETE |    400 |
 | `/admin/users/_all`           | DELETE |    400 |
 
-No batch endpoint exists — `400` on the latter two is route-matched-then-rejected on UUID validation. No way to "wipe everything" through a single call. ([E6_batch_routes.txt](evidence/security/gaps/E6_batch_routes.txt))
+No batch endpoint exists — `400` on the latter two is route-matched-then-rejected on UUID validation. No way to "wipe everything" through a single call. ([E6_batch_routes.txt](../evidence/security/gaps/E6_batch_routes.txt))
 
 ### E7 — IDOR on session listing
 
-testuser → `GET /admin/users/{adminuser}/sessions` → `403`. RequireRole guards the whole route group. ([E7_idor_sessions_headers.txt](evidence/security/gaps/E7_idor_sessions_headers.txt))
+testuser → `GET /admin/users/{adminuser}/sessions` → `403`. RequireRole guards the whole route group. ([E7_idor_sessions_headers.txt](../evidence/security/gaps/E7_idor_sessions_headers.txt))
 
 ---
 
@@ -312,7 +312,7 @@ The state-mutating probes (D1 grant, D7 PATCH, E1/E4/E5 session kills) are indiv
 |---------------------------------|------------------------------------------------------------------------------------------|----------------------------------------------------|
 | **GO / NO-GO**                  | NO-GO for IAM-grade ops without GAP-1 remediation. GO for non-privileged surfaces.       | **GO** — GAP-1 closed; see [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md). GAP-2 (medium) and GAP-3 (low operational) remain outside the IAM-grade GO scope and tracked separately. |
 
-The functional gate ([FINAL_SMOKE.md](FINAL_SMOKE.md)) remains GO. The security gate ([FINAL_SECURITY.md](FINAL_SECURITY.md)) was a synthesis of probes that all *expected* the JWT-stateless model; this adversarial pass quantifies what that model actually permits, and the answer is: enough that an attacker who holds a token for any role for one second retains that role for up to 60 minutes after server-side revocation. Recommendation: ship the functional surface, gate the IAM admin surface behind a short-lifespan admin-scope token (`accessTokenLifespan ≤ 120 s` for admin scope), and revisit when an event-driven revocation cache is in place.
+The functional gate ([FINAL_SMOKE.md](../release/FINAL_SMOKE.md)) remains GO. The security gate ([FINAL_SECURITY.md](FINAL_SECURITY.md)) was a synthesis of probes that all *expected* the JWT-stateless model; this adversarial pass quantifies what that model actually permits, and the answer is: enough that an attacker who holds a token for any role for one second retains that role for up to 60 minutes after server-side revocation. Recommendation: ship the functional surface, gate the IAM admin surface behind a short-lifespan admin-scope token (`accessTokenLifespan ≤ 120 s` for admin scope), and revisit when an event-driven revocation cache is in place.
 
 ---
 
@@ -322,7 +322,7 @@ The functional gate ([FINAL_SMOKE.md](FINAL_SMOKE.md)) remains GO. The security 
 |-------------|----------------------------------------------|
 | GAP-1       | sharpens F2 from [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md#L155) (logout doesn't invalidate access token) — turns the INFO/Low-Med into an **HIGH demonstrated exploit** |
 | GAP-2       | restates F2 against the session-termination attack vector specifically |
-| GAP-3       | same as F4 in [FINAL_SECURITY.md](FINAL_SECURITY.md#L116) and FS-1 in [FINAL_SMOKE.md](FINAL_SMOKE.md#L113) |
+| GAP-3       | same as F4 in [FINAL_SECURITY.md](FINAL_SECURITY.md#L116) and FS-1 in [FINAL_SMOKE.md](../release/FINAL_SMOKE.md#L113) |
 | GAP-4       | new informational finding from this run |
 
 ---

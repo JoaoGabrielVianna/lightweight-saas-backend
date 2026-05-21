@@ -42,7 +42,7 @@ curl -s "http://localhost:8080/admin/users?search=smtp-orphan@example.com" \
 # → count: 1 (ORPHAN PRESENT)
 ```
 
-**Evidence:** [docs/evidence/crud-bugs/api/059_I14b_orphan_check.json](evidence/crud-bugs/api/059_I14b_orphan_check.json) (pre-fix).
+**Evidence:** [docs/evidence/crud-bugs/api/059_I14b_orphan_check.json](../evidence/crud-bugs/api/059_I14b_orphan_check.json) (pre-fix).
 
 #### Root-cause investigation
 
@@ -109,7 +109,7 @@ Results: `502 / 0` × 5 — **zero orphans** across all attempts. Server log sho
 INFO  identity-k compensating delete ok user_id=ef54b8d2-...
 ```
 
-I14b is re-run by the destructive suite as test `I14b` (see [docs/evidence/crud-bugs/api/DESTRUCTIVE_RESULTS.json](evidence/crud-bugs/api/DESTRUCTIVE_RESULTS.json)) — final result: **PASS**.
+I14b is re-run by the destructive suite as test `I14b` (see [docs/evidence/crud-bugs/api/DESTRUCTIVE_RESULTS.json](../evidence/crud-bugs/api/DESTRUCTIVE_RESULTS.json)) — final result: **PASS**.
 
 ---
 
@@ -152,7 +152,7 @@ I did not modify the swagger annotations because **swagger is in the forbidden l
 ### 3.1 API destructive (59 checks)
 
 Source: [/tmp/smoketest_v02/destructive.py](file:///tmp/smoketest_v02/destructive.py) (outside the repo by mission design).
-Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](evidence/crud-bugs/api/).
+Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](../evidence/crud-bugs/api/).
 
 | ID | Category | Description | HTTP | Verdict |
 |----|----------|-------------|------|---------|
@@ -209,7 +209,7 @@ Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](evi
 ### 3.2 UI destructive (12 checks)
 
 Source: [/tmp/smoketest_v02/destructive_ui.spec.mjs](file:///tmp/smoketest_v02/destructive_ui.spec.mjs).
-Screenshots + per-test JSON: [docs/evidence/crud-bugs/ui/](evidence/crud-bugs/ui/).
+Screenshots + per-test JSON: [docs/evidence/crud-bugs/ui/](../evidence/crud-bugs/ui/).
 
 | ID | Scenario | Verdict |
 |----|----------|---------|

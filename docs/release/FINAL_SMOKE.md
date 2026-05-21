@@ -15,11 +15,11 @@
 | Go test suite (`go test ./...`)               | **PASS** | 9 packages with tests, all green over 4 consecutive `-count=1` runs |
 | Auth E2E (`scripts/e2e.sh`)                   | **PASS** | token acquired → `GET /me` 200 with expected payload |
 | Security live (`scripts/security_live_check.sh`)         | **PASS** | 17/17 guard probes |
-| Security advanced (`scripts/security_advanced_check.sh`) | **PASS** | 5 PASS / 0 FAIL / 6 INFO findings — see [FINAL_SECURITY.md](FINAL_SECURITY.md) |
+| Security advanced (`scripts/security_advanced_check.sh`) | **PASS** | 5 PASS / 0 FAIL / 6 INFO findings — see [FINAL_SECURITY.md](../security/FINAL_SECURITY.md) |
 | Playwright smoke (`/tmp/smoketest_v02/smoke.spec.mjs`)   | **PASS** | login + 5 SPA tabs, all admin calls 200 |
 | Playwright CRUD (`/tmp/smoketest_v02/crud.spec.mjs`)     | **PASS** | 13 PASS · 3 SKIP · 1 NOT_IMPLEMENTED · **0 FAIL** |
 
-No failed assertions in any suite. Three SKIPs and one NOT_IMPLEMENTED are environmental / documented gaps (not regressions). Full evidence under [docs/evidence/final/](evidence/final/).
+No failed assertions in any suite. Three SKIPs and one NOT_IMPLEMENTED are environmental / documented gaps (not regressions). Full evidence under [docs/evidence/final/](../evidence/final/).
 
 ---
 
@@ -40,7 +40,7 @@ saas-postgres            Up 25 minutes (healthy)  0.0.0.0:5432->5432/tcp
 
 ### 3.1 Go test suite — PASS
 
-Evidence: [docs/evidence/final/go/](evidence/final/go/)
+Evidence: [docs/evidence/final/go/](../evidence/final/go/)
 
 ```
 ok      internal/audit                       0.150s
@@ -60,11 +60,11 @@ $ for i in 1 2 3; do go test ./... -count=1 2>&1 | tail -1; done
 # all 3 runs: every package "ok", exit 0
 ```
 
-**Note on the initial flake.** The very first `go test ./...` (default cache enabled) reported 8 transient failures in `internal/identity/handler_audit_test.go` (`status = 200, body=`). Re-running the same package directly (`go test ./internal/identity/ -v`) and then the full suite with `-count=1` four times produced no failures whatsoever. The first run mixed `(cached)` packages with a fresh-run identity package while the live stack was actively servicing other suites in parallel — most likely a transient port/connection contention rather than a real defect. The test file is left untouched (per "only fix broken tests" scope, a single one-off flake is not "broken"). Captured for the record: [identity_audit_fail.txt](evidence/final/go/identity_audit_fail.txt).
+**Note on the initial flake.** The very first `go test ./...` (default cache enabled) reported 8 transient failures in `internal/identity/handler_audit_test.go` (`status = 200, body=`). Re-running the same package directly (`go test ./internal/identity/ -v`) and then the full suite with `-count=1` four times produced no failures whatsoever. The first run mixed `(cached)` packages with a fresh-run identity package while the live stack was actively servicing other suites in parallel — most likely a transient port/connection contention rather than a real defect. The test file is left untouched (per "only fix broken tests" scope, a single one-off flake is not "broken"). Captured for the record: [identity_audit_fail.txt](../evidence/final/go/identity_audit_fail.txt).
 
 ### 3.2 Auth E2E shell — PASS
 
-Evidence: [docs/evidence/final/auth/e2e.log](evidence/final/auth/e2e.log)
+Evidence: [docs/evidence/final/auth/e2e.log](../evidence/final/auth/e2e.log)
 
 ```
 + keycloak ready
@@ -78,7 +78,7 @@ The Direct Access Grants flow + JIT user provisioning on first `/me` call still 
 
 ### 3.3 Playwright smoke (admin console) — PASS
 
-Evidence: [docs/evidence/final/smoke/](evidence/final/smoke/) (links to [screenshots](evidence/final/smoke/screenshots/) + `smoke_results.json` + `console_log.txt`)
+Evidence: [docs/evidence/final/smoke/](../evidence/final/smoke/) (links to [screenshots](../evidence/final/smoke/screenshots/) + `smoke_results.json` + `console_log.txt`)
 
 | Step                              | Outcome | Evidence |
 |-----------------------------------|---------|----------|
@@ -90,13 +90,13 @@ Evidence: [docs/evidence/final/smoke/](evidence/final/smoke/) (links to [screens
 | `#/roles`                         | `GET /admin/roles` → **200**, 12 rows | `07_roles.png` |
 | `#/sessions`                      | `GET /admin/sessions` → **200**, 6 rows | `08_sessions.png` |
 | `#/invitations`                   | `GET /admin/invitations` → **200**, 4 rows | `09_invitations.png` |
-| Raw API dumps via SPA's own token | `/admin/users`, `/admin/roles`, `/admin/sessions`, `/admin/invitations`, `/auth/debug`, `/me` — all HTTP **200** | [docs/evidence/api/](evidence/api/) |
+| Raw API dumps via SPA's own token | `/admin/users`, `/admin/roles`, `/admin/sessions`, `/admin/invitations`, `/auth/debug`, `/me` — all HTTP **200** | [docs/evidence/api/](../evidence/api/) |
 
 Zero `pageerror` or `console.error` events from the SPA. All 5 tabs scored `pass` in `smoke_results.json`.
 
 ### 3.4 Playwright CRUD (full IAM E2E) — PASS
 
-Evidence: [docs/evidence/final/crud/](evidence/final/crud/) (links to [screenshots](evidence/final/crud/screenshots/) + `crud_results.json` + `console_log.txt`)
+Evidence: [docs/evidence/final/crud/](../evidence/final/crud/) (links to [screenshots](../evidence/final/crud/screenshots/) + `crud_results.json` + `console_log.txt`)
 
 The CRUD spec drives the SPA through 16 phases. Sandbox user provisioned via `saas-backend-admin` service-account client (test-data setup only, no source change). Test stamp: `20260520075515`. Test role: `crud-e2e-20260520075515`.
 
@@ -123,7 +123,7 @@ The CRUD spec drives the SPA through 16 phases. Sandbox user provisioned via `sa
 
 **Totals:** 13 PASS · 3 SKIP · 1 NOT_IMPLEMENTED · **0 FAIL** · 0 PASS_GAP.
 
-Comparison to the prior CRUD run (stamp `20260520071250` — [docs/evidence/crud/CRUD_E2E_REPORT.md](evidence/crud/CRUD_E2E_REPORT.md)):
+Comparison to the prior CRUD run (stamp `20260520071250` — [docs/evidence/crud/CRUD_E2E_REPORT.md](../evidence/crud/CRUD_E2E_REPORT.md)):
 
 | Outcome class      | Prior | Now |
 |--------------------|------:|----:|
@@ -228,4 +228,4 @@ TOTAL SUITES: 6        PASS: 6         FAIL: 0
 GO/NO-GO:    GO
 ```
 
-No FAILs; the gaps recorded in §5 are either documented v0.2 limitations (FS-1) or test-data drift (FS-2, FS-3, FS-4). See [FINAL_SECURITY.md](FINAL_SECURITY.md) for the security-gate verdict, which is also **GO**.
+No FAILs; the gaps recorded in §5 are either documented v0.2 limitations (FS-1) or test-data drift (FS-2, FS-3, FS-4). See [FINAL_SECURITY.md](../security/FINAL_SECURITY.md) for the security-gate verdict, which is also **GO**.

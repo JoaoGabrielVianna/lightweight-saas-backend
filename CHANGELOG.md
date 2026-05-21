@@ -15,7 +15,7 @@ Identity Management milestone. Adds an admin-only HTTP surface that wraps the
 Keycloak Admin API for user, role, session, and invitation administration,
 plus role-based access control middleware and a minimal admin web UI.
 
-Full release notes: [docs/RELEASE_v0.2.md](docs/RELEASE_v0.2.md).
+Full release notes: [docs/RELEASE_v0.2.md](docs/release/RELEASE_v0.2.md).
 
 ### Added
 

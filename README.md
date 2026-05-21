@@ -2,7 +2,7 @@
 
 > **Status:** v0.2.0 — Identity Management. Keycloak-based auth plus an
 > admin-only HTTP surface for user/role/session/invitation administration.
-> Release notes: [docs/RELEASE_v0.2.md](docs/RELEASE_v0.2.md) ·
+> Release notes: [docs/RELEASE_v0.2.md](docs/release/RELEASE_v0.2.md) ·
 > Changelog: [CHANGELOG.md](CHANGELOG.md).
 
 A reusable Go backend foundation for SaaS-style products. Authentication is
@@ -85,7 +85,7 @@ The Identity Management surface (mounted when
 
 Full route × verb matrix and schemas live in the Swagger spec; release
 notes for the admin surface are in
-[docs/RELEASE_v0.2.md §2.1](docs/RELEASE_v0.2.md#21-admin-http-surface).
+[docs/RELEASE_v0.2.md §2.1](docs/release/RELEASE_v0.2.md#21-admin-http-surface).
 
 **There is no `/register` or `/login` here by design** — Keycloak owns
 identity. Clients obtain tokens directly from Keycloak (Authorization Code

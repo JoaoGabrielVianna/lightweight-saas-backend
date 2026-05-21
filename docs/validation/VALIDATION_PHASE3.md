@@ -270,4 +270,4 @@ The Sprint 1 brief's checklist is fully satisfied:
 - [x] Startup validation: fail fast on missing env (config/config.go `Validate()`)
 - [x] Structured logging for auth failures (AuthEvent + EventHook)
 
-Sprint 3 closes here. Further work tracked in the open risks section of [PHASE3_BREAKING_CHANGE.md](./migrations/PHASE3_BREAKING_CHANGE.md).
+Sprint 3 closes here. Further work tracked in the open risks section of [PHASE3_BREAKING_CHANGE.md](../migrations/PHASE3_BREAKING_CHANGE.md).

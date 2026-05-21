@@ -14,7 +14,7 @@ never re-decides validity client-side.
 > "terminal → curl → jq → log dive" into a single page. It is gated behind
 > an environment flag (`DEV_PLAYGROUND_ENABLED`) and a Keycloak client
 > that is registered only when `features.dev_playground=true` in
-> [`config/project.json`](../config/project.json).
+> [`config/project.json`](../../config/project.json).
 
 ---
 
@@ -113,7 +113,7 @@ KEYCLOAK_ALLOWED_CLIENT_IDS=saas-backend,saas-dev-playground
 second). Tokens minted by `saas-dev-playground` (when you use this page)
 and tokens minted by `saas-backend` (curl examples, server-to-server) both
 pass — anything else is rejected with `azp ... is not in the allowed-client
-set` (see [KEYCLOAK_SETUP.md §2](./KEYCLOAK_SETUP.md#2-environment-variables)).
+set` (see [KEYCLOAK_SETUP.md §2](../KEYCLOAK_SETUP.md#2-environment-variables)).
 
 When `features.dev_playground=false`, the generator omits the playground
 client id from the list, so production deployments only accept the primary
@@ -123,7 +123,7 @@ client by default.
 
 ## Enabling it
 
-1. Flip the feature flag in [`config/project.json`](../config/project.json):
+1. Flip the feature flag in [`config/project.json`](../../config/project.json):
 
    ```json
    "features": { "dev_playground": true, ... }
@@ -480,7 +480,7 @@ fetch("/auth/debug", {
   at `http://localhost:8081`.
 - **No interactive request builder.** Right now there's a single **GET /me**
   button. Extending to arbitrary endpoints is straightforward — see the
-  `callMe` function in [auth.js](../web/dev/auth.js).
+  `callMe` function in [auth.js](../../web/dev/auth.js).
 - **The page itself isn't authenticated.** Anyone who reaches the URL can
   attempt to log in. That's fine because the URL only resolves locally.
 - **Hand-rolled OIDC.** Robust enough for a dev tool. For production
@@ -501,7 +501,7 @@ fetch("/auth/debug", {
 | `/me` returns 401 with `key not found: kid`                     | The API's JWKS cache is stale (typically after a `make realm-reset` regenerated Keycloak's signing keys). The cache refreshes on kid-miss within ~30s. If it persists, `docker-compose restart api`. |
 | Logout doesn't clear the Keycloak session                       | Browsers sometimes preserve the Keycloak SSO cookie. Open Keycloak's admin UI → Sessions → revoke. Or use a private tab. |
 
-For non-playground troubleshooting, see [KEYCLOAK_SETUP.md §9](./KEYCLOAK_SETUP.md#9-troubleshooting).
+For non-playground troubleshooting, see [KEYCLOAK_SETUP.md §9](../KEYCLOAK_SETUP.md#9-troubleshooting).
 
 ---
 

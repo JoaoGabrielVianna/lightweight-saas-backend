@@ -20,7 +20,7 @@
 └───────────────────────────────────────────────────────────────┘
 ```
 
-**Rationale.** v0.2.0 is already tagged at the right SHA with GAP-1 closed, CHANGELOG correct, `make ci` green, and audit-wiring functional — see [FINAL_TAG_REPORT_v2.md](FINAL_TAG_REPORT_v2.md). The hardening backlog this report consolidates does NOT block the v0.2.0 push. It defines the *next* slice of work:
+**Rationale.** v0.2.0 is already tagged at the right SHA with GAP-1 closed, CHANGELOG correct, `make ci` green, and audit-wiring functional — see [FINAL_TAG_REPORT_v2.md](../release/FINAL_TAG_REPORT_v2.md). The hardening backlog this report consolidates does NOT block the v0.2.0 push. It defines the *next* slice of work:
 
 - **v0.2.1 (patch)** — 2 P0 + 4 P1 UI-only fixes. Narrow, no API contract change, no new infrastructure. Closes the highest-impact post-tag findings.
 - **v0.3 (minor)** — GAP-2 / GAP-3 / GAP-4 security backlog (needs new infrastructure: backchannel-logout listener, realm-wide terminate endpoint, strict JSON binding), plus the P2 UI hardening pass.
@@ -35,14 +35,14 @@ Every adversarial/QA report produced by Agents A–D on top of v0.2.0, plus the 
 
 | # | Document | Author | Surface | Findings |
 |---|----------|--------|---------|----------|
-| 1 | [BUG_REPORT_CRUD.md](BUG_REPORT_CRUD.md) | Agent A — Destructive QA Engineer | API + UI destructive (71 checks) | 1 defect (I14b — fixed) + 1 contract clarity (R02 — by design) |
-| 2 | [SECURITY_GAPS.md](SECURITY_GAPS.md) | Agent D — Security Tester (adversarial probes) | Privilege/role/session attack surface | GAP-1 (HIGH, fixed), GAP-2 (MEDIUM, open), GAP-3 (LOW, open), GAP-4 (INFO, open) |
-| 3 | [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) | GAP-1 fix author | `internal/auth` + handler invalidation | Fix design + 16 unit tests + live-stack G1.1–G1.10 PASS |
-| 4 | [SECURITY_REGRESSION_GAP1.md](SECURITY_REGRESSION_GAP1.md) | Agent F regression | `/admin/*` post-fix replay | 7/7 PASS (R1–R7) |
-| 5 | [UI_BUGS.md](UI_BUGS.md) | UI catalog (static analysis of `web/admin/`) | Admin console JS | 20 bugs: 2 P0, 4 P1, 7 P2, 7 P3 |
-| 6 | [AUDIT_VALIDATION.md](AUDIT_VALIDATION.md) | Audit-coverage validator | `internal/identity/handler.go` | All 13 mutations emit audit events (validated by handler-paired tests) |
-| 7 | [FINAL_TAG_REPORT.md](FINAL_TAG_REPORT.md) | Release Manager (v1 freeze) | git state | SAFE_TO_TAG=false (pre-stash) |
-| 8 | [FINAL_TAG_REPORT_v2.md](FINAL_TAG_REPORT_v2.md) | Release Manager (v2 freeze) | git state | SAFE_TO_TAG=true (post-stash) — tag created |
+| 1 | [BUG_REPORT_CRUD.md](../validation/BUG_REPORT_CRUD.md) | Agent A — Destructive QA Engineer | API + UI destructive (71 checks) | 1 defect (I14b — fixed) + 1 contract clarity (R02 — by design) |
+| 2 | [SECURITY_GAPS.md](../security/SECURITY_GAPS.md) | Agent D — Security Tester (adversarial probes) | Privilege/role/session attack surface | GAP-1 (HIGH, fixed), GAP-2 (MEDIUM, open), GAP-3 (LOW, open), GAP-4 (INFO, open) |
+| 3 | [SECURITY_REMEDIATION_GAP1.md](../security/SECURITY_REMEDIATION_GAP1.md) | GAP-1 fix author | `internal/auth` + handler invalidation | Fix design + 16 unit tests + live-stack G1.1–G1.10 PASS |
+| 4 | [SECURITY_REGRESSION_GAP1.md](../security/SECURITY_REGRESSION_GAP1.md) | Agent F regression | `/admin/*` post-fix replay | 7/7 PASS (R1–R7) |
+| 5 | [UI_BUGS.md](../ui/UI_BUGS.md) | UI catalog (static analysis of `web/admin/`) | Admin console JS | 20 bugs: 2 P0, 4 P1, 7 P2, 7 P3 |
+| 6 | [AUDIT_VALIDATION.md](../validation/AUDIT_VALIDATION.md) | Audit-coverage validator | `internal/identity/handler.go` | All 13 mutations emit audit events (validated by handler-paired tests) |
+| 7 | [FINAL_TAG_REPORT.md](../release/FINAL_TAG_REPORT.md) | Release Manager (v1 freeze) | git state | SAFE_TO_TAG=false (pre-stash) |
+| 8 | [FINAL_TAG_REPORT_v2.md](../release/FINAL_TAG_REPORT_v2.md) | Release Manager (v2 freeze) | git state | SAFE_TO_TAG=true (post-stash) — tag created |
 
 All eight inputs were read in full by this report; nothing is taken on trust from a summary.
 
@@ -108,7 +108,7 @@ Grouped by category for triage.
 |----|-------|--------|-------------|
 | R02 | `POST /admin/roles {"name":"UPPERCASE"}` returns 201 with name lowercased | BUG_REPORT_CRUD.md §2 | **By design** — left as-is; remediation is one-line API doc note |
 | FS-2 / FS-3 | CRUD playwright fixture drift (resend/revoke depend on `user@example.com` pre-seed; revoke-one needs a non-admin session at test time) | FINAL_SMOKE.md §5 | Test-data only; not a runtime bug |
-| FS-4 | One-time `go test ./...` first-run flake on audit tests — not reproduced over 5 subsequent runs (including the `-race` runs in [FINAL_TAG_REPORT_v2.md §Gate 2](FINAL_TAG_REPORT_v2.md#gate-2--go-test--race)) | FINAL_SMOKE.md §5 | Monitor — promote to P2 only if recurs |
+| FS-4 | One-time `go test ./...` first-run flake on audit tests — not reproduced over 5 subsequent runs (including the `-race` runs in [FINAL_TAG_REPORT_v2.md §Gate 2](../release/FINAL_TAG_REPORT_v2.md#gate-2--go-test--race)) | FINAL_SMOKE.md §5 | Monitor — promote to P2 only if recurs |
 
 ### 3.4 Closed in v0.2.0 (verified by this auditor)
 
@@ -205,7 +205,7 @@ In order, regardless of release routing:
 
 | Question | Answer |
 |----------|--------|
-| Is v0.2.0 itself release-grade? | **YES.** Tagged at `e9c00c9` with GAP-1 closed, audit emitting, CHANGELOG accurate, `make ci` green, `-race` clean. See [FINAL_TAG_REPORT_v2.md](FINAL_TAG_REPORT_v2.md). |
+| Is v0.2.0 itself release-grade? | **YES.** Tagged at `e9c00c9` with GAP-1 closed, audit emitting, CHANGELOG accurate, `make ci` green, `-race` clean. See [FINAL_TAG_REPORT_v2.md](../release/FINAL_TAG_REPORT_v2.md). |
 | Does the hardening backlog block v0.2.0? | **NO.** Every finding in this report is either fixed in v0.2.0 (GAP-1, I14b, L4, L5, E1) or is post-tag work targeted at v0.2.1 / v0.3. |
 | Are the open P0/P1 findings actionable? | **YES.** UI-001/UI-002 are 5–10-line fixes per the UI_BUGS triage table; UI-003–006 are the same per-button busy pattern. |
 | Is the recommended path correct (v0.2.1 patch → v0.3 minor)? | **AUDITOR'S RECOMMENDATION.** See [§4.3](#43-why-this-split-is-defensible) for the trade-off. Alternative (single v0.3) is also defensible. |

@@ -9,7 +9,7 @@ invariant (events also carry `reason`) was independently verified.
 - Method: end-to-end harness — real `logging.AuditSink` wired via
   `logging.WireDefault()`, stdout captured into a buffer, each emitted
   `audit {...}` line parsed back into `audit.Event` and field-checked.
-- Test: [`internal/identity/handler_audit_validation_test.go`](../internal/identity/handler_audit_validation_test.go)
+- Test: [`internal/identity/handler_audit_validation_test.go`](../../internal/identity/handler_audit_validation_test.go)
 - Run command:
   ```sh
   go test ./internal/identity/... -run TestAudit_Validation -v -count=1
@@ -18,7 +18,7 @@ invariant (events also carry `reason`) was independently verified.
 ## Why this is "validation" not "another unit test"
 
 The unit suite in
-[`handler_audit_test.go`](../internal/identity/handler_audit_test.go)
+[`handler_audit_test.go`](../../internal/identity/handler_audit_test.go)
 uses a capturing in-memory recorder — that proves the call sites build
 the right `Event` struct. But it does **not** prove the JSON ever
 reaches stdout, nor that the JSON shape survives serialisation.

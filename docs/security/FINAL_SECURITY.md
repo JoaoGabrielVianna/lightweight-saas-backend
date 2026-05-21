@@ -41,7 +41,7 @@ Realm `saas` has `bruteForceProtected: true` (verified at runtime in T2). Allowe
 
 ## 3. Auth & RBAC guards (v0.2 re-run) — 17/17 PASS
 
-Evidence: [docs/evidence/final/security/live_check.log](evidence/final/security/live_check.log), per-probe headers+body in [docs/evidence/final/security/live_checks/](evidence/final/security/live_checks/) (G01–G17).
+Evidence: [docs/evidence/final/security/live_check.log](../evidence/final/security/live_check.log), per-probe headers+body in [docs/evidence/final/security/live_checks/](../evidence/final/security/live_checks/) (G01–G17).
 
 | ID  | Probe                                                              | Expected | Actual | Result |
 |-----|--------------------------------------------------------------------|---------:|-------:|--------|
@@ -73,7 +73,7 @@ Notable confirmations:
 
 ## 4. Advanced threat probes (v0.3 re-run) — 5 PASS / 0 FAIL / 6 INFO
 
-Evidence: [docs/evidence/final/security/advanced_check.log](evidence/final/security/advanced_check.log), per-test detail in [docs/evidence/final/security/advanced_checks/](evidence/final/security/advanced_checks/) (T1a–T6).
+Evidence: [docs/evidence/final/security/advanced_check.log](../evidence/final/security/advanced_check.log), per-test detail in [docs/evidence/final/security/advanced_checks/](../evidence/final/security/advanced_checks/) (T1a–T6).
 
 ### 4.1 T1 — Rate limiting *(INFO ×4)*
 
@@ -176,7 +176,7 @@ docs/evidence/final/security/
 └── advanced_checks/        # symlink → docs/evidence/security/advanced/  (T1a–T6 .txt)
 ```
 
-Each per-probe file contains the exact `curl` arguments, the HTTP response headers, and the body (truncated to 2 KB). Tokens used in T6 / G09 / G10 / G11 / G12 are short-lived (1 h TTL) and against the local Keycloak whose master credentials are `admin/admin` from [.env.example](../.env.example) — no production exposure. Re-running the suite overwrites the evidence with fresh tokens.
+Each per-probe file contains the exact `curl` arguments, the HTTP response headers, and the body (truncated to 2 KB). Tokens used in T6 / G09 / G10 / G11 / G12 are short-lived (1 h TTL) and against the local Keycloak whose master credentials are `admin/admin` from [.env.example](../../.env.example) — no production exposure. Re-running the suite overwrites the evidence with fresh tokens.
 
 ---
 
@@ -200,4 +200,4 @@ GO/NO-GO:     GO
 
 All guards behave as specified. The four findings (F1–F4) are tracked for hardening but do not block ship — they are either documented JWT trade-offs (F2, F3), a missing-but-known feature (F4), or an additive defense-in-depth measure (F1).
 
-Pair with [FINAL_SMOKE.md](FINAL_SMOKE.md) for the functional gate — combined verdict: **GO**.
+Pair with [FINAL_SMOKE.md](../release/FINAL_SMOKE.md) for the functional gate — combined verdict: **GO**.

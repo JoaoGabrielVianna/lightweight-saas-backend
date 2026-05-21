@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # security_gap1_check.sh — focused live-stack validation of the GAP-1
-# remediation (docs/SECURITY_REMEDIATION_GAP1.md).
+# remediation (docs/security/SECURITY_REMEDIATION_GAP1.md).
 #
 # What this script proves:
 #
@@ -15,7 +15,7 @@
 #   G1.9  normal user (no role grant) still denied                        (403)
 #   G1.10 /me still works for the demoted user (auth unaffected)          (200)
 #
-# Steps G1.6/G1.7 are the GAP-1 attack flow from docs/SECURITY_GAPS.md §D.
+# Steps G1.6/G1.7 are the GAP-1 attack flow from docs/security/SECURITY_GAPS.md §D.
 # Before this remediation they returned 200 (exploit). After: 403.
 #
 # Evidence: one file per test under docs/evidence/security/gaps/remediation/.

@@ -1,12 +1,12 @@
 # Known Limitations — v0.2.0-rc1
 
-This document consolidates every limitation surfaced by the four RC1 validation agents. Each entry is intentionally a *limitation* (a documented gap), not a *defect* (a contract violation). RC1 ships with these gaps acknowledged; promotion to `v0.2.0` final follows the gates in [docs/RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+This document consolidates every limitation surfaced by the four RC1 validation agents. Each entry is intentionally a *limitation* (a documented gap), not a *defect* (a contract violation). RC1 ships with these gaps acknowledged; promotion to `v0.2.0` final follows the gates in [docs/RELEASE_CHECKLIST.md](../release/RELEASE_CHECKLIST.md).
 
 Source reports:
-- Agent A — [SECURITY_VALIDATION_v0.2.md](SECURITY_VALIDATION_v0.2.md), [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md)
-- Agent B — [SMOKE_TEST_v0.2.md](SMOKE_TEST_v0.2.md), [evidence/crud/CRUD_E2E_REPORT.md](evidence/crud/CRUD_E2E_REPORT.md)
-- Agent C — [INVITATION_RELIABILITY_v0.2.md](INVITATION_RELIABILITY_v0.2.md)
-- Agent D — [AUDIT_EVENTS.md](AUDIT_EVENTS.md)
+- Agent A — [SECURITY_VALIDATION_v0.2.md](../security/SECURITY_VALIDATION_v0.2.md), [SECURITY_VALIDATION_v0.3.md](../security/SECURITY_VALIDATION_v0.3.md)
+- Agent B — [SMOKE_TEST_v0.2.md](../validation/SMOKE_TEST_v0.2.md), [evidence/crud/CRUD_E2E_REPORT.md](../evidence/crud/CRUD_E2E_REPORT.md)
+- Agent C — [INVITATION_RELIABILITY_v0.2.md](../validation/INVITATION_RELIABILITY_v0.2.md)
+- Agent D — [AUDIT_EVENTS.md](../validation/AUDIT_EVENTS.md)
 
 Severity scale: **Critical** = release-blocker · **High** = blocks final 0.2.0 tag · **Medium** = backlog for 0.3 · **Low** = noted, no action this milestone.
 
@@ -20,7 +20,7 @@ Severity scale: **Critical** = release-blocker · **High** = blocks final 0.2.0 
 | F2 | Low–Med  | Logout           | Bearer access tokens remain valid for up to 3600s after OIDC logout — the API does not consult Keycloak's session store on each request. | Standard stateless-JWT trade-off. Blast radius bounded by `accessTokenLifespan`. Mitigations: shorten lifespan, listen to Keycloak backchannel-logout, or hit `userinfo` on sensitive verbs. |
 | F3 | Low      | Token replay     | No DPoP, no `jti` revocation, no per-request nonce. A captured bearer token is replayable for its full TTL by any holder, from any IP. | Expected for plain OAuth2 bearer tokens. Revisit if scope warrants DPoP or mTLS. |
 
-All three are recorded in Agent A's [SECURITY_VALIDATION_v0.3.md §10](SECURITY_VALIDATION_v0.3.md#10-findings-carried-forward) and are consistent with v0.2's documented contract — none are regressions.
+All three are recorded in Agent A's [SECURITY_VALIDATION_v0.3.md §10](../security/SECURITY_VALIDATION_v0.3.md#10-findings-carried-forward) and are consistent with v0.2's documented contract — none are regressions.
 
 ---
 
@@ -40,7 +40,7 @@ All three are recorded in Agent A's [SECURITY_VALIDATION_v0.3.md §10](SECURITY_
 |----|----------|---------|------------|----------------|
 | L4 | **High** for final 0.2.0 — Medium at RC1 | Audit event emission | The audit model + `AuditSink` log sink are shipped. Two wiring steps are pending: (a) `logging.WireDefault()` at bootstrap, and (b) `audit.Record(...)` calls in `internal/identity/handler.go` for the 13 mutation handlers. Until both ship, `audit.Record` is a silent no-op. | `auth.AuthEvent` continues to emit authn/RBAC events via the existing `auth.SetEventHook` channel (v0.1 behaviour). Authorization decisions and `EventForbidden` denials remain observable; what is *not* observable in RC1 is the post-success mutation trail (who deleted which user, who granted which role). |
 
-Decision required before final 0.2.0 tag — see [RC1_REPORT.md §7](RC1_REPORT.md#7-acceptance-gate-for-v020-final-not-rc1). If L4 slips to 0.2.1, this section is updated and the limitation called out explicitly in `CHANGELOG.md`.
+Decision required before final 0.2.0 tag — see [RC1_REPORT.md §7](../release/RC1_REPORT.md#7-acceptance-gate-for-v020-final-not-rc1). If L4 slips to 0.2.1, this section is updated and the limitation called out explicitly in `CHANGELOG.md`.
 
 ---
 
@@ -62,7 +62,7 @@ Decision required before final 0.2.0 tag — see [RC1_REPORT.md §7](RC1_REPORT.
 
 ## 6. Invitation reliability residual (Agent C)
 
-These are explicitly enumerated by Agent C in [INVITATION_RELIABILITY_v0.2.md §"Known limitations"](INVITATION_RELIABILITY_v0.2.md#known-limitations-still-out-of-scope) and carried here for completeness.
+These are explicitly enumerated by Agent C in [INVITATION_RELIABILITY_v0.2.md §"Known limitations"](../validation/INVITATION_RELIABILITY_v0.2.md#known-limitations-still-out-of-scope) and carried here for completeness.
 
 | ID | Severity | Surface | Limitation | Operator action when it occurs |
 |----|----------|---------|------------|--------------------------------|

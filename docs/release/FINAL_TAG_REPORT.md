@@ -189,7 +189,7 @@ No race warnings. No failures. All packages with tests pass under `-race`.
 
 To flip **SAFE TO TAG** to **TRUE** the operator must execute, in order:
 
-1. Update `CHANGELOG.md` `[0.2.0]` block with the GAP-1 closure entry plus the compensating-delete fix (exact wording in [docs/SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) §3 and the prior release-readiness report). The `[Unreleased]` block should remain empty.
+1. Update `CHANGELOG.md` `[0.2.0]` block with the GAP-1 closure entry plus the compensating-delete fix (exact wording in [docs/SECURITY_REMEDIATION_GAP1.md](../security/SECURITY_REMEDIATION_GAP1.md) §3 and the prior release-readiness report). The `[Unreleased]` block should remain empty.
 2. Stage and commit the GAP-1 remediation (code + tests + docs + evidence + check script) as a single logical commit.
 3. Stage and commit the orthogonal companion work (`invitations.go` compensating-delete logging + `BUG_REPORT_CRUD.md` + `AUDIT_VALIDATION.md` + `handler_audit_validation_test.go` + `UI_BUGS.md` + `docs/evidence/crud-bugs/`) as a separate commit.
 4. Commit the CHANGELOG edit.
