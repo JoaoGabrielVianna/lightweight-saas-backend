@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/docs"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config"
 	"github.com/gin-gonic/gin"
 )
@@ -81,5 +82,48 @@ func mountAdminConsole(r *gin.Engine, cfg *config.Config) {
 		}
 		c.Header("Cache-Control", "no-store")
 		c.File(full)
+	})
+
+	// Embedded documentation. Served from docs.MarkdownFS (a //go:embed of
+	// the docs/ tree), so the docs travel inside the binary — no filesystem
+	// or symlink assumptions at runtime. The in-app docs viewer
+	// (web/admin/static/js/views/docs.js) fetches its sources from this
+	// route. Kept as a separate handler from /admin/static/*filepath so
+	// the static asset semantics (which are filesystem-backed) stay
+	// untouched.
+	r.GET("/admin/docs/*filepath", func(c *gin.Context) {
+		rel := c.Param("filepath")
+		// Defense-in-depth against path traversal — embed.FS already
+		// resolves relative to the embed root and would refuse "..", but
+		// rejecting at the edge keeps the audit-log line single-source.
+		if strings.Contains(rel, "..") {
+			c.AbortWithStatus(http.StatusForbidden)
+			return
+		}
+		// Whitelist .md only — everything we expose is markdown. Refusing
+		// other extensions means a config typo upstream can't accidentally
+		// turn this into a generic file-serving endpoint.
+		if !strings.HasSuffix(rel, ".md") {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		clean := path.Clean("/" + rel)
+		// embed.FS uses forward-slash paths regardless of OS, so we use
+		// path.Join (not filepath.Join) here.
+		full := path.Join("docs", strings.TrimPrefix(clean, "/"))
+		// embed.FS stores entries under the embedding package's directory
+		// as their base name segment — for our docs/markdown.go embeds,
+		// the FS root is the docs/ directory and entries are addressed
+		// without the "docs/" prefix. Strip it back off.
+		full = strings.TrimPrefix(full, "docs/")
+
+		data, err := docs.MarkdownFS.ReadFile(full)
+		if err != nil {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		c.Header("Content-Type", "text/markdown; charset=utf-8")
+		c.Header("Cache-Control", "no-store")
+		c.Data(http.StatusOK, "text/markdown; charset=utf-8", data)
 	})
 }

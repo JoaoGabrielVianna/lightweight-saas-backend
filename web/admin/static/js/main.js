@@ -28,8 +28,13 @@ import auditLogsView   from "./views/auditlogs.js";
 import apiExplorerView from "./views/apiexplorer.js";
 import swaggerView     from "./views/swagger.js";
 import settingsView    from "./views/settings.js";
+import docsView, { DOC_MAP } from "./views/docs.js";
 
-const NAV_ITEMS = [
+// ADMIN_NAV — the existing admin nav, untouched by the docs mode. The
+// sidebar renders this set when the active route does NOT start with
+// /docs/. Mode preservation guarantee: nothing in the admin behavior
+// depends on the docs view being present.
+const ADMIN_NAV = [
   { path: "/overview",    title: "Overview",    icon: "▤", section: "MAIN" },
   { path: "/playground",  title: "Playground",  icon: "▷", section: "MAIN" },
 
@@ -46,8 +51,45 @@ const NAV_ITEMS = [
   { path: "/settings",    title: "Settings",    icon: "⚙", section: "ADMIN" },
 ];
 
+// Backward-compat alias — some external integrations may still reference
+// the old name. Kept until grep'd out of the tree.
+const NAV_ITEMS = ADMIN_NAV;
+
+// DOCS_NAV — derived from views/docs.js DOC_MAP. Generated here (not in
+// docs.js) so the sidebar shows the doc list whether or not the view module
+// has been loaded yet, and so adding a doc to DOC_MAP is the only step
+// required to expose it in the sidebar.
+const DOCS_NAV = Object.entries(DOC_MAP).map(([slug, entry]) => ({
+  path: "/docs" + (slug ? "/" + slug : ""),
+  title: entry.title,
+  icon: iconForSection(entry.section),
+  section: entry.section,
+}));
+
+function iconForSection(section) {
+  switch (section) {
+    case "DOCUMENTATION":    return "ⓘ";
+    case "GETTING STARTED":  return "▶";
+    case "ARCHITECTURE":     return "◫";
+    case "OPERATIONS":       return "⚙";
+    case "MONITORING":       return "◉";
+    case "SECURITY":         return "⛨";
+    case "RELEASE NOTES":    return "✦";
+    default:                 return "•";
+  }
+}
+
+// ROUTES — admin routes are exactly the prior set; /docs and /docs/* are
+// new. The docs route uses a generic ":page+" style by registering /docs
+// for the index plus a wildcard route that resolves params.page from the
+// remainder of the path. The hash router only honors one :name segment per
+// pattern, so we register one route per depth (0, 1, 2) — three patterns
+// cover every entry in DOC_MAP today and any future entry up to two
+// segments deep.
 const ROUTES = {
   "/":             ({ container }) => navigate("/overview"),
+
+  // Admin (existing — untouched).
   "/overview":     overviewView,
   "/playground":   playgroundView,
   "/users":        usersView,
@@ -59,6 +101,11 @@ const ROUTES = {
   "/api-explorer": apiExplorerView,
   "/swagger":      swaggerView,
   "/settings":     settingsView,
+
+  // Docs.
+  "/docs":             (ctx) => docsView({ ...ctx, params: { ...ctx.params, page: "" } }),
+  "/docs/:page":       docsView,
+  "/docs/:a/:b":       (ctx) => docsView({ ...ctx, params: { ...ctx.params, page: `${ctx.params.a}/${ctx.params.b}` } }),
 };
 
 async function boot() {
@@ -99,9 +146,13 @@ async function boot() {
     try { await refreshDebug(); } catch {}
   }
 
-  // 4. Mount sidebar + topbar
-  renderSidebar("#sidebar", NAV_ITEMS);
-  renderTopbar("#topbar", NAV_ITEMS, (q) => {
+  // 4. Mount sidebar + topbar — both are mode-aware. The sidebar renders
+  //    NAV_ITEMS or DOCS_NAV depending on whether the active route lives
+  //    under /docs/*. The topbar exposes a permanent Admin/Docs toggle.
+  //    The renderers subscribe to state changes, so a route transition
+  //    triggers a re-render with the correct nav set automatically.
+  renderSidebar("#sidebar", { admin: ADMIN_NAV, docs: DOCS_NAV });
+  renderTopbar("#topbar", { admin: ADMIN_NAV, docs: DOCS_NAV }, (q) => {
     // Topbar search currently broadcasts via a custom event; views that
     // care subscribe to it. Keeps the search-vs-view contract tiny.
     window.dispatchEvent(new CustomEvent("admin:search", { detail: q }));

@@ -1,0 +1,595 @@
+/* docs.css — styles for the documentation viewer. Layered on top of the
+   existing design system tokens in base.css / layout.css. Every selector is
+   prefixed with .docs-, .md-, .mode-, or .tok- so admin views are
+   unaffected. */
+
+/* ─── Mode toggle (topbar) ─────────────────────────────────────────────── */
+
+.mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-right: 8px;
+}
+.mode-toggle-btn {
+  padding: 4px 12px;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+.mode-toggle-btn + .mode-toggle-btn { border-left: 1px solid var(--border, #2a2f3a); }
+.mode-toggle-btn.active {
+  background: var(--accent, #2b5fff);
+  color: #fff;
+}
+.mode-toggle-btn:not(.active):hover {
+  background: var(--surface-hover, rgba(255,255,255,0.04));
+}
+
+/* ─── Docs-mode language toggle ────────────────────────────────────────
+ *
+ * The toggle is purely a CONTROL — its labels stay in English even when
+ * the active locale is PT-BR. It only governs which markdown sibling
+ * the docs viewer fetches (FOO.md vs FOO.pt-BR.md).
+ *
+ * Visibility goals (the previous iteration was missed in the UI):
+ *
+ *   - Distinct accent border so the eye registers it as a picker, not
+ *     as an extension of the Admin/Docs mode toggle.
+ *   - Inline "Lang" label inside the same border, so the purpose is
+ *     legible without hovering for a tooltip.
+ *   - Always visible inside Docs mode at every viewport. On narrow
+ *     screens the topbar-actions row wraps; the toggle stays intact
+ *     because flex-shrink is 0 and it sits leftmost in the cluster.
+ */
+
+.docs-lang-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--accent, #2b5fff);
+  background: var(--surface, rgba(43, 95, 255, 0.06));
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.docs-lang-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px 0 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent, #6c8bff);
+  border-right: 1px solid var(--accent, #2b5fff);
+  user-select: none;
+}
+
+.docs-lang-toggle .mode-toggle-btn {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text, #e6e9f0);
+}
+.docs-lang-toggle .mode-toggle-btn + .mode-toggle-btn {
+  border-left: 1px solid var(--accent, #2b5fff);
+}
+.docs-lang-toggle .mode-toggle-btn.active {
+  background: var(--accent, #2b5fff);
+  color: #fff;
+}
+.docs-lang-toggle .mode-toggle-btn:not(.active):hover {
+  background: rgba(43, 95, 255, 0.16);
+}
+
+/* Light theme: keep the accent visible but soften the chip backdrop. */
+.theme-light .docs-lang-toggle  { background: rgba(43, 95, 255, 0.08); }
+.theme-light .docs-lang-toggle-label { color: var(--accent, #2b5fff); }
+
+/* Narrow viewports: drop the "Lang" prefix to reclaim space but keep
+ * the accent border so the control is still unmistakable. */
+@media (max-width: 640px) {
+  .docs-lang-toggle-label { display: none; }
+  .docs-lang-toggle .mode-toggle-btn { padding: 4px 8px; font-size: 0.74rem; }
+}
+
+/* ─── Docs shell: single-column reading layout ─────────────────────────
+ *
+ * Navigation architecture (single source of truth):
+ *
+ *   Sidebar  → only persistent navigation surface (Documentation, Quick
+ *              Start, Operations, Security, Release Notes …). Picks
+ *              WHICH document is shown.
+ *   TOC      → opt-in per-article. Lists sections inside the active
+ *              document. Surfaced only when the reader taps the
+ *              "Sections" button in the article header. Closes after
+ *              a pick.
+ *
+ * Consequences for layout:
+ *
+ *   - docs-shell is ONE column at every viewport. There is no
+ *     "Sidebar | Content | TOC" three-column state anywhere.
+ *   - The article uses the full shell width up to a comfortable
+ *     reading-line cap. The TOC is an inline drawer rendered below the
+ *     search bar; it occupies the same column as the article.
+ *   - The global .main cap is still neutralised so the docs-shell can
+ *     own horizontal centering — the article appears in the middle of
+ *     the space the sidebar leaves behind, the way Vercel and Stripe
+ *     docs read.
+ */
+
+.main:has(> .docs-shell) {
+  max-width: none;
+  padding: 0;
+  width: 100%;
+}
+
+.docs-shell {
+  /* No grid columns — the docs-body itself owns the flow. The shell is
+   * a centered band that caps reading width and gives the article
+   * predictable horizontal breathing room. */
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-8) var(--sp-10);
+}
+
+.docs-body { min-width: 0; }
+
+/* ─── Breakpoints ──────────────────────────────────────────────────────
+ *  ≥ 901 px           — Sidebar | Content              (TOC behind button)
+ *  ≤ 900 px           — Sidebar drawer | Content       (TOC behind button)
+ *
+ * The 900-px breakpoint matches the sidebar drawer breakpoint in
+ * layout.css so sidebar + TOC transitions stay coordinated. There is
+ * intentionally no other breakpoint inside the docs layout — adding
+ * more would re-introduce viewport-dependent navigation states, which
+ * is exactly the duplication we're removing.
+ */
+
+@media (max-width: 900px) {
+  .docs-shell {
+    padding: var(--sp-4) var(--sp-4) var(--sp-6);
+    max-width: 100%;
+  }
+}
+
+/* ─── TOC drawer (article-section list) ───────────────────────────────
+ *
+ * The TOC is rendered inline below the search bar but kept collapsed
+ * (max-height: 0) unless the "Sections" header button toggles its
+ * .open class. When open it animates down and reveals the list. Closes
+ * after the reader picks a section.
+ *
+ * It is *not* a sticky column, *not* a fixed pane, and *not* a modal.
+ * Just a section index that appears in-flow on demand.
+ */
+
+.docs-toc {
+  background: var(--bg-elev-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 0;
+  margin: var(--sp-3) 0 var(--sp-5);
+  max-height: 0;
+  overflow: hidden;
+  font-size: 0.9rem;
+  transition: max-height var(--t-base) ease-out, padding var(--t-base) ease-out;
+}
+.docs-toc.open {
+  max-height: 60vh;
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+  overflow: auto;
+}
+/* The native `hidden` attribute is removed by JS when toggling so the
+ * transition can run. While hidden it suppresses the element entirely
+ * (no layout cost when no sections are present). */
+.docs-toc[hidden]:not(.open) { display: none; }
+
+.docs-toc-title {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--sp-2);
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+.docs-toc-list { list-style: none; margin: 0; padding: 0; }
+.docs-toc-item { margin: 2px 0; line-height: 1.5; }
+.docs-toc-level-2 { padding-left: 0; }
+.docs-toc-level-3 { padding-left: 14px; }
+.docs-toc-level-4 { padding-left: 28px; font-size: 0.85rem; }
+.docs-toc-link {
+  color: var(--fg-dim);
+  text-decoration: none;
+  display: block;
+  padding: 3px 0;
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+  margin-left: -8px;
+}
+.docs-toc-link:hover { color: var(--fg); background: var(--bg-elev-2); }
+.docs-toc-link.active {
+  color: var(--accent);
+  font-weight: 600;
+  border-left-color: var(--accent);
+}
+.docs-toc-skeleton { display: none; }
+
+/* "Sections ▾" trigger — page-header action, ghost-button styled. */
+.docs-sections-btn {
+  font-size: 0.85rem;
+  padding: 5px 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-1);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.docs-sections-btn:hover { background: var(--bg-elev-2); }
+.docs-sections-btn[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+
+/* ─── Search input ─────────────────────────────────────────────────────── */
+
+.docs-search-wrap { margin: 8px 0 24px; display: flex; gap: 8px; align-items: center; }
+.docs-search {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 14px;
+  background: var(--surface, #161a23);
+  color: inherit;
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.docs-search:focus {
+  outline: 2px solid var(--accent, #2b5fff);
+  outline-offset: -1px;
+}
+.docs-search-hit {
+  background: rgba(255, 230, 0, 0.45);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.theme-light .docs-search-hit { background: rgba(255, 230, 0, 0.65); }
+
+/* ─── Rendered markdown ────────────────────────────────────────────────── */
+
+.docs-article {
+  /* Article max-width is the line-length cap, NOT the grid cap. The grid
+   * already gives us a ~880 px column at ≥1280 px (1280 - 64 gap - 224
+   * TOC - 64 padding ≈ 928) and ~896 px at <1280 px (960 - 48 padding).
+   * We cap the article body to keep paragraphs at the readable
+   * 70-character zone even on 1600+ px monitors where the full grid
+   * column would otherwise stretch wider. */
+  line-height: 1.7;
+  max-width: 880px;
+  font-size: 0.95rem;
+  /* Long URLs, env-var names, and shell commands inside <code> get to
+   * wrap rather than punch out the column on narrow viewports. The
+   * inline .md-code rule still keeps short tokens unwrapped via white-
+   * space: nowrap on the element itself; this rule applies only to the
+   * <a class="md-link"> wrapping. */
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.docs-article .md-h { scroll-margin-top: 24px; position: relative; }
+.docs-article .md-h1 { font-size: 1.95rem; margin: 8px 0 18px; line-height: 1.25; font-weight: 700; }
+.docs-article .md-h2 { font-size: 1.5rem;  margin: 40px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border, #2a2f3a); font-weight: 600; }
+.docs-article .md-h3 { font-size: 1.2rem;  margin: 28px 0 10px; font-weight: 600; }
+.docs-article .md-h4 { font-size: 1.05rem; margin: 22px 0 8px; font-weight: 600; }
+.docs-article .md-h5,
+.docs-article .md-h6 { font-size: 0.95rem; margin: 16px 0 6px; font-weight: 600; }
+
+.docs-article .md-anchor {
+  position: absolute;
+  left: -1.1em;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  color: var(--muted, #8a92a6);
+  text-decoration: none;
+  font-weight: 400;
+  padding-right: 4px;
+}
+.docs-article .md-h:hover .md-anchor,
+.docs-article .md-anchor:focus { opacity: 1; }
+
+.docs-article .md-p { margin: 14px 0; }
+
+.docs-article .md-list { margin: 12px 0; padding-left: 28px; }
+.docs-article .md-li { margin: 6px 0; }
+.docs-article .md-li > .md-list { margin: 6px 0; }
+.docs-article .md-li > p,
+.docs-article .md-li > .md-p { margin: 6px 0; }
+
+/* Task lists: align the checkbox neatly, drop the bullet. */
+.docs-article .md-list-task { padding-left: 24px; list-style: none; }
+.docs-article .md-li-task { display: list-item; }
+.docs-article .md-list-task .md-li-task { padding-left: 0; }
+.docs-article .md-task {
+  margin: 0 8px 0 -22px;
+  vertical-align: -1px;
+  accent-color: var(--accent, #2b5fff);
+}
+
+.docs-article .md-bq {
+  border-left: 3px solid var(--accent, #2b5fff);
+  margin: 16px 0;
+  padding: 6px 16px;
+  background: var(--surface, rgba(43, 95, 255, 0.05));
+  color: var(--muted, #b3b8c4);
+  border-radius: 0 4px 4px 0;
+}
+
+.docs-article .md-link {
+  color: var(--accent, #6c8bff);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(108, 139, 255, 0.4);
+}
+.docs-article .md-link:hover { text-decoration-color: currentColor; }
+.docs-article .md-link-ext::after { content: " ↗"; opacity: 0.55; font-size: 0.85em; }
+
+.docs-article .md-code {
+  background: var(--surface, rgba(255,255,255,0.07));
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.86em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+/* ─── Fenced code blocks ──────────────────────────────────────────────── */
+
+.docs-article .md-pre {
+  position: relative;
+  background: #0d1019;
+  color: #d9deeb;
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 8px;
+  padding: 38px 16px 14px 16px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: 18px 0;
+}
+.theme-light .docs-article .md-pre {
+  background: #f6f7fb;
+  color: #1a1c23;
+  border-color: #d8dbe5;
+}
+.docs-article .md-pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+  white-space: pre;
+}
+.docs-article .md-lang {
+  position: absolute;
+  top: 0; left: 0;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid rgba(255,255,255,0.08);
+  border-bottom-right-radius: 6px;
+  border-top-left-radius: 8px;
+}
+.theme-light .docs-article .md-lang {
+  color: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.04);
+  border-bottom-color: rgba(0,0,0,0.08);
+  border-right-color: rgba(0,0,0,0.08);
+}
+.docs-article .md-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.75);
+  cursor: pointer;
+  /* Always visible (the prior hover-only reveal hurt mobile). */
+  opacity: 0.7;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.docs-article .md-pre:hover .md-copy { opacity: 1; }
+.docs-article .md-copy:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.theme-light .docs-article .md-copy {
+  color: rgba(0,0,0,0.65);
+  background: rgba(0,0,0,0.05);
+  border-color: rgba(0,0,0,0.12);
+}
+.theme-light .docs-article .md-copy:hover { color: #000; background: rgba(0,0,0,0.08); }
+.docs-article .md-copy-ok  { color: #6cd5a0 !important; border-color: #6cd5a0 !important; opacity: 1; }
+.docs-article .md-copy-err { color: #ff8b8b !important; border-color: #ff8b8b !important; opacity: 1; }
+
+/* Syntax-highlight tokens. Tuned for dark; light theme overrides below. */
+.docs-article .tok-com  { color: #6a7896; font-style: italic; }
+.docs-article .tok-str  { color: #98d09a; }
+.docs-article .tok-num  { color: #d9a86a; }
+.docs-article .tok-kw   { color: #a78bf6; font-weight: 600; }
+.docs-article .tok-key  { color: #6dc1d4; }
+.docs-article .tok-bool { color: #e96fa6; font-weight: 600; }
+.docs-article .tok-var  { color: #f0c674; }
+.theme-light .docs-article .tok-com  { color: #6f7a8f; }
+.theme-light .docs-article .tok-str  { color: #237a30; }
+.theme-light .docs-article .tok-num  { color: #9f6300; }
+.theme-light .docs-article .tok-kw   { color: #6a3eb9; }
+.theme-light .docs-article .tok-key  { color: #1f6f80; }
+.theme-light .docs-article .tok-bool { color: #b22361; }
+.theme-light .docs-article .tok-var  { color: #8a5a00; }
+
+/* ─── Tables ──────────────────────────────────────────────────────────── */
+
+.docs-article .md-table-wrap {
+  overflow-x: auto;
+  margin: 18px 0;
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 8px;
+}
+.docs-article .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.docs-article .md-table th,
+.docs-article .md-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border, #2a2f3a);
+  text-align: left;
+  vertical-align: top;
+}
+.docs-article .md-table tbody tr:nth-child(even) td {
+  background: var(--surface, rgba(255,255,255,0.018));
+}
+.docs-article .md-table tbody tr:last-child td { border-bottom: 0; }
+.docs-article .md-table th {
+  background: var(--surface, rgba(255,255,255,0.05));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-size: 0.83rem;
+  text-transform: uppercase;
+  color: var(--muted, #bcc0cc);
+}
+/* Alignment from the separator-row colon syntax. */
+.docs-article .md-align-left   { text-align: left; }
+.docs-article .md-align-center { text-align: center; }
+.docs-article .md-align-right  { text-align: right; }
+
+.docs-article hr {
+  border: 0;
+  border-top: 1px solid var(--border, #2a2f3a);
+  margin: 32px 0;
+}
+
+.docs-article .md-img { max-width: 100%; border-radius: 6px; margin: 12px 0; }
+
+/* Anchor-flash: brief highlight when an internal link jump completes,
+   so the eye finds the new section without needing to scan. */
+@keyframes anchor-flash {
+  0%   { background: rgba(43, 95, 255, 0.30); }
+  100% { background: transparent; }
+}
+.docs-article .md-anchor-flash { animation: anchor-flash 1.4s ease-out; }
+
+/* Print stylesheet — when an engineer wants the doc on paper, drop the
+   chrome and show only the article. */
+@media print {
+  .sidebar, .topbar, .toast-stack, #modal-root,
+  .docs-toc, .docs-search-wrap, .mode-toggle { display: none !important; }
+  .docs-shell { display: block; }
+  .docs-article { max-width: none; font-size: 11pt; line-height: 1.5; color: #000; }
+  .docs-article .md-pre { background: #fafafa; color: #000; border-color: #ccc; }
+  .docs-article .md-pre .md-copy, .docs-article .md-pre .md-lang { display: none; }
+  .docs-article .md-link, .docs-article .md-link-ext { color: #000; text-decoration: underline; }
+  .docs-article .md-link-ext::after { content: ""; }
+  .docs-article .md-mermaid-source { display: none; }
+}
+
+/* ─── Mermaid diagrams ────────────────────────────────────────────────
+ *
+ * The render target is a horizontally-scrollable container so very wide
+ * flowcharts / sequence diagrams don't punch out of the reading column
+ * on narrow viewports. Mermaid is initialised with `useMaxWidth: true`
+ * for every diagram type, so the SVG honors the container width when it
+ * can; the scroll wrapper covers the cases it can't (e.g. dense
+ * sequenceDiagram with many actors).
+ */
+
+.docs-article .md-mermaid {
+  margin: 20px 0;
+  background: var(--bg-elev-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+}
+.docs-article .md-mermaid-render {
+  overflow-x: auto;
+  /* Centre small diagrams inside a wide container; scroll big ones. */
+  display: flex;
+  justify-content: center;
+  min-height: 24px;
+}
+.docs-article .md-mermaid-render svg {
+  max-width: 100%;
+  height: auto;
+}
+.docs-article .md-mermaid-render[data-rendered="1"] {
+  /* Tighter padding once the SVG is present so the diagram fills the
+     wrapper without an awkward gap. */
+  min-height: auto;
+}
+
+/* "View source" disclosure. Reuses the same .md-pre styling so the
+ * embedded code block inherits copy-button and language-badge polish. */
+.docs-article .md-mermaid-source {
+  margin-top: var(--sp-3);
+  font-size: 0.85rem;
+}
+.docs-article .md-mermaid-source > summary {
+  cursor: pointer;
+  color: var(--fg-dim);
+  user-select: none;
+  padding: 4px 6px;
+  border-radius: var(--r-sm);
+  width: fit-content;
+}
+.docs-article .md-mermaid-source > summary:hover { color: var(--fg); background: var(--bg-elev-2); }
+.docs-article .md-mermaid-source > summary::marker { color: var(--fg-faint); }
+.docs-article .md-mermaid-source[open] > summary { color: var(--fg); }
+.docs-article .md-mermaid-source .md-pre { margin: var(--sp-2) 0 0; }
+
+/* Failure state: friendly message + auto-expanded source. */
+.docs-article .md-mermaid-failed {
+  border-color: var(--bad, #f47067);
+  background: rgba(244, 112, 103, 0.06);
+}
+.docs-article .md-mermaid-error {
+  text-align: center;
+  padding: var(--sp-3);
+  color: var(--bad, #f47067);
+  font-size: 0.9rem;
+}
+.docs-article .md-mermaid-error strong { display: block; margin-bottom: 4px; }
+.docs-article .md-mermaid-error-reason {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--fg-dim);
+  word-break: break-word;
+  margin: 4px auto 6px;
+  max-width: 640px;
+}
+.docs-article .md-mermaid-error-hint {
+  font-size: 0.78rem;
+  color: var(--fg-dim);
+}
+
+/* Mobile: lose the inner padding so the diagram has every available
+   pixel for layout, and tighten margins. */
+@media (max-width: 900px) {
+  .docs-article .md-mermaid { padding: var(--sp-3); margin: 16px 0; }
+}
