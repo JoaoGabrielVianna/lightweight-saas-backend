@@ -40,7 +40,7 @@ Every adversarial/QA report produced by Agents A–D on top of v0.2.0, plus the 
 | 3 | [SECURITY_REMEDIATION_GAP1.md](../security/SECURITY_REMEDIATION_GAP1.md) | GAP-1 fix author | `internal/auth` + handler invalidation | Fix design + 16 unit tests + live-stack G1.1–G1.10 PASS |
 | 4 | [SECURITY_REGRESSION_GAP1.md](../security/SECURITY_REGRESSION_GAP1.md) | Agent F regression | `/admin/*` post-fix replay | 7/7 PASS (R1–R7) |
 | 5 | [UI_BUGS.md](../ui/UI_BUGS.md) | UI catalog (static analysis of `web/admin/`) | Admin console JS | 20 bugs: 2 P0, 4 P1, 7 P2, 7 P3 |
-| 6 | [AUDIT_VALIDATION.md](../validation/AUDIT_VALIDATION.md) | Audit-coverage validator | `internal/identity/handler.go` | All 13 mutations emit audit events (validated by handler-paired tests) |
+| 6 | [AUDIT_VALIDATION.md](../audit/AUDIT_VALIDATION.md) | Audit-coverage validator | `internal/identity/handler.go` | All 13 mutations emit audit events (validated by handler-paired tests) |
 | 7 | [FINAL_TAG_REPORT.md](../release/FINAL_TAG_REPORT.md) | Release Manager (v1 freeze) | git state | SAFE_TO_TAG=false (pre-stash) |
 | 8 | [FINAL_TAG_REPORT_v2.md](../release/FINAL_TAG_REPORT_v2.md) | Release Manager (v2 freeze) | git state | SAFE_TO_TAG=true (post-stash) — tag created |
 

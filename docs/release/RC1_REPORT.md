@@ -39,7 +39,7 @@ Four isolated agents validated v0.2 in parallel. Each owned a disjoint scope; cr
 
 **Reports:** [SECURITY_VALIDATION_v0.2.md](../security/SECURITY_VALIDATION_v0.2.md) · [SECURITY_VALIDATION_v0.3.md](../security/SECURITY_VALIDATION_v0.3.md)
 **Runners:** [scripts/security_live_check.sh](../../scripts/security_live_check.sh), [scripts/security_advanced_check.sh](../../scripts/security_advanced_check.sh)
-**Evidence:** [docs/evidence/security/](../evidence/security/)
+**Evidence:** [docs/evidence/security/](../evidence/security)
 
 | Suite                 | Probes | PASS | FAIL | INFO | Result |
 |-----------------------|-------:|-----:|-----:|-----:|--------|
@@ -62,7 +62,7 @@ Findings carried to [KNOWN_LIMITATIONS.md §1](../roadmap/KNOWN_LIMITATIONS.md#1
 
 **Reports:** [SMOKE_TEST_v0.2.md](../validation/SMOKE_TEST_v0.2.md) · [evidence/crud/CRUD_E2E_REPORT.md](../evidence/crud/CRUD_E2E_REPORT.md)
 **Driver:** `/tmp/smoketest_v02/{smoke,crud}.spec.mjs` (headless Chromium · Playwright 1.60 · outside repo by design)
-**Evidence:** [docs/evidence/screenshots/](../evidence/screenshots/), [docs/evidence/api/](../evidence/api/), [docs/evidence/crud/](../evidence/crud/)
+**Evidence:** [docs/evidence/screenshots/](../evidence/screenshots), [docs/evidence/api/](../evidence/api), [docs/evidence/crud/](../evidence/crud)
 
 | Pass        | Surface                                       | Status            |
 |-------------|-----------------------------------------------|-------------------|
@@ -105,7 +105,7 @@ Remaining limitations explicitly enumerated by the agent — carried to [KNOWN_L
 
 ### Agent D — Audit / Observability foundation
 
-**Report:** [AUDIT_EVENTS.md](../validation/AUDIT_EVENTS.md)
+**Report:** [AUDIT_EVENTS.md](../audit/AUDIT_EVENTS.md)
 **Code scope:** `internal/audit/`, `internal/logging/` (audit sink) — model + log sink shipped
 
 What landed in RC1:
@@ -117,7 +117,7 @@ What landed in RC1:
 
 What is **not** landed in RC1 (handed off to the identity owner):
 1. `logging.WireDefault()` call at bootstrap (likely `cmd/api/main.go` or `internal/server/server.go`).
-2. `audit.Record(...)` call sites in `internal/identity/handler.go` (mapping table of 13 handlers → 13 actions in [AUDIT_EVENTS.md "Call sites"](../validation/AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo)).
+2. `audit.Record(...)` call sites in `internal/identity/handler.go` (mapping table of 13 handlers → 13 actions in [AUDIT_EVENTS.md "Call sites"](../audit/AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo)).
 
 Until both are wired, every `audit.Record` call is silently dropped. **This is the most material limitation of RC1** — see [§5](#5-known-gaps-at-rc1) and [KNOWN_LIMITATIONS.md §4](../roadmap/KNOWN_LIMITATIONS.md#4-audit-events-not-yet-emitted).
 

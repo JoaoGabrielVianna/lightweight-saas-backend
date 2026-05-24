@@ -11,7 +11,7 @@
 
 | # | Surface                              | Result | Severity |
 |---|--------------------------------------|--------|----------|
-| **GAP-1** | **Privilege revocation lag (stale JWT)** | **FIXED (2026-05-20)** — closed by a live-admin check (`internal/auth.RequireLiveAdmin`) on `/admin/*` with a short-lived cache and in-band invalidation. See [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) and live evidence at [evidence/security/gaps/remediation/](../evidence/security/gaps/remediation/). Original finding preserved below for traceability. | **HIGH** (remediated) |
+| **GAP-1** | **Privilege revocation lag (stale JWT)** | **FIXED (2026-05-20)** — closed by a live-admin check (`internal/auth.RequireLiveAdmin`) on `/admin/*` with a short-lived cache and in-band invalidation. See [SECURITY_REMEDIATION_GAP1.md](SECURITY_REMEDIATION_GAP1.md) and live evidence at [evidence/security/gaps/remediation/](../evidence/security/gaps/remediation). Original finding preserved below for traceability. | **HIGH** (remediated) |
 | GAP-2 | Session termination does not kill the JWT | EXPLOITABLE-adjacent — same root cause as GAP-1. Killing all of admin's sessions does not stop the same JWT from authorizing /admin/users. | MEDIUM |
 | GAP-3 | Realm-wide bulk session terminate    | NOT-IMPLEMENTED — `DELETE /admin/sessions` → 404. No "panic button" if a token leaks. | LOW (operational) |
 | GAP-4 | Strict JSON binding on PATCH         | INFO — unknown keys are silently dropped (Go default `json.Decoder` behavior). No state change, but defeats attack-detection on body fuzzing. | INFO |
@@ -63,7 +63,7 @@ Bodies all `{"error":"forbidden"}`. Source-side guards live at:
 
 **A note on last-admin.** The realm has *two* admins (adminuser, user@example.com). To trigger the last-admin guard cleanly via the API one needs a path that empties the admin set — but every such path passes through self-strip first when the caller is the only admin. So the last-admin guard's runtime behavior is asserted only through `TestUnassignRolesFromUser_RejectsLastAdmin`; the runtime behavior was not directly demonstrable here without setting up a deliberately fragile multi-admin pivot.
 
-Evidence: [A1_self_strip_admin_*](../evidence/security/gaps/), [A3_self_delete_*](../evidence/security/gaps/), [A4_self_disable_*](../evidence/security/gaps/).
+Evidence: [A1_self_strip_admin_*](../evidence/security/gaps), [A3_self_delete_*](../evidence/security/gaps), [A4_self_disable_*](../evidence/security/gaps).
 
 ---
 
@@ -79,7 +79,7 @@ Evidence: [A1_self_strip_admin_*](../evidence/security/gaps/), [A3_self_delete_*
 
 `RequireRole("admin")` short-circuits all four non-admin attempts. The mass-assignment probe (B5) returns `200` but is functionally a no-op — Go's default JSON decoder silently discards keys not present in the `UpdateUserRequestBody` struct. The server-side role list confirms testuser still has only `user` after B5.
 
-Evidence: [B1_*](../evidence/security/gaps/) … [B5_*](../evidence/security/gaps/).
+Evidence: [B1_*](../evidence/security/gaps) … [B5_*](../evidence/security/gaps).
 
 ---
 
@@ -94,7 +94,7 @@ Evidence: [B1_*](../evidence/security/gaps/) … [B5_*](../evidence/security/gap
 
 Same pattern: `RequireRole("admin")` rejects before the handler runs. Bodies all `{"error":"forbidden"}`.
 
-Evidence: [C1_*](../evidence/security/gaps/) … [C4_*](../evidence/security/gaps/).
+Evidence: [C1_*](../evidence/security/gaps) … [C4_*](../evidence/security/gaps).
 
 ---
 

@@ -22,7 +22,7 @@ make up                      <- starts postgres + keycloak + api
 
 ## Source of truth
 
-[config/project.json](../config/project.json) is the single, versioned
+[config/project.json](../../config/project.json) is the single, versioned
 description of the project. It captures:
 
 | Field                   | Used by                                 |
@@ -120,7 +120,7 @@ Honest TODO list — these are designed for but not implemented in this iteratio
 | `README.md` quickstart snippet          | README is hand-curated; needs a clearly demarcated `<!-- bootstrap:start -->...<!-- bootstrap:end -->` block before generation can be safely automated. |
 | Frontend `.env`                         | No frontend in this repo yet; will land alongside frontend scaffolding. |
 
-Each will be added as a new function in [internal/bootstrap/generate.go](../internal/bootstrap/generate.go).
+Each will be added as a new function in [internal/bootstrap/generate.go](../../internal/bootstrap/generate.go).
 Adding a new generated file is a 3-step change:
 1. Add a write function.
 2. Wire it into `GenerateAll`.
@@ -130,10 +130,10 @@ Adding a new generated file is a 3-step change:
 
 To add a new field to the project config:
 
-1. Add the field to the relevant struct in [internal/bootstrap/config.go](../internal/bootstrap/config.go).
-2. If it must be prompted, add an `out.X = p.ask(...)` line in [internal/bootstrap/prompt.go](../internal/bootstrap/prompt.go).
+1. Add the field to the relevant struct in [internal/bootstrap/config.go](../../internal/bootstrap/config.go).
+2. If it must be prompted, add an `out.X = p.ask(...)` line in [internal/bootstrap/prompt.go](../../internal/bootstrap/prompt.go).
 3. Consume the field in the generator(s) that need it.
-4. Bump [config/project.json](../config/project.json) with the new default.
+4. Bump [config/project.json](../../config/project.json) with the new default.
 
 ## Regeneration semantics
 

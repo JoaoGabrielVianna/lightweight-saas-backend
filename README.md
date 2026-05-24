@@ -12,7 +12,7 @@ passwords or JWT signing. The whole stack — API, app DB, Keycloak, Keycloak's
 DB — is one `make up` away.
 
 If you've used this repo before Sprint 3, **start here:**
-[docs/migrations/PHASE3_BREAKING_CHANGE.md](docs/migrations/PHASE3_BREAKING_CHANGE.md).
+[docs/architecture/PHASE3_BREAKING_CHANGE.md](docs/architecture/PHASE3_BREAKING_CHANGE.md).
 
 ---
 
@@ -26,7 +26,7 @@ make up              # build api, pull keycloak, start the 4-container stack
 make auth-test       # acquire a Keycloak token + call /me  → expect 200
 ```
 
-Full onboarding walkthrough: **[docs/KEYCLOAK_SETUP.md](docs/KEYCLOAK_SETUP.md)**.
+Full onboarding walkthrough: **[docs/getting-started/KEYCLOAK_SETUP.md](docs/getting-started/KEYCLOAK_SETUP.md)**.
 
 ---
 
@@ -117,7 +117,7 @@ Response:
 ```
 
 Call it a second time with the same token → same `id`, no new row.
-See [KEYCLOAK_SETUP.md §7-§8](docs/KEYCLOAK_SETUP.md) for the full flow.
+See [getting-started/KEYCLOAK_SETUP.md §7-§8](docs/getting-started/KEYCLOAK_SETUP.md) for the full flow.
 
 ---
 
@@ -150,7 +150,7 @@ Swap Keycloak for another OIDC provider by writing a new
 `auth.AuthProvider` implementation and re-wiring `cmd/api/main.go`. No
 business code changes.
 
-Full diagrams and rationale: [docs/KEYCLOAK_SETUP.md §1](docs/KEYCLOAK_SETUP.md#1-overview).
+Full diagrams and rationale: [docs/getting-started/KEYCLOAK_SETUP.md §1](docs/getting-started/KEYCLOAK_SETUP.md#1-overview).
 
 ---
 
@@ -199,8 +199,8 @@ Full diagrams and rationale: [docs/KEYCLOAK_SETUP.md §1](docs/KEYCLOAK_SETUP.md
 ├── web/
 │   └── admin/                      # v0.2 — minimal static admin UI (dev-only)
 ├── docs/
-│   ├── KEYCLOAK_SETUP.md           # onboarding + troubleshooting
-│   ├── bootstrap.md                # bootstrap design + lifecycle commands
+│   ├── getting-started/KEYCLOAK_SETUP.md           # onboarding + troubleshooting
+│   ├── architecture/bootstrap.md                # bootstrap design + lifecycle commands
 │   ├── VALIDATION_PHASE3.md        # Sprint 3 sign-off
 │   ├── RELEASE_v0.2.md             # v0.2 Identity Management release notes
 │   ├── migrations/                 # breaking change records
@@ -232,7 +232,7 @@ Full diagrams and rationale: [docs/KEYCLOAK_SETUP.md §1](docs/KEYCLOAK_SETUP.md
 
 When something breaks, run `make doctor` first, then `make reset-dev` if
 nothing else helps. See
-[docs/KEYCLOAK_SETUP.md §9](docs/KEYCLOAK_SETUP.md#9-troubleshooting) for
+[docs/getting-started/KEYCLOAK_SETUP.md §9](docs/getting-started/KEYCLOAK_SETUP.md#9-troubleshooting) for
 symptom-by-symptom fixes.
 
 ---
@@ -254,7 +254,7 @@ Generated files (overwritten in place — don't hand-edit):
 `.env`, `.env.example`, `config/project.schema.json`,
 `deploy/keycloak/realm-export.json`.
 
-Full design + customization recipes: [docs/bootstrap.md](docs/bootstrap.md).
+Full design + customization recipes: [docs/architecture/bootstrap.md](docs/architecture/bootstrap.md).
 
 ---
 
@@ -320,7 +320,7 @@ committing. `make ci` will tell you if you forget.
 ## Environment variables
 
 The complete list is documented in
-[docs/KEYCLOAK_SETUP.md §2](docs/KEYCLOAK_SETUP.md#2-environment-variables),
+[docs/getting-started/KEYCLOAK_SETUP.md §2](docs/getting-started/KEYCLOAK_SETUP.md#2-environment-variables),
 including which are required, defaults, and risk-if-wrong.
 
 `.env.example` is the always-current template; `make init` produces a
@@ -334,7 +334,7 @@ Several Sprint-3 defaults are dev-only and must be replaced before any
 non-local deployment (Direct Access Grants disabled, seeded users
 dropped, real secrets manager, TLS, Keycloak `start --optimized` mode,
 etc.). Full checklist:
-[docs/KEYCLOAK_SETUP.md §10](docs/KEYCLOAK_SETUP.md#10-production-considerations).
+[docs/getting-started/KEYCLOAK_SETUP.md §10](docs/getting-started/KEYCLOAK_SETUP.md#10-production-considerations).
 
 ---
 

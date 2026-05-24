@@ -19,7 +19,7 @@
 | Playwright smoke (`/tmp/smoketest_v02/smoke.spec.mjs`)   | **PASS** | login + 5 SPA tabs, all admin calls 200 |
 | Playwright CRUD (`/tmp/smoketest_v02/crud.spec.mjs`)     | **PASS** | 13 PASS · 3 SKIP · 1 NOT_IMPLEMENTED · **0 FAIL** |
 
-No failed assertions in any suite. Three SKIPs and one NOT_IMPLEMENTED are environmental / documented gaps (not regressions). Full evidence under [docs/evidence/final/](../evidence/final/).
+No failed assertions in any suite. Three SKIPs and one NOT_IMPLEMENTED are environmental / documented gaps (not regressions). Full evidence under [docs/evidence/final/](../evidence/final).
 
 ---
 
@@ -40,7 +40,7 @@ saas-postgres            Up 25 minutes (healthy)  0.0.0.0:5432->5432/tcp
 
 ### 3.1 Go test suite — PASS
 
-Evidence: [docs/evidence/final/go/](../evidence/final/go/)
+Evidence: [docs/evidence/final/go/](../evidence/final/go)
 
 ```
 ok      internal/audit                       0.150s
@@ -78,7 +78,7 @@ The Direct Access Grants flow + JIT user provisioning on first `/me` call still 
 
 ### 3.3 Playwright smoke (admin console) — PASS
 
-Evidence: [docs/evidence/final/smoke/](../evidence/final/smoke/) (links to [screenshots](../evidence/final/smoke/screenshots/) + `smoke_results.json` + `console_log.txt`)
+Evidence: [docs/evidence/final/smoke/](../evidence/final/smoke) (links to [screenshots](../evidence/final/smoke/screenshots) + `smoke_results.json` + `console_log.txt`)
 
 | Step                              | Outcome | Evidence |
 |-----------------------------------|---------|----------|
@@ -90,13 +90,13 @@ Evidence: [docs/evidence/final/smoke/](../evidence/final/smoke/) (links to [scre
 | `#/roles`                         | `GET /admin/roles` → **200**, 12 rows | `07_roles.png` |
 | `#/sessions`                      | `GET /admin/sessions` → **200**, 6 rows | `08_sessions.png` |
 | `#/invitations`                   | `GET /admin/invitations` → **200**, 4 rows | `09_invitations.png` |
-| Raw API dumps via SPA's own token | `/admin/users`, `/admin/roles`, `/admin/sessions`, `/admin/invitations`, `/auth/debug`, `/me` — all HTTP **200** | [docs/evidence/api/](../evidence/api/) |
+| Raw API dumps via SPA's own token | `/admin/users`, `/admin/roles`, `/admin/sessions`, `/admin/invitations`, `/auth/debug`, `/me` — all HTTP **200** | [docs/evidence/api/](../evidence/api) |
 
 Zero `pageerror` or `console.error` events from the SPA. All 5 tabs scored `pass` in `smoke_results.json`.
 
 ### 3.4 Playwright CRUD (full IAM E2E) — PASS
 
-Evidence: [docs/evidence/final/crud/](../evidence/final/crud/) (links to [screenshots](../evidence/final/crud/screenshots/) + `crud_results.json` + `console_log.txt`)
+Evidence: [docs/evidence/final/crud/](../evidence/final/crud) (links to [screenshots](../evidence/final/crud/screenshots) + `crud_results.json` + `console_log.txt`)
 
 The CRUD spec drives the SPA through 16 phases. Sandbox user provisioned via `saas-backend-admin` service-account client (test-data setup only, no source change). Test stamp: `20260520075515`. Test role: `crud-e2e-20260520075515`.
 

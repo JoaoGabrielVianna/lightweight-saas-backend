@@ -6,7 +6,7 @@ you will end with a working stack, a token in your terminal, and a 200
 response from `/me`.
 
 Tested against the state of the repo at commit `Sprint 3` (Phase 3 sign-off,
-[VALIDATION_PHASE3.md](./validation/VALIDATION_PHASE3.md)).
+[VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md)).
 
 ---
 
@@ -24,7 +24,7 @@ because:
   policies, account lockout, password reset, MFA, social login. The Go API
   stops worrying about all of it.
 - **Provider portability.** The codebase depends on an
-  [`auth.AuthProvider`](../internal/auth/provider.go) interface, not on
+  [`auth.AuthProvider`](../../internal/auth/provider.go) interface, not on
   Keycloak. Swapping to Auth0/Supabase/Clerk later is a new provider
   implementation plus a wiring change in `cmd/api/main.go` — no business
   code changes.
@@ -90,7 +90,7 @@ Two key invariants this enforces:
 ### Phased migration history
 
 This Sprint 3 state is the end of a three-phase migration documented in
-[migrations/PHASE3_BREAKING_CHANGE.md](./migrations/PHASE3_BREAKING_CHANGE.md).
+[architecture/PHASE3_BREAKING_CHANGE.md](../architecture/PHASE3_BREAKING_CHANGE.md).
 Read it if you want to know why some old endpoints (`/register`, `/login`)
 are gone and why the `users` table no longer has a `password` column.
 
@@ -126,7 +126,7 @@ of these are missing — the API will refuse to start, by design.
 | `SEED_USER_PASSWORD`      | Shared password for all `seed_users[]` entries in `config/project.json`. Consumed by `cmd/bootstrap` when generating `realm-export.json`. | `password` | `password` | Seeded users have a wrong password — login fails. |
 | `KEYCLOAK_ADMIN`          | Keycloak's bootstrap admin username (consumed by the Keycloak container at first start). | `admin` | none | Admin UI unreachable. |
 | `KEYCLOAK_ADMIN_PASSWORD` | Keycloak's bootstrap admin password.                     | `admin` (DEV ONLY)                     | none    | Admin UI unreachable. |
-| `DEV_PLAYGROUND_ENABLED`  | Mount the DEV-ONLY auth playground at `/dev/auth`. See [DEV_AUTH_PLAYGROUND.md](./ui/DEV_AUTH_PLAYGROUND.md). | `true` (local), `false` (anywhere else) | `false` | If `true` in production, the playground is exposed. |
+| `DEV_PLAYGROUND_ENABLED`  | Mount the DEV-ONLY auth playground at `/dev/auth`. See [DEV_AUTH_PLAYGROUND.md](../ui/DEV_AUTH_PLAYGROUND.md). | `true` (local), `false` (anywhere else) | `false` | If `true` in production, the playground is exposed. |
 | `DEV_PLAYGROUND_CLIENT_ID`| Public OIDC client id used by the playground. Matches the realm-imported client. | `saas-dev-playground`               | `saas-dev-playground` | Mismatch → login redirects fail with `unauthorized_client`. |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | App postgres init.            | `postgres` / `postgres` / `lightweight_saas_backend_db` | none | Postgres init fails. |
 | `KC_DB_USER`, `KC_DB_PASSWORD`, `KC_DB_NAME` | Keycloak postgres init.                  | `keycloak` / `keycloak` / `keycloak`   | none    | Keycloak can't connect to its DB. |
@@ -198,8 +198,8 @@ is intentional — see the troubleshooting section §9 for the full story.
 
 ## 3. Bootstrap process
 
-The bootstrap layer ([cmd/bootstrap](../cmd/bootstrap/main.go) +
-[internal/bootstrap](../internal/bootstrap/)) keeps a single
+The bootstrap layer ([cmd/bootstrap](../../cmd/bootstrap/main.go) +
+[internal/bootstrap](../../internal/bootstrap)) keeps a single
 source-of-truth in `config/project.json` and regenerates every downstream
 artefact from it. Hand-editing `.env`, `.env.example`, or
 `deploy/keycloak/realm-export.json` works but those edits are **lost on
@@ -281,7 +281,7 @@ This skips prompts and reads existing `.env` to preserve secrets.
 | `config/project.json`         | Single source-of-truth — non-secret project description |
 | `internal/bootstrap/schema/project.schema.json` | The embedded JSON Schema — canonical |
 
-See [docs/bootstrap.md](./bootstrap.md) for the full design.
+See [docs/architecture/bootstrap.md](../architecture/bootstrap.md) for the full design.
 
 ---
 
@@ -400,7 +400,7 @@ must wipe Keycloak's database first.
 
 ### How `realm-export.json` is generated
 
-`writeRealmExport` in [internal/bootstrap/generate.go](../internal/bootstrap/generate.go)
+`writeRealmExport` in [internal/bootstrap/generate.go](../../internal/bootstrap/generate.go)
 composes the file from:
 
 - `config/project.json` → realm name, client id, roles, ports, seed user
@@ -629,7 +629,7 @@ Keycloak `sub`. This is the contract:
 
 ### How `EnsureUser` enforces idempotency
 
-[`user.Service.EnsureUser`](../internal/user/service.go):
+[`user.Service.EnsureUser`](../../internal/user/service.go):
 
 1. `FindBySub(id.Subject)` → returns existing row or `(nil, nil)`.
 2. If `nil` → `Create` a new row. If `Create` fails because another
@@ -638,7 +638,7 @@ Keycloak `sub`. This is the contract:
 3. If found and any claim (`email`, `username`) drifted since last login,
    `Update` in place. The `id` is never touched.
 
-Tested by [`TestEnsureUser_RaceCondition_NeverDuplicates`](../internal/user/service_test.go)
+Tested by [`TestEnsureUser_RaceCondition_NeverDuplicates`](../../internal/user/service_test.go)
 which fires 50 goroutines at the service simultaneously and asserts
 exactly one row gets created.
 
@@ -666,14 +666,14 @@ The Makefile bundles steps 7 + 8 into a single command:
 make auth-test     # token → /me, end to end. Requires curl + jq.
 ```
 
-Source: [scripts/auth-test.sh](../scripts/auth-test.sh).
+Source: [scripts/auth-test.sh](../../scripts/auth-test.sh).
 
 ---
 
 ## 9. Troubleshooting
 
 These are all issues hit during the actual Phase 3 validation
-([VALIDATION_PHASE3.md §7](./validation/VALIDATION_PHASE3.md#7-issues-found-during-validation-resolved-before-sign-off)).
+([VALIDATION_PHASE3.md §7](../validation/VALIDATION_PHASE3.md#7-issues-found-during-validation-resolved-before-sign-off)).
 Each entry is shaped Symptom / Cause / Fix.
 
 ### 9.1 API logs `key not found: kid "..."` and rejects all tokens
@@ -921,7 +921,7 @@ and file an issue.
 
 ## Related docs
 
-- [VALIDATION_PHASE3.md](./validation/VALIDATION_PHASE3.md) — Sprint 3 sign-off report (proof this all works on a fresh clone)
-- [migrations/PHASE3_BREAKING_CHANGE.md](./migrations/PHASE3_BREAKING_CHANGE.md) — how this state replaced the legacy HS256 path
-- [bootstrap.md](./bootstrap.md) — the bootstrap CLI and source-of-truth design
-- [AUDITORIA_TECNICA.md](../AUDITORIA_TECNICA.md) — pre-Phase-3 technical audit (now partially stale; keep for historical context)
+- [VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md) — Sprint 3 sign-off report (proof this all works on a fresh clone)
+- [architecture/PHASE3_BREAKING_CHANGE.md](../architecture/PHASE3_BREAKING_CHANGE.md) — how this state replaced the legacy HS256 path
+- [architecture/bootstrap.md](../architecture/bootstrap.md) — the bootstrap CLI and source-of-truth design
+- [archive/AUDITORIA_TECNICA.md](../archive/AUDITORIA_TECNICA.md) — pre-Phase-3 technical audit (now partially stale; keep for historical context)

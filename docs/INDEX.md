@@ -8,8 +8,9 @@ generated OpenAPI spec ([`swagger.yaml`](swagger.yaml) /
 open.
 
 If you are new to the repo: start with [`../README.md`](../README.md),
-then [`KEYCLOAK_SETUP.md`](KEYCLOAK_SETUP.md), then come back here for
-the milestone history.
+then the [Quick Start](#quick-start) below, then
+[`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md), then come back here for the
+milestone history.
 
 ---
 
@@ -18,18 +19,58 @@ the milestone history.
 ```
 docs/
 ├── INDEX.md                      ← you are here
-├── KEYCLOAK_SETUP.md             ← onboarding, env vars, troubleshooting
-├── bootstrap.md                  ← config-as-source-of-truth design
-├── docs.go / swagger.json/yaml   ← generated OpenAPI (do not hand-edit)
-├── migrations/                   ← breaking-change records
+├── getting-started/QUICKSTART.md                 ← linear path: clone → run → first admin call
+├── archive/QUICKSTART_REVIEW.md       ← DX audit of getting-started/QUICKSTART.md (accuracy/consistency)
+├── getting-started/KEYCLOAK_SETUP.md             ← onboarding, env vars, troubleshooting
+├── architecture/                 ← config-as-source-of-truth design + breaking-change records
+│   ├── bootstrap.md
 │   └── PHASE3_BREAKING_CHANGE.md
+├── docs.go / swagger.json/yaml   ← generated OpenAPI (do not hand-edit)
+├── audit/                        ← audit subsystem: model, wiring, operations, validation
+├── operations/                   ← operator runbooks (backup, upgrade, monitoring)
 ├── release/                      ← per-release reports, checklists, tag freezes
-├── security/                     ← gap audits, remediations, regressions, validations
+├── security/                     ← gap audits, remediations, regressions, validations,
+│                                   secrets management, audit operations
 ├── validation/                   ← functional / smoke / audit / CRUD validation evidence
 ├── ui/                           ← admin-console UX catalog + dev playground guide
 ├── roadmap/                      ← known limitations + post-tag hardening backlog
 └── evidence/                     ← raw artifacts (api/, screenshots/, security/, ...)
 ```
+
+---
+
+## Quick Start
+
+Zero-to-running-stack path for engineers cloning the repo. Pair with
+[`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md) for the realm config and with
+[`architecture/bootstrap.md`](architecture/bootstrap.md) for the config-as-source-of-truth model.
+
+| Doc | Scope |
+|-----|-------|
+| [`getting-started/QUICKSTART.md`](getting-started/QUICKSTART.md) | Linear walkthrough: install → docker-compose → Keycloak → bootstrap → first admin call. ~10 min. |
+| [`archive/QUICKSTART_REVIEW.md`](archive/QUICKSTART_REVIEW.md) | DX-audit log of `getting-started/QUICKSTART.md` — factual cross-checks against `Makefile`, `docker-compose.yml`, `.env.example`, `config/project.json`, `realm-export.json`. Records what was corrected and what remains gapped (operations/secrets — covered below). |
+
+Once the stack is up, branch to the [Operations](#operations) and
+[Security](#security-reports) sections for production hardening.
+
+---
+
+## Operations
+
+Operator runbooks for running the stack beyond `make up`. Each doc is
+copy-paste runnable against the shipped `docker-compose.yml` and
+cross-references the security backlog in
+[`security/SECURITY_GAPS.md`](security/SECURITY_GAPS.md) and the post-tag
+roadmap in [`roadmap/HARDENING_REPORT.md`](roadmap/HARDENING_REPORT.md).
+
+| Doc | Scope |
+|-----|-------|
+| [`operations/BACKUP_AND_RECOVERY.md`](operations/BACKUP_AND_RECOVERY.md) | Backup & restore for both Postgres instances (app + Keycloak), realm export/import, disaster recovery drill. Cross-link: invitation orphan recovery in [`validation/BUG_REPORT_CRUD.md`](validation/BUG_REPORT_CRUD.md) §I14b. |
+| [`operations/UPGRADE_AND_ROLLBACK.md`](operations/UPGRADE_AND_ROLLBACK.md) | Per-component upgrade procedure (api, Keycloak, Postgres), rollback to `v0.1.0-auth-foundation`, breaking-change history in [`architecture/PHASE3_BREAKING_CHANGE.md`](architecture/PHASE3_BREAKING_CHANGE.md). |
+| [`operations/MONITORING.md`](operations/MONITORING.md) | Health endpoints, audit/auth structured logs to alert on, GAP-1 live-admin denial fingerprint, future Prometheus/OTel hooks. Reads [`security/SECURITY_REMEDIATION_GAP1.md`](security/SECURITY_REMEDIATION_GAP1.md) for the marker semantics. |
+
+For audit-log inspection workflows specifically, see
+[`audit/AUDIT_OPERATIONS.md`](audit/AUDIT_OPERATIONS.md).
 
 ---
 
@@ -48,7 +89,10 @@ Canonical changelog lives at repo root: [`../CHANGELOG.md`](../CHANGELOG.md).
 ## Security reports
 
 Adversarial probes, gap analysis, and remediation evidence for the
-Identity Management surface.
+Identity Management surface, plus the production-grade secrets and audit
+runbooks operators need post-tag.
+
+### Adversarial reports
 
 | Doc | Scope |
 |-----|-------|
@@ -59,7 +103,14 @@ Identity Management surface.
 | [`security/SECURITY_REGRESSION_GAP1.md`](security/SECURITY_REGRESSION_GAP1.md) | Post-fix adversarial regression (R1–R7 PASS). |
 | [`security/FINAL_SECURITY.md`](security/FINAL_SECURITY.md) | Security gate verdict — synthesis of the above. |
 
-Raw evidence: [`evidence/security/`](evidence/security/).
+### Operator runbooks
+
+| Doc | Scope |
+|-----|-------|
+| [`security/SECRETS_MANAGEMENT.md`](security/SECRETS_MANAGEMENT.md) | Production secrets inventory (`.env.example` vars, realm-export credentials, SMTP block, Keycloak signing keys), rotation procedures, and trade-offs vs cloud-native secret stores. Pair with [`operations/UPGRADE_AND_ROLLBACK.md`](operations/UPGRADE_AND_ROLLBACK.md) when rotating during a release. |
+| [`audit/AUDIT_OPERATIONS.md`](audit/AUDIT_OPERATIONS.md) | Inspection runbook for the audit subsystem — "who did what on `/admin/*`". Builds on the model in [`audit/AUDIT_EVENTS.md`](audit/AUDIT_EVENTS.md) and the wiring inventory in [`audit/AUDIT_WIRING.md`](audit/AUDIT_WIRING.md). Pair with [`operations/MONITORING.md`](operations/MONITORING.md) for the alerting layer. |
+
+Raw evidence: [`evidence/security/`](evidence/security).
 
 ---
 
@@ -75,11 +126,11 @@ material for the release gates.
 | [`validation/CRUD_VALIDATION.md`](validation/CRUD_VALIDATION.md) | End-to-end CRUD validation (35/35). |
 | [`validation/BUG_REPORT_CRUD.md`](validation/BUG_REPORT_CRUD.md) | Destructive QA (71 checks, 1 defect fixed: I14b). |
 | [`validation/INVITATION_RELIABILITY_v0.2.md`](validation/INVITATION_RELIABILITY_v0.2.md) | Invitation lifecycle reliability + pagination stress. |
-| [`validation/AUDIT_EVENTS.md`](validation/AUDIT_EVENTS.md) | Audit-event model and action vocabulary. |
-| [`validation/AUDIT_WIRING.md`](validation/AUDIT_WIRING.md) | Per-handler audit emission inventory. |
-| [`validation/AUDIT_VALIDATION.md`](validation/AUDIT_VALIDATION.md) | End-to-end audit-emission validation (PASS). |
+| [`audit/AUDIT_EVENTS.md`](audit/AUDIT_EVENTS.md) | Audit-event model and action vocabulary. |
+| [`audit/AUDIT_WIRING.md`](audit/AUDIT_WIRING.md) | Per-handler audit emission inventory. |
+| [`audit/AUDIT_VALIDATION.md`](audit/AUDIT_VALIDATION.md) | End-to-end audit-emission validation (PASS). |
 
-Raw evidence: [`evidence/crud/`](evidence/crud/), [`evidence/final/`](evidence/final/), [`evidence/api/`](evidence/api/).
+Raw evidence: [`evidence/crud/`](evidence/crud), [`evidence/final/`](evidence/final), [`evidence/api/`](evidence/api).
 
 ---
 
@@ -102,7 +153,7 @@ post-tag hardening backlog.
 | [`roadmap/KNOWN_LIMITATIONS.md`](roadmap/KNOWN_LIMITATIONS.md) | Limitations carried forward from RC1 (security backlog, observability, invitation residual). |
 | [`roadmap/HARDENING_REPORT.md`](roadmap/HARDENING_REPORT.md) | Post-v0.2.0 hardening backlog — consolidates references to every validation/security/UI/audit report. |
 
-The root-level [`../AUDITORIA_TECNICA.md`](../AUDITORIA_TECNICA.md) (in
+The root-level [`../archive/AUDITORIA_TECNICA.md`](archive/AUDITORIA_TECNICA.md) (in
 Portuguese) is the original technical audit that preceded the v0.2
 milestone. Kept at repo root for historical visibility; not relinked
 into the subtree.
@@ -135,7 +186,7 @@ Conducted as part of this cleanup; recommendations are advisory.
 |------|--------|--------|----------------|
 | [`release/FINAL_TAG_REPORT.md`](release/FINAL_TAG_REPORT.md) ↔ [`release/FINAL_TAG_REPORT_v2.md`](release/FINAL_TAG_REPORT_v2.md) | Not duplicates | Sequential snapshots of the same gate. v1 = pre-stash, `SAFE_TO_TAG=false`. v2 = post-stash, `SAFE_TO_TAG=true`. Both are cited by [`roadmap/HARDENING_REPORT.md`](roadmap/HARDENING_REPORT.md) as the canonical audit trail of the freeze. | **Keep both.** They are not redundant; deleting v1 would erase the failed-gate record that motivated the stash. |
 | [`security/SECURITY_VALIDATION_v0.2.md`](security/SECURITY_VALIDATION_v0.2.md) ↔ [`security/SECURITY_VALIDATION_v0.3.md`](security/SECURITY_VALIDATION_v0.3.md) | Not duplicates | v0.2 = 17 baseline guard probes; v0.3 = 6 advanced threat-surface probes following v0.2. v0.3 explicitly extends v0.2. | **Keep both.** |
-| [`validation/AUDIT_EVENTS.md`](validation/AUDIT_EVENTS.md) ↔ [`validation/AUDIT_WIRING.md`](validation/AUDIT_WIRING.md) ↔ [`validation/AUDIT_VALIDATION.md`](validation/AUDIT_VALIDATION.md) | Not duplicates | Model / wiring inventory / emission validation — three layers of the same subsystem. | **Keep all three.** |
+| [`audit/AUDIT_EVENTS.md`](audit/AUDIT_EVENTS.md) ↔ [`audit/AUDIT_WIRING.md`](audit/AUDIT_WIRING.md) ↔ [`audit/AUDIT_VALIDATION.md`](audit/AUDIT_VALIDATION.md) | Not duplicates | Model / wiring inventory / emission validation — three layers of the same subsystem. | **Keep all three.** |
 | [`security/FINAL_SECURITY.md`](security/FINAL_SECURITY.md) ↔ [`release/FINAL_SMOKE.md`](release/FINAL_SMOKE.md) ↔ [`release/FINAL_RELEASE_REPORT.md`](release/FINAL_RELEASE_REPORT.md) | Distinct gates | Security gate vs functional gate vs combined release sign-off. | **Keep all three.** |
 
 No merge / archive actions were taken — the existing report graph is
@@ -148,7 +199,7 @@ and breaking that graph would lose context.
 
 - Filenames are **uppercase + snake_case** for milestone reports
   (e.g. `FINAL_SMOKE.md`) and **lowercase** for evergreen design docs
-  (e.g. `bootstrap.md`). Preserved as-is during this reorg.
+  (e.g. `architecture/bootstrap.md`). Preserved as-is during this reorg.
 - Internal links use **relative paths**: a doc in `security/` links to
   a sibling in `validation/` via `../validation/FILE.md`.
 - Evidence paths are not links into a navigation surface — they're

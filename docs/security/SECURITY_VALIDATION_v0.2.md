@@ -55,7 +55,7 @@ saas-postgres            Up 10 hours (healthy)   0.0.0.0:5432->5432/tcp
 | G16 | `POST /admin/roles` with user (no admin role) → forbidden     |      403 |    403 | PASS   |
 | G17 | `GET /me` with malformed single-segment token                 |      401 |    401 | PASS   |
 
-**Totals: 17 PASS / 0 FAIL.** Raw per-probe evidence (headers + body) in [docs/evidence/security/checks/](../evidence/security/checks/); roll-up in [docs/evidence/security/summary.txt](../evidence/security/summary.txt).
+**Totals: 17 PASS / 0 FAIL.** Raw per-probe evidence (headers + body) in [docs/evidence/security/checks/](../evidence/security/checks); roll-up in [docs/evidence/security/summary.txt](../evidence/security/summary.txt).
 
 ---
 

@@ -6,7 +6,7 @@ Source reports:
 - Agent A — [SECURITY_VALIDATION_v0.2.md](../security/SECURITY_VALIDATION_v0.2.md), [SECURITY_VALIDATION_v0.3.md](../security/SECURITY_VALIDATION_v0.3.md)
 - Agent B — [SMOKE_TEST_v0.2.md](../validation/SMOKE_TEST_v0.2.md), [evidence/crud/CRUD_E2E_REPORT.md](../evidence/crud/CRUD_E2E_REPORT.md)
 - Agent C — [INVITATION_RELIABILITY_v0.2.md](../validation/INVITATION_RELIABILITY_v0.2.md)
-- Agent D — [AUDIT_EVENTS.md](../validation/AUDIT_EVENTS.md)
+- Agent D — [AUDIT_EVENTS.md](../audit/AUDIT_EVENTS.md)
 
 Severity scale: **Critical** = release-blocker · **High** = blocks final 0.2.0 tag · **Medium** = backlog for 0.3 · **Low** = noted, no action this milestone.
 

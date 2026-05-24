@@ -179,7 +179,7 @@ mounted; routes return `404`.
   per process.
 - **Production hardening.** Treat `/admin/*` as power. The dev-only
   caveats already enumerated in
-  [docs/KEYCLOAK_SETUP.md §10](../KEYCLOAK_SETUP.md#10-production-considerations)
+  [docs/getting-started/KEYCLOAK_SETUP.md §10](../getting-started/KEYCLOAK_SETUP.md#10-production-considerations)
   apply in full — TLS in front of the API, real secrets store for
   `KEYCLOAK_ADMIN_CLIENT_SECRET`, network-level restriction of the
   `/admin/*` prefix, and audit logging hooked via `SetEventHook`.

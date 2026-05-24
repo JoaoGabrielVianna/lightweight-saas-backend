@@ -77,7 +77,7 @@ Run these against the *exact* RC build (i.e. the tagged commit, in a clean stack
 |---|------|-------|----------|
 | 2.5.1 | **DECISION REQUIRED** — Does final 0.2.0 ship the audit-wiring step (L4)? Answer must be recorded in `CHANGELOG.md`. | maintainer | `CHANGELOG.md` entry |
 | 2.5.2 a *(if shipping L4)* | `logging.WireDefault()` is called from bootstrap. | identity | grep `WireDefault` in `cmd/api/main.go` or `internal/server/` |
-| 2.5.2 b *(if shipping L4)* | Each of the 13 mutation handlers in `internal/identity/handler.go` calls `audit.Record(...)` post-success with the action listed in [AUDIT_EVENTS.md "Mapping of handler → action"](../validation/AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo). | identity | grep `audit.Record` per handler |
+| 2.5.2 b *(if shipping L4)* | Each of the 13 mutation handlers in `internal/identity/handler.go` calls `audit.Record(...)` post-success with the action listed in [AUDIT_EVENTS.md "Mapping of handler → action"](../audit/AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo). | identity | grep `audit.Record` per handler |
 | 2.5.2 c *(if shipping L4)* | Agent B's CRUD pass re-run shows one `audit ` log line per mutation; payload `json.Unmarshal`s into `audit.Event`. | smoke + identity | `docker compose logs api | grep '^.*audit ' | wc -l` |
 | 2.5.3 *(if slipping L4)* | [KNOWN_LIMITATIONS.md §3](../roadmap/KNOWN_LIMITATIONS.md#3-audit--observability-handoff-agent-d) explicitly states "deferred to 0.2.1" and `CHANGELOG.md` calls it out. | release-prep | direct read |
 

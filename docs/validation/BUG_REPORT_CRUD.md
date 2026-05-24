@@ -152,7 +152,7 @@ I did not modify the swagger annotations because **swagger is in the forbidden l
 ### 3.1 API destructive (59 checks)
 
 Source: [/tmp/smoketest_v02/destructive.py](file:///tmp/smoketest_v02/destructive.py) (outside the repo by mission design).
-Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](../evidence/crud-bugs/api/).
+Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](../evidence/crud-bugs/api).
 
 | ID | Category | Description | HTTP | Verdict |
 |----|----------|-------------|------|---------|
@@ -209,7 +209,7 @@ Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](../
 ### 3.2 UI destructive (12 checks)
 
 Source: [/tmp/smoketest_v02/destructive_ui.spec.mjs](file:///tmp/smoketest_v02/destructive_ui.spec.mjs).
-Screenshots + per-test JSON: [docs/evidence/crud-bugs/ui/](../evidence/crud-bugs/ui/).
+Screenshots + per-test JSON: [docs/evidence/crud-bugs/ui/](../evidence/crud-bugs/ui).
 
 | ID | Scenario | Verdict |
 |----|----------|---------|

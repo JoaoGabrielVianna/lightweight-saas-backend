@@ -41,7 +41,7 @@ Realm `saas` has `bruteForceProtected: true` (verified at runtime in T2). Allowe
 
 ## 3. Auth & RBAC guards (v0.2 re-run) — 17/17 PASS
 
-Evidence: [docs/evidence/final/security/live_check.log](../evidence/final/security/live_check.log), per-probe headers+body in [docs/evidence/final/security/live_checks/](../evidence/final/security/live_checks/) (G01–G17).
+Evidence: [docs/evidence/final/security/live_check.log](../evidence/final/security/live_check.log), per-probe headers+body in [docs/evidence/final/security/live_checks/](../evidence/final/security/live_checks) (G01–G17).
 
 | ID  | Probe                                                              | Expected | Actual | Result |
 |-----|--------------------------------------------------------------------|---------:|-------:|--------|
@@ -73,7 +73,7 @@ Notable confirmations:
 
 ## 4. Advanced threat probes (v0.3 re-run) — 5 PASS / 0 FAIL / 6 INFO
 
-Evidence: [docs/evidence/final/security/advanced_check.log](../evidence/final/security/advanced_check.log), per-test detail in [docs/evidence/final/security/advanced_checks/](../evidence/final/security/advanced_checks/) (T1a–T6).
+Evidence: [docs/evidence/final/security/advanced_check.log](../evidence/final/security/advanced_check.log), per-test detail in [docs/evidence/final/security/advanced_checks/](../evidence/final/security/advanced_checks) (T1a–T6).
 
 ### 4.1 T1 — Rate limiting *(INFO ×4)*
 

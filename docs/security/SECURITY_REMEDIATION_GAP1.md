@@ -193,7 +193,7 @@ TOTAL: 11   PASS: 11   FAIL: 0
 Result: PASS — GAP-1 closed
 ```
 
-Evidence files: [docs/evidence/security/gaps/remediation/](../evidence/security/gaps/remediation/).
+Evidence files: [docs/evidence/security/gaps/remediation/](../evidence/security/gaps/remediation).
 
 API-side audit log lines corresponding to the GAP-1 denials (the
 `live admin check denied` marker is the GAP-1 fingerprint that ops

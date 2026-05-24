@@ -227,7 +227,7 @@ TOTAL: 41 tests, 0 failures
 |---|---|---|
 | V1 | `.dockerignore` excluded `docs/`, breaking the Go build inside the API image (`internal/server/server.go` imports the generated swagger package as a blank-import side effect) | Added explicit `!docs/**` whitelist + comment in `.dockerignore` explaining the invariant |
 | V2 | Port collisions with three of the host's other containers (`evolution_api:8080`, `infra-keycloak:8081`, `evolution_postgres:5433`) | User stopped the conflicting containers; documented as a risk for shared dev hosts |
-| V3 | Keycloak rejected `_warning` top-level field in the generated realm export ("Unrecognized field") | Removed the field from the generator; DEV-ONLY notice now lives in `docs/bootstrap.md` and `config/project.json._meta` instead |
+| V3 | Keycloak rejected `_warning` top-level field in the generated realm export ("Unrecognized field") | Removed the field from the generator; DEV-ONLY notice now lives in `docs/architecture/bootstrap.md` and `config/project.json._meta` instead |
 | V4 | Seeded users hit "Account is not fully set up" — realm's default user-profile schema requires firstName/lastName | Added `splitDisplayName(username) → (firstName, lastName)` helper in the generator; seeded users now satisfy the profile schema |
 | V5 | API rejected tokens after Keycloak realm re-import: "key not found: kid ..." | Wired `RefreshUnknownKID` rate limiter on the multi-URL JWKS storage so the cache picks up emergency key rotations without restart |
 | V6 | API rejected tokens with "invalid issuer" — token's `iss` was `localhost:8081` (host-facing) but API was deriving expected issuer from `keycloak:8080` (docker-internal) | Split the env vars in docker-compose: `KEYCLOAK_URL=http://localhost:8081` (drives expected iss) and `KEYCLOAK_JWKS_URL=http://keycloak:8080/...` (drives JWKS fetch over the docker network) |
@@ -270,4 +270,4 @@ The Sprint 1 brief's checklist is fully satisfied:
 - [x] Startup validation: fail fast on missing env (config/config.go `Validate()`)
 - [x] Structured logging for auth failures (AuthEvent + EventHook)
 
-Sprint 3 closes here. Further work tracked in the open risks section of [PHASE3_BREAKING_CHANGE.md](../migrations/PHASE3_BREAKING_CHANGE.md).
+Sprint 3 closes here. Further work tracked in the open risks section of [PHASE3_BREAKING_CHANGE.md](../architecture/PHASE3_BREAKING_CHANGE.md).

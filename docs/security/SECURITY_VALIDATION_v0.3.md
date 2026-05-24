@@ -7,7 +7,7 @@
 Added artifacts (all outside `internal/**` and `web/**`):
 
 - [scripts/security_advanced_check.sh](../../scripts/security_advanced_check.sh) — runner.
-- [docs/evidence/security/advanced/](../evidence/security/advanced/) — per-probe evidence.
+- [docs/evidence/security/advanced/](../evidence/security/advanced) — per-probe evidence.
 - [docs/evidence/security/advanced/summary.txt](../evidence/security/advanced/summary.txt) — run roll-up.
 
 ---
