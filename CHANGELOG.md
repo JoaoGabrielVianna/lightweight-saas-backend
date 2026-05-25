@@ -9,6 +9,95 @@ breaking changes are always called out under a **Breaking** subsection.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-25
+
+Production Hardening release. No new product surface on top of v0.2.0 — this
+milestone closes the operational and production-readiness gaps identified in
+the v0.3 security validation and the post-v0.2 UI reliability catalog, and
+adds the repo metadata + runbooks needed to defend a real deployment.
+
+### Added
+
+- **Per-IP rate limit on `/admin/*`** (`internal/server/ratelimit.go`):
+  in-process token bucket, defaults 10 req/s with burst 20, mounted **before**
+  auth so unauthenticated floods cannot burn CPU on JWT validation. Closes
+  Finding **F1** from `docs/security/SECURITY_VALIDATION_v0.3.md` and
+  `docs/security/FINAL_SECURITY.md`.
+- **In-memory audit ring buffer** (`internal/audit/memory.go`,
+  `internal/audit/multi.go`) and read-only **`GET /admin/audit-events`**
+  endpoint. Bounded, process-local, volatile — explicitly labeled as such in
+  the UI; the durable trail remains the structured-log `AuditSink`.
+- **Audit Logs admin view** now reads the live buffer (was a "coming soon"
+  placeholder in v0.2).
+- **`ADMIN_CONSOLE_ENABLED`** config flag (`internal/config/config.go`)
+  splits the admin console from the dev playground. Production recipe:
+  `ADMIN_CONSOLE_ENABLED=true` + `DEV_PLAYGROUND_ENABLED=false`.
+- **`/admin/config.json`** now advertises `devTools` / `apiExplorer` flags so
+  the SPA can hide `/playground` and `/api-explorer` in production deployments.
+- **Repo metadata**: `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md` with
+  private-advisory reporting channel and supported-versions matrix.
+- **Operations runbooks**: `docs/operations/PRODUCTION_DEPLOYMENT.md`,
+  `docs/operations/INCIDENT_RESPONSE.md`, `docs/security/SECRET_ROTATION.md`.
+- **GitHub Actions**: `.github/workflows/ci.yml` (`make ci` on every push/PR)
+  and `.github/workflows/codeql.yml` (weekly Go analysis + PR scans).
+- **Test coverage expansion**:
+  - `internal/server/server_test.go` — full router / admin-console /
+    auth-debug / admin-checker coverage, including path-traversal rejection
+    on the embedded docs viewer.
+  - `internal/config/config_test.go` — full `LoadConfig` env-var matrix
+    incl. `ADMIN_CONSOLE_ENABLED`.
+  - `internal/database/database_test.go` — reflection pin on the `User`
+    migration contract.
+  - `internal/database/database_integration_test.go` — `AutoMigrate`
+    happy-path against the docker-compose Postgres (build tag: `integration`).
+  - `internal/audit/memory_test.go`, `internal/server/ratelimit_test.go` —
+    pin the new audit-buffer and rate-limit contracts.
+  - `web/admin/static/js/tests/{auth,busy-guards,overview}.test.mjs` —
+    Node `--test` suites that pin UI-001..004 regressions.
+
+### Fixed
+
+- **UI-001** — `startLogin` is now idempotent. A double-click on Login used
+  to generate two PKCE `(verifier, challenge)` pairs and corrupt
+  `sessionStorage`, causing the subsequent `/token` exchange to fail with
+  `invalid_grant`. Concurrent calls now share a single in-flight promise.
+- **UI-002** — Overview view bails on stale generation / route change before
+  the post-await mount, so a slow render can no longer clobber a view the
+  user has already navigated to.
+- **UI-003** — "Send reset email" on user-detail disables itself in-flight;
+  stops N duplicate `VERIFY_EMAIL` emails on double-click.
+- **UI-004** — Invitations "Resend" disables per-row while in-flight; stops
+  N duplicate action emails. Invite + edit modals reject malformed email
+  client-side (mirrors server `identity.emailPattern`).
+
+### Security
+
+- **F1 closed**: per-IP rate-limit middleware on `/admin/*`.
+- **SECURITY.md** establishes a private vulnerability reporting channel
+  (GitHub Security Advisory + maintainer email) with embargo policy.
+- **CodeQL** workflow runs weekly + on every PR.
+- **Production posture**: admin console can now be served in production
+  **without** mounting `/playground` or `/api-explorer`; SPA nav is pruned at
+  boot from server-advertised flags and direct deep-links to hidden dev
+  surfaces are bounced to `/overview`.
+
+### Operations
+
+- Pre-flight checklist and TLS / managed-DB / secret-store guidance in
+  `docs/operations/PRODUCTION_DEPLOYMENT.md`.
+- 10-minute TL;DR runbook + severity classification in
+  `docs/operations/INCIDENT_RESPONSE.md`.
+- Per-secret rotation cadence + step-by-step procedures (incl. emergency
+  compromise path) in `docs/security/SECRET_ROTATION.md`.
+
+### Breaking
+
+- `server.SetupRoutes` / `server.SetupRouter` signatures take an additional
+  `*server.AuditHandler` parameter. Internal-only call sites
+  (`cmd/api/main.go`, tests) are updated; external embedders must pass
+  `nil` to preserve v0.2 behavior (the `/admin/audit-events` route is then
+  omitted).
+
 ## [0.2.0] — 2026-05-20
 
 Identity Management milestone. Adds an admin-only HTTP surface that wraps the
@@ -145,6 +234,7 @@ Initial tagged release — **Authentication foundation** (`v0.1.0-auth-foundatio
   `make swagger-check` blocks drift between handlers and committed specs.
 - 41 unit tests, including a 50-goroutine race on JIT user provisioning.
 
-[Unreleased]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.1.0-auth-foundation...v0.2.0
 [0.1.0]: https://github.com/joaogabrielvianna/lightweight-saas-backend/releases/tag/v0.1.0-auth-foundation
