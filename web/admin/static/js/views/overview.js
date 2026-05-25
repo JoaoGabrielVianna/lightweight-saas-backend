@@ -7,7 +7,35 @@ import { pageHeader, card, statCard, pill, emptyState, codeblock } from "../comp
 import { isAuthenticated } from "../lib/auth.js";
 import { navigate } from "../lib/router.js";
 
+// Generation token to suppress stale renders. Each invocation captures its
+// generation at entry; before the post-await mount, it verifies the captured
+// generation still matches AND the active route is still /overview. Without
+// this guard, rapid navigation (Overview → Users mid-await) lets the stale
+// await chain rewrite the container with Overview HTML, clobbering the next
+// view. Same hazard if /overview is re-entered before its first awaits
+// resolve: two concurrent renders would race to mount.
+let _overviewGen = 0;
+
+// _isOverviewStaleForTests — exposed solely so the regression test in
+// tests/overview.test.mjs can pin the staleness predicate without booting
+// a DOM. The view itself uses the inline check.
+export function _isOverviewStaleForTests(myGen, currentPath) {
+  return myGen !== _overviewGen || currentPath !== "/overview";
+}
+
+// _resetOverviewGenForTests — test-only helper.
+export function _resetOverviewGenForTests() {
+  _overviewGen = 0;
+}
+
+// _bumpOverviewGenForTests — test-only helper. Simulates a newer Overview
+// render starting before this one resumes.
+export function _bumpOverviewGenForTests() {
+  return ++_overviewGen;
+}
+
 export default async function overviewView({ container }) {
+  const myGen = ++_overviewGen;
   const state = getState();
   const authed = isAuthenticated();
 
@@ -39,6 +67,11 @@ export default async function overviewView({ container }) {
     const u = await apiTry("/admin/users?max=100");
     if (u.ok) usersData = u.data; else usersStatus = u.status;
   }
+
+  // Bail if the user navigated away (or re-entered /overview) during the
+  // awaits above. See `_overviewGen` comment for the race this guards.
+  if (myGen !== _overviewGen) return;
+  if (getState().route?.path !== "/overview") return;
 
   // Re-render with real numbers
   mount(container,

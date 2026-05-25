@@ -38,25 +38,53 @@ export function isAuthenticated() {
   return !!sessionStorage.getItem(STORAGE_KEYS.accessToken);
 }
 
-export async function startLogin() {
-  const cfg = getState().config;
-  if (!cfg) throw new Error("config not loaded");
-  const verifier  = randomB64Url(48);
-  const challenge = await sha256B64Url(verifier);
-  const state     = randomB64Url(16);
+// Idempotency guard for startLogin. A double-click would otherwise interleave
+// two async runs: each generates its own (verifier, challenge) pair, the
+// second overwrites the verifier in sessionStorage, but the navigation that
+// actually wins may carry the FIRST challenge — so the verifier in storage
+// no longer hashes to the challenge Keycloak holds, and the subsequent
+// /token exchange fails with invalid_grant. Returning the in-flight promise
+// makes every concurrent call share a single verifier/challenge/redirect.
+let _loginInFlight = null;
 
-  sessionStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
-  sessionStorage.setItem(STORAGE_KEYS.oauthState,   state);
+export function startLogin() {
+  if (_loginInFlight) return _loginInFlight;
+  const promise = (async () => {
+    const cfg = getState().config;
+    if (!cfg) throw new Error("config not loaded");
+    const verifier  = randomB64Url(48);
+    const challenge = await sha256B64Url(verifier);
+    const state     = randomB64Url(16);
 
-  const u = new URL(`${cfg.keycloakUrl.replace(/\/$/, "")}/realms/${cfg.realm}/protocol/openid-connect/auth`);
-  u.searchParams.set("response_type",         "code");
-  u.searchParams.set("client_id",             cfg.clientId);
-  u.searchParams.set("redirect_uri",          cfg.redirectUri);
-  u.searchParams.set("scope",                 "openid profile email");
-  u.searchParams.set("state",                 state);
-  u.searchParams.set("code_challenge",        challenge);
-  u.searchParams.set("code_challenge_method", "S256");
-  window.location.assign(u.toString());
+    sessionStorage.setItem(STORAGE_KEYS.pkceVerifier, verifier);
+    sessionStorage.setItem(STORAGE_KEYS.oauthState,   state);
+
+    const u = new URL(`${cfg.keycloakUrl.replace(/\/$/, "")}/realms/${cfg.realm}/protocol/openid-connect/auth`);
+    u.searchParams.set("response_type",         "code");
+    u.searchParams.set("client_id",             cfg.clientId);
+    u.searchParams.set("redirect_uri",          cfg.redirectUri);
+    u.searchParams.set("scope",                 "openid profile email");
+    u.searchParams.set("state",                 state);
+    u.searchParams.set("code_challenge",        challenge);
+    u.searchParams.set("code_challenge_method", "S256");
+    window.location.assign(u.toString());
+  })();
+  _loginInFlight = promise;
+  // Clear the guard on rejection so the user can retry after a transient
+  // failure (e.g. config not loaded yet). On success we keep the resolved
+  // promise: a successful call is followed by a real page navigation, so
+  // concurrent clicks should share the same resolved promise and NOT
+  // re-run the body. The identity check protects against the unlikely
+  // case where a different in-flight promise has already replaced this
+  // one — we only null out our own slot.
+  promise.catch(() => { if (_loginInFlight === promise) _loginInFlight = null; });
+  return promise;
+}
+
+// _resetLoginInFlightForTests — test-only helper. Clears the in-flight guard
+// so successive test cases can start fresh without leaking state.
+export function _resetLoginInFlightForTests() {
+  _loginInFlight = null;
 }
 
 export async function completeLogin(code, returnedState) {

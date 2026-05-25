@@ -45,7 +45,7 @@ export default async function userDetailView({ container, params }) {
         h("button", { class: "btn", onclick: () => openEditModal(u, container) }, "Edit"),
         h("button", { class: "btn", onclick: () => toggleEnabled(u, container) },
           u.enabled ? "Disable" : "Enable"),
-        h("button", { class: "btn btn-warn", onclick: () => sendResetEmail(u) }, "Send reset email"),
+        h("button", { class: "btn btn-warn", id: "ud-reset-btn", onclick: (e) => sendResetEmail(u, e.currentTarget) }, "Send reset email"),
         h("button", { class: "btn btn-warn", onclick: () => confirmLogoutAll(u) }, "Logout all sessions"),
         h("button", { class: "btn btn-bad", onclick: () => confirmDelete(u) }, "Delete"),
       ],
@@ -138,13 +138,24 @@ function openEditModal(u, container) {
       { label: "Cancel" },
       { label: "Save changes", primary: true, onClick: () => {
         if (busy) return false;
+        // SMTP validation: if the email field changed, enforce the same
+        // pattern the server uses (identity.emailPattern). The server will
+        // reject malformed emails with 400, but client-side rejection
+        // avoids the round-trip AND prevents an SMTP-bound retry later
+        // (verify-email action emails won't land if the address is bad).
+        const newEmail = email.value.trim();
+        const emailChanged = newEmail !== (u.email || "");
+        if (emailChanged && newEmail !== "" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)) {
+          toastBad("Enter a valid email address (e.g. person@example.com).", "Invalid email");
+          return false;
+        }
         busy = true;
         // Only send fields that actually changed so the PATCH stays tight
         // and we don't accidentally re-write identical values into Keycloak.
         const body = {};
         if (firstName.value.trim() !== (u.first_name || "")) body.first_name = firstName.value.trim();
         if (lastName.value.trim()  !== (u.last_name  || "")) body.last_name  = lastName.value.trim();
-        if (email.value.trim()     !== (u.email      || "")) body.email      = email.value.trim();
+        if (emailChanged) body.email = newEmail;
         if (Object.keys(body).length === 0) {
           toastOk("No changes to save.", "Up to date");
           if (close) close();
@@ -211,13 +222,28 @@ function toggleEnabled(u, container) {
   });
 }
 
-function sendResetEmail(u) {
+function sendResetEmail(u, btn) {
+  // UI-003: double-clicks on this button used to send N action emails to the
+  // user's inbox (Keycloak does not dedupe). The button is disabled while the
+  // request is in flight; on completion (success or failure) we re-enable so
+  // the operator can retry. Guards on the actual DOM node so a stale closure
+  // from a re-render can't bypass the flag.
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = "Sending…";
   apiTry("/admin/users/" + encodeURIComponent(u.id) + "/reset-password", { method: "POST" })
     .then(({ ok, status, error }) => {
       if (ok) {
         toastOk("Password-reset email sent to " + (u.email || u.username) + ".", "Email queued");
       } else {
         toastBad(formatError(status, error), "Reset failed");
+      }
+    })
+    .finally(() => {
+      if (document.body.contains(btn)) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
       }
     });
 }

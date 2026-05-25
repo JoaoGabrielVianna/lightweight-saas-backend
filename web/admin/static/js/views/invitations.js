@@ -54,7 +54,7 @@ export default async function invitationsView({ container }) {
             class: "btn btn-xs",
             disabled: row.status !== "pending",
             title: row.status === "pending" ? "Re-send the invitation email" : "Only pending invitations can be resent",
-            onclick: (e) => { e.stopPropagation(); resendInvitation(row, container); },
+            onclick: (e) => { e.stopPropagation(); resendInvitation(row, container, e.currentTarget); },
           }, "resend"),
           h("button", {
             class: "btn btn-xs btn-bad",
@@ -130,9 +130,25 @@ function openInviteModal(container) {
       { label: "Cancel" },
       { label: "Send invitation", primary: true, onClick: () => {
         if (busy) return false;
+        // SMTP validation: reject malformed emails client-side. Keycloak's
+        // execute-actions-email endpoint hits the realm SMTP server, and a
+        // malformed local-part or missing domain produces a generic 502 by
+        // the time it reaches the operator — wasting an admin round-trip
+        // AND tying up Keycloak's SMTP socket for the timeout window.
+        // Pattern mirrors the server's identity.emailPattern verbatim so the
+        // two layers agree on what "valid" means.
+        const rawEmail = email.value.trim();
+        if (!rawEmail) {
+          toastBad("Email is required.", "Missing email");
+          return false;
+        }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rawEmail)) {
+          toastBad("Enter a valid email address (e.g. person@example.com).", "Invalid email");
+          return false;
+        }
         busy = true;
         const body = {
-          email:      email.value.trim(),
+          email:      rawEmail,
           first_name: firstName.value.trim(),
           last_name:  lastName.value.trim(),
           roles:      [role.value],
@@ -178,9 +194,16 @@ function formatError(status, error) {
   return "HTTP " + status + ": " + (error?.message || "unknown");
 }
 
-function resendInvitation(row, container) {
-  // No confirmation modal — resend is idempotent (Keycloak just sends a
-  // second copy of the same action email). Toast feedback only.
+function resendInvitation(row, container, btn) {
+  // UI-004: double-clicking the row's resend button used to dispatch N
+  // duplicate invitation emails (Keycloak does not dedupe action emails).
+  // Disable the per-row button while the request is in flight; re-enable on
+  // failure so the operator can retry. On success the parent view re-renders
+  // and the button is recreated fresh — no manual re-enable needed.
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = "sending…";
   apiTry("/admin/invitations/" + encodeURIComponent(row.id) + "/resend", { method: "POST" })
     .then(({ ok, status, error }) => {
       if (ok) {
@@ -188,6 +211,10 @@ function resendInvitation(row, container) {
         if (container) invitationsView({ container });
       } else {
         toastBad(formatError(status, error), "Resend failed");
+        if (document.body.contains(btn)) {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
       }
     });
 }
