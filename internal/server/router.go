@@ -32,7 +32,7 @@ import (
 // the JWT-claim short-circuit (cheap non-admin denial) and only consults
 // Keycloak for tokens whose claim says they SHOULD pass — collapsing the
 // out-of-band revocation window from accessTokenLifespan to the cache TTL.
-func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, provider auth.AuthProvider, adminChecker auth.AdminChecker) {
+func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker) {
 	// Public routes (none today — Keycloak handles login). Reserved for
 	// public health/info endpoints.
 
@@ -47,8 +47,14 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 	// authenticated identity AND the realm `admin` role. Only mounted when
 	// identity management is configured. Single group + single gate at the
 	// group level keeps "did I forget to add RequireRole?" close to zero.
+	//
+	// Rate-limit (F1 closure): per-IP token bucket sits BEFORE auth so that
+	// unauthenticated floods can't burn CPU on JWT validation. Tuned for
+	// human admin click-rate — defaults are 10 req/s with burst 20, well
+	// above any UI page-load fan-out and well below a scripted DoS.
 	if identityHandler != nil {
 		admin := router.Group("/admin")
+		admin.Use(RateLimitPerIP(0, 0))
 		admin.Use(auth.RequireAuth(provider))
 		admin.Use(auth.RequireRole("admin"))
 		if adminChecker != nil {
@@ -95,6 +101,14 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 			admin.DELETE("/roles/:name", identityHandler.DeleteRole)
 			admin.DELETE("/sessions/:id", identityHandler.DeleteSession)
 			admin.DELETE("/invitations/:id", identityHandler.DeleteInvitation)
+
+			// Observability — in-process audit ring buffer. Read-only.
+			// Mounted inside the identity group so the same auth/role/live-
+			// admin gates apply; route is omitted entirely when the audit
+			// handler hasn't been wired (e.g. tests).
+			if auditHandler != nil {
+				admin.GET("/audit-events", auditHandler.ListEvents)
+			}
 		}
 	}
 }

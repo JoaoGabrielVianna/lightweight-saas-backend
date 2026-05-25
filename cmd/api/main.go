@@ -38,10 +38,13 @@ func main() {
 	provider := mustBuildAuthProvider(cfg)
 	auth.SetEventHook(authEventLogger)
 
-	// Wire the audit subsystem (internal/audit) to the structured-log sink
-	// (internal/logging.AuditSink). Until this runs every audit.Record call
-	// is silently dropped by the package-level noop recorder.
-	logging.WireDefault()
+	// Wire the audit subsystem (internal/audit) to a fan-out recorder:
+	// the structured-log sink stays the durable trail; a bounded in-memory
+	// ring buffer feeds the admin console's Audit Logs view so operators
+	// can answer "what just happened?" without grepping logs. Capacity is
+	// intentionally small — the buffer is a recency window, not history.
+	auditMemory := logging.WireDefaultWithMemory(500)
+	auditHandler := server.NewAuditHandler(auditMemory)
 
 	userHandler := server.SetupUser(db)
 
@@ -56,7 +59,7 @@ func main() {
 	}
 
 	srv := server.NewServer(db, cfg)
-	srv.SetupRoutes(userHandler, identityHandler, provider, adminChecker)
+	srv.SetupRoutes(userHandler, identityHandler, auditHandler, provider, adminChecker)
 	srv.Start(cfg.Port)
 }
 

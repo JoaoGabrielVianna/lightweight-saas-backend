@@ -1,5 +1,23 @@
 basePath: /
 definitions:
+  audit.Actor:
+    properties:
+      email:
+        type: string
+      subject:
+        type: string
+      username:
+        type: string
+    type: object
+  audit.Target:
+    properties:
+      id:
+        type: string
+      kind:
+        type: string
+      name:
+        type: string
+    type: object
   identity.AssignRolesRequestBody:
     properties:
       roles:
@@ -184,6 +202,37 @@ definitions:
       username:
         type: string
     type: object
+  server.auditEventDTO:
+    properties:
+      action:
+        type: string
+      actor:
+        $ref: '#/definitions/audit.Actor'
+      extra:
+        additionalProperties: {}
+        type: object
+      ip:
+        type: string
+      reason:
+        type: string
+      target:
+        $ref: '#/definitions/audit.Target'
+      ts:
+        type: string
+    type: object
+  server.listEventsResponse:
+    properties:
+      capacity:
+        type: integer
+      count:
+        type: integer
+      dropped:
+        type: integer
+      events:
+        items:
+          $ref: '#/definitions/server.auditEventDTO'
+        type: array
+    type: object
   user.UserResponse:
     properties:
       created_at:
@@ -208,6 +257,42 @@ info:
   title: Lightweight SaaS Backend API
   version: "1.0"
 paths:
+  /admin/audit-events:
+    get:
+      description: |-
+        Returns a newest-first snapshot of the in-process audit
+        ring buffer. Process-local and volatile: events from other
+        replicas are not visible, and a restart drops the buffer.
+        The durable trail is the structured log stream.
+      parameters:
+      - description: 'max events to return (default: capacity; clamped to capacity)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.listEventsResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List recent audit events (admin)
+      tags:
+      - audit
   /admin/invitations:
     get:
       description: |-

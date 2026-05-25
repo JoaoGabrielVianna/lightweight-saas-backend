@@ -65,3 +65,20 @@ func (s *AuditSink) Record(_ context.Context, e audit.Event) {
 func WireDefault() audit.Recorder {
 	return audit.SetDefault(NewAuditSink())
 }
+
+// WireDefaultWithMemory installs an audit.Multi recorder that fans every
+// event out to two sinks:
+//
+//  1. AuditSink — the durable, append-only log stream (the source of
+//     truth a downstream audit_log loader would tail).
+//  2. MemoryRecorder — a bounded ring buffer the admin console reads to
+//     answer "what just happened?" without giving the UI a database.
+//
+// Returned MemoryRecorder is the handle the HTTP layer needs to snapshot
+// the buffer. Capacity is clamped by the recorder itself; a non-positive
+// value becomes 1.
+func WireDefaultWithMemory(capacity int) *audit.MemoryRecorder {
+	mem := audit.NewMemoryRecorder(capacity)
+	audit.SetDefault(audit.Multi{NewAuditSink(), mem})
+	return mem
+}

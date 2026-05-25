@@ -15,6 +15,57 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/audit-events": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a newest-first snapshot of the in-process audit\nring buffer. Process-local and volatile: events from other\nreplicas are not visible, and a restart drops the buffer.\nThe durable trail is the structured log stream.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit"
+                ],
+                "summary": "List recent audit events (admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "max events to return (default: capacity; clamped to capacity)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/server.listEventsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/invitations": {
             "get": {
                 "security": [
@@ -1804,6 +1855,34 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "audit.Actor": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "audit.Target": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "identity.AssignRolesRequestBody": {
             "type": "object",
             "properties": {
@@ -2077,6 +2156,53 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "server.auditEventDTO": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "actor": {
+                    "$ref": "#/definitions/audit.Actor"
+                },
+                "extra": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "target": {
+                    "$ref": "#/definitions/audit.Target"
+                },
+                "ts": {
+                    "type": "string"
+                }
+            }
+        },
+        "server.listEventsResponse": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "dropped": {
+                    "type": "integer"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/server.auditEventDTO"
+                    }
                 }
             }
         },
