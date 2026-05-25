@@ -132,6 +132,192 @@ func TestHealthHandler_ReturnsOK(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// mountLanding — public landing page at "/"
+//
+// The landing is unconditional (no flag gate) and must not collide with any
+// of the gated surfaces (/admin, /dev/auth) or the API. These tests pin:
+//   - "/" serves the landing HTML
+//   - The page advertises the project identity + key affordances so a
+//     content regression (someone deletes the GitHub link, for instance)
+//     surfaces in CI rather than during a demo
+//   - mountLanding doesn't accidentally claim /admin or /health
+// ---------------------------------------------------------------------------
+
+func TestMountLanding_ServesRoot(t *testing.T) {
+	withRepoCwd(t)
+	r := newGin()
+	mountLanding(r)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want text/html*", ct)
+	}
+	body := w.Body.String()
+	// Identity + heading + status + capability strip — what every visitor MUST see.
+	for _, want := range []string{
+		"João Corsi",
+		"IAM Admin Console",
+		"Production-ready identity",
+		"v0.3.1",
+		"Production Hardened",
+		"Open Admin",
+		// Capability strip (mono, dot-separated) — pin each name.
+		"Auth",
+		"RBAC",
+		"Sessions",
+		"Audit",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("landing body missing %q", want)
+		}
+	}
+	// Primary affordances — broken links would silently degrade demos.
+	for _, want := range []string{
+		`href="/admin"`,
+		"github.com/joaogabrielvianna/lightweight-saas-backend",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("landing body missing link %q", want)
+		}
+	}
+	// Surfaces that were intentionally removed in the single-hero pass:
+	//   - Health link/pill (removed in the v0.3.x refinement)
+	//   - API Docs / Swagger button (removed in the single-hero pass)
+	//   - "Included modules" / "Capabilities" section title (no card grid)
+	//   - Marketing tagline (removed for tonal alignment with /admin)
+	//   - Footer attribution block (single hero, no footer)
+	// Catch any regression that puts them back.
+	for _, gone := range []string{
+		`href="/health"`,
+		`id="health-pill"`,
+		`href="/swagger/index.html"`,
+		"Capabilities",
+		"Built to stop rebuilding auth",
+		"MIT License",
+	} {
+		if strings.Contains(body, gone) {
+			t.Errorf("landing body unexpectedly contains %q (should have been removed)", gone)
+		}
+	}
+}
+
+// The landing must not shadow /admin, /health, or any other route. mounting
+// it onto an engine that already has /admin should leave /admin reachable.
+func TestMountLanding_DoesNotShadowOtherRoutes(t *testing.T) {
+	withRepoCwd(t)
+	r := newGin()
+	r.GET("/health", healthHandler)
+	r.GET("/admin", func(c *gin.Context) { c.String(http.StatusOK, "admin-marker") })
+	mountLanding(r)
+
+	cases := []struct {
+		path     string
+		wantCode int
+		wantBody string
+	}{
+		{"/health", http.StatusOK, `"status":"ok"`},
+		{"/admin", http.StatusOK, "admin-marker"},
+	}
+	for _, tc := range cases {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, tc.path, nil))
+		if w.Code != tc.wantCode {
+			t.Errorf("%s status = %d, want %d", tc.path, w.Code, tc.wantCode)
+		}
+		if !strings.Contains(w.Body.String(), tc.wantBody) {
+			t.Errorf("%s body = %q, want substring %q", tc.path, w.Body.String(), tc.wantBody)
+		}
+	}
+}
+
+// Boot is now a minimal "Initializing IAM…" progress bar — no SVG vault, no
+// rotating rings, no text log. JS only flips body classes; pin the markup
+// the controller targets and verify the cinematic-vault surface is gone.
+func TestMountLanding_BootMinimalProgressBar(t *testing.T) {
+	withRepoCwd(t)
+	r := newGin()
+	mountLanding(r)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	body := w.Body.String()
+	for _, want := range []string{
+		`id="boot"`,
+		`class="boot-bar"`,
+		`class="boot-bar-fill"`,
+		"Initializing IAM",
+		`is-booting`,
+		`is-booted`,
+		`is-revealed`,
+		`prefers-reduced-motion`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("landing markup missing boot hook %q", want)
+		}
+	}
+	// The cinematic vault from the prior pass must be fully gone — its
+	// rotating rings and progress arc would contradict the "traditional
+	// loading" brief and reintroduce ~20 KB of inline SVG.
+	for _, gone := range []string{
+		`class="vault"`,
+		"vault-progress",
+		"vault-ring-outer",
+		"vault-ring-mid",
+		"vault-lock",
+		"vault-shield",
+		"Booting IAM Foundation",
+		"System ready.",
+		"Auth initialized",
+	} {
+		if strings.Contains(body, gone) {
+			t.Errorf("landing markup unexpectedly still contains %q (should have been removed)", gone)
+		}
+	}
+}
+
+// The single-hero pass collapsed the eight-card capability grid into a
+// single inline strip ("Auth · RBAC · Sessions · Audit"). Pin that the
+// strip exists and that the old card grid markup is gone.
+func TestMountLanding_NoModuleCardGrid(t *testing.T) {
+	withRepoCwd(t)
+	r := newGin()
+	mountLanding(r)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	body := w.Body.String()
+
+	// Capability strip — the four names the landing now advertises.
+	for _, want := range []string{"Auth", "RBAC", "Sessions", "Audit"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("capability strip missing %q", want)
+		}
+	}
+	// Card-grid surface must be gone. Module names that only appeared as
+	// card labels in the prior pass should no longer be present, and the
+	// .modules / .module class hooks must be absent.
+	for _, gone := range []string{
+		`class="modules"`,
+		`class="module"`,
+		`class="module-icon"`,
+		`class="module-name"`,
+		"Authentication", // only present as a card label
+		"Invitations",
+		"Embedded Docs",
+		"Rate Limiting",
+		"Audit Logs",
+	} {
+		if strings.Contains(body, gone) {
+			t.Errorf("landing unexpectedly still contains card-grid marker %q (should have been removed)", gone)
+		}
+	}
+}
+
 func TestNewServer_AppliesGinConfig(t *testing.T) {
 	prevMode := gin.Mode()
 	t.Cleanup(func() { gin.SetMode(prevMode) })

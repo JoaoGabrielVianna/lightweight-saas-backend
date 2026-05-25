@@ -142,6 +142,7 @@ func (s *Server) SetupRoutes(userHandler *user.Handler, identityHandler *identit
 	SetupRouter(s.router, userHandler, identityHandler, auditHandler, provider, adminChecker)
 	s.router.GET("/health", healthHandler)
 	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	mountLanding(s.router)
 	mountPlayground(s.router, s.cfg, provider)
 	mountAdminConsole(s.router, s.cfg)
 }
