@@ -96,6 +96,17 @@ type Config struct {
 	DevPlaygroundEnabled  bool
 	DevPlaygroundClientID string
 
+	// AdminConsoleEnabled gates the /admin SPA independently from
+	// DevPlaygroundEnabled so production can serve the admin console
+	// WITHOUT exposing the /playground or /api-explorer dev tools.
+	//
+	// Backward-compat: when AdminConsoleEnabled is false but
+	// DevPlaygroundEnabled is true, the admin console is still mounted
+	// (the dev-time convenience pre-dating the split).
+	//
+	// Production recipe: ADMIN_CONSOLE_ENABLED=true + DEV_PLAYGROUND_ENABLED=false.
+	AdminConsoleEnabled bool
+
 	// AdminLiveCheckTTLSeconds bounds how long the live-admin authorization
 	// cache may serve a positive/negative answer before re-consulting
 	// Keycloak. The GAP-1 remediation (see docs/SECURITY_REMEDIATION_GAP1.md)
@@ -179,6 +190,7 @@ func LoadConfig() *Config {
 		KeycloakAdminBaseURL:      getEnv("KEYCLOAK_ADMIN_BASE_URL", ""),
 		DevPlaygroundEnabled:      parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
 		DevPlaygroundClientID:     getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
+		AdminConsoleEnabled:       parseBool(getEnv("ADMIN_CONSOLE_ENABLED", "false")),
 		AdminLiveCheckTTLSeconds:  parseIntDefault(getEnv("ADMIN_LIVE_CHECK_TTL_SECONDS", ""), 0),
 	}
 

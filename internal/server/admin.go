@@ -17,10 +17,13 @@ import (
 // the repo root for organization parity with future frontend code.
 const adminAssetDir = "web/admin"
 
-// mountAdminConsole wires the IAM admin console UI when
-// cfg.DevPlaygroundEnabled is true. The console is currently bundled with
-// the playground gate; a future sprint will split it behind its own
-// ADMIN_CONSOLE_ENABLED flag once the surface is production-shaped.
+// mountAdminConsole wires the IAM admin console UI when admin-console
+// hosting is enabled — either explicitly via ADMIN_CONSOLE_ENABLED=true
+// (production-shaped path) or implicitly via the legacy DEV_PLAYGROUND_ENABLED
+// bundling (dev path). The runtime config.json the SPA fetches advertises
+// `devTools` and `apiExplorer` flags so the SPA can hide /playground and
+// /api-explorer in production deployments where ADMIN_CONSOLE_ENABLED=true
+// but DEV_PLAYGROUND_ENABLED=false.
 //
 // Routes:
 //
@@ -31,11 +34,15 @@ const adminAssetDir = "web/admin"
 // The shell itself is unauthenticated; every action it performs requires the
 // caller to log in via the embedded PKCE flow, exactly like /dev/auth.
 func mountAdminConsole(r *gin.Engine, cfg *config.Config) {
-	if !cfg.DevPlaygroundEnabled {
+	if !cfg.AdminConsoleEnabled && !cfg.DevPlaygroundEnabled {
 		return
 	}
 
-	log.Warn("DEV_PLAYGROUND_ENABLED=true — mounting /admin console (DEV-ONLY). Do not run this in production yet.")
+	if cfg.DevPlaygroundEnabled {
+		log.Warn("DEV_PLAYGROUND_ENABLED=true — mounting /admin console with dev tools (Playground + API Explorer). Do not run this in production.")
+	} else {
+		log.Info("ADMIN_CONSOLE_ENABLED=true — mounting /admin console (production mode: dev tools hidden).")
+	}
 
 	r.GET("/admin", func(c *gin.Context) {
 		c.Header("Content-Type", "text/html; charset=utf-8")
@@ -46,6 +53,11 @@ func mountAdminConsole(r *gin.Engine, cfg *config.Config) {
 	// Runtime config — the SPA needs to know the public Keycloak URL,
 	// realm, OIDC client id, and where to land after the PKCE callback.
 	// Mirrors /dev/auth/config.json so the two consoles share a contract.
+	//
+	// `devTools` and `apiExplorer` advertise whether the SPA should expose
+	// the Playground and API Explorer surfaces — both are bound to
+	// DEV_PLAYGROUND_ENABLED so the API and the SPA stay in agreement
+	// without a second env var.
 	r.GET("/admin/config.json", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"keycloakUrl": cfg.KeycloakURL,
@@ -53,6 +65,8 @@ func mountAdminConsole(r *gin.Engine, cfg *config.Config) {
 			"clientId":    cfg.DevPlaygroundClientID,
 			"apiBase":     "",
 			"redirectUri": "http://localhost:" + cfg.Port + "/admin",
+			"devTools":    cfg.DevPlaygroundEnabled,
+			"apiExplorer": cfg.DevPlaygroundEnabled,
 		})
 	})
 

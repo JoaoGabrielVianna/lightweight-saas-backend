@@ -9,7 +9,7 @@
 //   6. Initialize router (which fires the initial view render)
 
 import { h, mount } from "./lib/dom.js";
-import { setState, STORAGE_KEYS } from "./lib/state.js";
+import { setState, getState, STORAGE_KEYS } from "./lib/state.js";
 import { init as initRouter, navigate } from "./lib/router.js";
 import { completeLogin, refreshDebug, isAuthenticated } from "./lib/auth.js";
 
@@ -30,13 +30,17 @@ import swaggerView     from "./views/swagger.js";
 import settingsView    from "./views/settings.js";
 import docsView, { DOC_MAP } from "./views/docs.js";
 
-// ADMIN_NAV — the existing admin nav, untouched by the docs mode. The
-// sidebar renders this set when the active route does NOT start with
-// /docs/. Mode preservation guarantee: nothing in the admin behavior
-// depends on the docs view being present.
-const ADMIN_NAV = [
+// ADMIN_NAV_FULL — the maximal nav. The boot sequence prunes it down based
+// on /admin/config.json flags (`devTools`, `apiExplorer`) so production
+// deployments running with DEV_PLAYGROUND_ENABLED=false don't expose
+// /playground or /api-explorer in the sidebar.
+//
+// The sidebar renders the result when the active route does NOT start with
+// /docs/. Mode preservation guarantee: nothing in the admin behavior depends
+// on the docs view being present.
+const ADMIN_NAV_FULL = [
   { path: "/overview",    title: "Overview",    icon: "▤", section: "MAIN" },
-  { path: "/playground",  title: "Playground",  icon: "▷", section: "MAIN" },
+  { path: "/playground",  title: "Playground",  icon: "▷", section: "MAIN",        devOnly: true },
 
   { path: "/users",       title: "Users",       icon: "◉", section: "IDENTITY" },
   { path: "/roles",       title: "Roles",       icon: "◇", section: "IDENTITY" },
@@ -45,11 +49,29 @@ const ADMIN_NAV = [
 
   { path: "/audit-logs",  title: "Audit Logs",  icon: "≣", section: "OBSERVABILITY" },
 
-  { path: "/api-explorer",title: "API Explorer",icon: "⌘", section: "DEVELOPER" },
+  { path: "/api-explorer",title: "API Explorer",icon: "⌘", section: "DEVELOPER",   apiExplorerOnly: true },
   { path: "/swagger",     title: "Swagger",     icon: "≡", section: "DEVELOPER" },
 
   { path: "/settings",    title: "Settings",    icon: "⚙", section: "ADMIN" },
 ];
+
+// pruneNav drops Playground when devTools is false, and API Explorer when
+// apiExplorer is false. Defaults are conservative (false = hide) so a
+// missing config field never accidentally exposes a dev surface.
+function pruneNav(items, config) {
+  const showDevTools = !!config?.devTools;
+  const showApiExplorer = !!config?.apiExplorer;
+  return items.filter((it) => {
+    if (it.devOnly && !showDevTools) return false;
+    if (it.apiExplorerOnly && !showApiExplorer) return false;
+    return true;
+  });
+}
+
+// ADMIN_NAV is computed once at boot from ADMIN_NAV_FULL + the loaded
+// config. Kept as a `let` so the sidebar can re-read it after boot if the
+// flags ever change at runtime; today they don't.
+let ADMIN_NAV = ADMIN_NAV_FULL;
 
 // Backward-compat alias — some external integrations may still reference
 // the old name. Kept until grep'd out of the tree.
@@ -86,19 +108,34 @@ function iconForSection(section) {
 // pattern, so we register one route per depth (0, 1, 2) — three patterns
 // cover every entry in DOC_MAP today and any future entry up to two
 // segments deep.
+// gateDevToolView wraps a view function so direct navigation to a hidden
+// dev surface (e.g. someone typing #/playground in production) bounces to
+// /overview instead of rendering the surface. Belt-and-braces with the
+// pruned nav — the SPA still ships the view module, so the route guard is
+// what actually hides it.
+function gateDevToolView(view, flagName) {
+  return (ctx) => {
+    if (!getState().config?.[flagName]) {
+      navigate("/overview");
+      return;
+    }
+    return view(ctx);
+  };
+}
+
 const ROUTES = {
   "/":             ({ container }) => navigate("/overview"),
 
-  // Admin (existing — untouched).
+  // Admin (existing — untouched except for dev-surface gating below).
   "/overview":     overviewView,
-  "/playground":   playgroundView,
+  "/playground":   gateDevToolView(playgroundView, "devTools"),
   "/users":        usersView,
   "/users/:id":    userDetailView,
   "/roles":        rolesView,
   "/sessions":     sessionsView,
   "/invitations":  invitationsView,
   "/audit-logs":   auditLogsView,
-  "/api-explorer": apiExplorerView,
+  "/api-explorer": gateDevToolView(apiExplorerView, "apiExplorer"),
   "/swagger":      swaggerView,
   "/settings":     settingsView,
 
@@ -122,6 +159,13 @@ async function boot() {
     return;
   }
   setState({ config });
+
+  // Prune the sidebar nav based on the server's devTools / apiExplorer
+  // flags. In production deployments (ADMIN_CONSOLE_ENABLED=true,
+  // DEV_PLAYGROUND_ENABLED=false) both flags are false → Playground and
+  // API Explorer disappear from the sidebar. Belt-and-braces with the
+  // gateDevToolView route guards above.
+  ADMIN_NAV = pruneNav(ADMIN_NAV_FULL, config);
 
   // 2. Handle PKCE callback if we landed on a redirect URL
   const url = new URL(window.location.href);
