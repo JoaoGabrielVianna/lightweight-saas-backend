@@ -1,4 +1,4 @@
-// email-templates.js — Keycloak realm email message overrides.
+// email-templates.js — Keycloak realm email message overrides with tabbed UI.
 // Covers: GET /admin/settings/email-templates,
 //         PUT /admin/settings/email-templates/:key,
 //         DELETE /admin/settings/email-templates/:key.
@@ -7,6 +7,24 @@ import { h, mount } from "../lib/dom.js";
 import { apiTry } from "../lib/api.js";
 import { pageHeader, card, spinner } from "../components/common.js";
 import { toastOk, toastBad } from "../components/toast.js";
+
+const TABS = [
+  {
+    id: "invite",
+    label: "Convite",
+    keys: ["executeActionsEmailSubject", "executeActionsEmailBodyHtml"],
+  },
+  {
+    id: "reset",
+    label: "Reset de Senha",
+    keys: ["passwordResetSubject", "passwordResetBodyHtml"],
+  },
+  {
+    id: "verify",
+    label: "Verificação de Email",
+    keys: ["emailVerificationSubject", "emailVerificationBodyHtml"],
+  },
+];
 
 export default async function emailTemplatesView({ container }) {
   mount(container,
@@ -25,33 +43,81 @@ export default async function emailTemplatesView({ container }) {
     return;
   }
 
-  renderTemplates(target, r.data?.templates || []);
+  const byKey = Object.fromEntries((r.data?.templates || []).map(t => [t.key, t]));
+  renderTabs(target, byKey);
 }
 
-function renderTemplates(target, templates) {
-  const cards = templates.map(t => renderTemplateCard(t));
+function renderTabs(target, byKey) {
+  let activeTab = TABS[0].id;
 
-  mount(target,
-    h("div", { class: "col", style: { gap: "1rem" } }, ...cards),
-  );
+  const tabPanels = {};
+  const tabButtons = {};
+
+  TABS.forEach(tab => {
+    const templates = tab.keys.map(k => byKey[k]).filter(Boolean);
+    tabPanels[tab.id] = h("div", { style: { display: "none" } },
+      h("div", "col", { style: { gap: "1rem" } },
+        ...templates.map(t => renderTemplateCard(t)),
+      ),
+    );
+
+    tabButtons[tab.id] = h("button", {
+      class: "btn",
+      style: { borderRadius: "8px 8px 0 0", borderBottom: "none" },
+    }, tab.label);
+
+    tabButtons[tab.id].addEventListener("click", () => setTab(tab.id));
+  });
+
+  function setTab(id) {
+    activeTab = id;
+    TABS.forEach(tab => {
+      const isActive = tab.id === id;
+      tabPanels[tab.id].style.display = isActive ? "" : "none";
+      tabButtons[tab.id].style.background = isActive ? "var(--color-surface-raised, #1e1e2e)" : "";
+      tabButtons[tab.id].style.borderColor = isActive ? "var(--color-border, #333)" : "transparent";
+      tabButtons[tab.id].style.color = isActive ? "var(--color-primary, #6366f1)" : "";
+      tabButtons[tab.id].style.fontWeight = isActive ? "600" : "";
+    });
+  }
+
+  const tabBar = h("div", {
+    style: { display: "flex", gap: "0.25rem", borderBottom: "1px solid var(--color-border, #333)", marginBottom: "1rem" },
+  }, ...TABS.map(tab => tabButtons[tab.id]));
+
+  mount(target, tabBar, ...TABS.map(tab => tabPanels[tab.id]));
+
+  setTab(activeTab);
 }
 
 function renderTemplateCard(template) {
   const isHtml = template.kind === "html";
+
   const textarea = h("textarea", {
-    rows: isHtml ? 10 : 2,
-    placeholder: template.override ? "" : "(usando padrão do Keycloak)",
-    style: { width: "100%", fontFamily: isHtml ? "monospace" : "inherit", fontSize: "0.85rem", resize: "vertical" },
+    rows: isHtml ? 12 : 2,
+    placeholder: "(usando padrão do Keycloak)",
+    style: {
+      width: "100%",
+      fontFamily: isHtml ? "monospace" : "inherit",
+      fontSize: "0.85rem",
+      resize: "vertical",
+    },
   });
   textarea.value = template.value || "";
 
-  const statusBadge = h("span", { class: template.override ? "pill pill-success" : "pill pill-neutral" },
-    template.override ? "personalizado" : "padrão",
-  );
+  const statusBadge = h("span", {
+    class: template.override ? "pill pill-success" : "pill pill-neutral",
+  }, template.override ? "personalizado" : "padrão");
 
   const saveResult = h("span", "muted text-xs");
 
+  const resetBtn = h("button", {
+    class: "btn",
+    style: { display: template.override ? "" : "none" },
+  }, "Restaurar padrão");
+
   const saveBtn = h("button", { class: "btn btn-primary" }, "Salvar");
+
   saveBtn.addEventListener("click", async () => {
     saveBtn.disabled = true;
     saveBtn.textContent = "salvando…";
@@ -76,7 +142,6 @@ function renderTemplateCard(template) {
     }
   });
 
-  const resetBtn = h("button", { class: "btn", style: { display: template.override ? "" : "none" } }, "Restaurar padrão");
   resetBtn.addEventListener("click", async () => {
     if (!confirm("Restaurar o texto padrão do Keycloak para \"" + template.label + "\"?")) return;
     resetBtn.disabled = true;
@@ -109,13 +174,11 @@ function renderTemplateCard(template) {
       h("p", "muted text-xs", template.description),
       isHtml
         ? h("p", { class: "muted text-xs", style: { marginTop: "0.25rem" } },
-            "Variáveis disponíveis: ",
+            "Variáveis obrigatórias: ",
             h("code", null, "${link}"),
             ", ",
-            h("code", null, "${realmName}"),
-            ", ",
-            h("code", null, "${user.firstName}"),
-            " — não remova as que existirem no template padrão.",
+            h("code", null, "${linkExpirationFormatter(linkExpiration,'MINUTES')}"),
+            " — não remova.",
           )
         : null,
       textarea,
