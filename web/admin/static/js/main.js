@@ -28,6 +28,7 @@ import auditLogsView   from "./views/auditlogs.js";
 import apiExplorerView from "./views/apiexplorer.js";
 import swaggerView     from "./views/swagger.js";
 import settingsView    from "./views/settings.js";
+import profileView    from "./views/profile.js";
 import emailView           from "./views/email.js";
 import emailTemplatesView  from "./views/email-templates.js";
 import docsView, { DOC_MAP } from "./views/docs.js";
@@ -56,7 +57,7 @@ const ADMIN_NAV_FULL = [
 
   { path: "/email",            title: "Email / SMTP",      icon: "✉", section: "ADMIN" },
   { path: "/email-templates", title: "Templates de Email", icon: "✏", section: "ADMIN" },
-  { path: "/settings",        title: "Settings",           icon: "⚙", section: "ADMIN" },
+  { path: "/profile",         title: "My Profile",         icon: "◎", section: "ADMIN" },
 ];
 
 // pruneNav drops Playground when devTools is false, and API Explorer when
@@ -144,6 +145,7 @@ const ROUTES = {
   "/email":            emailView,
   "/email-templates":  emailTemplatesView,
   "/settings":         settingsView,
+  "/profile":          profileView,
 
   // Docs.
   "/docs":             (ctx) => docsView({ ...ctx, params: { ...ctx.params, page: "" } }),
