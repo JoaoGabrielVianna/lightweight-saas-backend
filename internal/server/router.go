@@ -32,7 +32,7 @@ import (
 // the JWT-claim short-circuit (cheap non-admin denial) and only consults
 // Keycloak for tokens whose claim says they SHOULD pass — collapsing the
 // out-of-band revocation window from accessTokenLifespan to the cache TTL.
-func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker, smtpHandler *SMTPHandler) {
+func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker, smtpHandler *SMTPHandler, emailTemplatesHandler *EmailTemplatesHandler) {
 	// Public routes (none today — Keycloak handles login). Reserved for
 	// public health/info endpoints.
 
@@ -129,6 +129,12 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 				admin.PUT("/settings/smtp", smtpHandler.UpdateSMTP)
 				admin.POST("/settings/smtp/test", smtpHandler.TestSMTP)
 				admin.POST("/users/password", smtpHandler.CreateUserWithPassword)
+			}
+
+			if emailTemplatesHandler != nil {
+				admin.GET("/settings/email-templates", emailTemplatesHandler.GetEmailTemplates)
+				admin.PUT("/settings/email-templates/:key", emailTemplatesHandler.UpdateEmailTemplate)
+				admin.DELETE("/settings/email-templates/:key", emailTemplatesHandler.ResetEmailTemplate)
 			}
 		}
 	}

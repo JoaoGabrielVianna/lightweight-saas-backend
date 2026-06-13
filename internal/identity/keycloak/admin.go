@@ -209,6 +209,51 @@ func (c *AdminClient) doCreateOnce(ctx context.Context, relPath string, body any
 	return id, nil
 }
 
+// doText fires a request with a plain-text body. Used for Keycloak's
+// localization API which expects Content-Type: text/plain for individual key
+// writes (PUT /localization/{locale}/{key}).
+func (c *AdminClient) doText(ctx context.Context, method, relPath string, value string) error {
+	return c.doTextOnce(ctx, method, relPath, value, true)
+}
+
+func (c *AdminClient) doTextOnce(ctx context.Context, method, relPath string, value string, allowRetry bool) error {
+	token, err := c.acquireToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.adminBase+relPath, strings.NewReader(value))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "text/plain")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", identity.ErrAdminAPIUnavailable, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized && allowRetry {
+		c.token.Store(nil)
+		return c.doTextOnce(ctx, method, relPath, value, false)
+	}
+
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return identity.ErrNotFound
+	case resp.StatusCode == http.StatusForbidden:
+		return identity.ErrForbidden
+	case resp.StatusCode >= 500:
+		return fmt.Errorf("%w: upstream HTTP %d", identity.ErrAdminAPIUnavailable, resp.StatusCode)
+	case resp.StatusCode >= 400:
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("admin api: HTTP %d: %s", resp.StatusCode, raw)
+	}
+	return nil
+}
+
 // doJSON is the workhorse for every admin REST call: mint/reuse a token,
 // fire the request, transparently retry once on 401 (covers cases where
 // Keycloak rotated keys or invalidated the service-account session), then

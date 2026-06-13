@@ -50,6 +50,34 @@ func (p *Provider) UpdateSMTPConfig(ctx context.Context, cfg SMTPConfig) error {
 	return p.client.doJSON(ctx, "PUT", "", nil, body, nil)
 }
 
+// GetLocalization returns all custom message overrides stored for the given
+// locale. Returns an empty map (not an error) when no overrides exist yet.
+func (p *Provider) GetLocalization(ctx context.Context, locale string) (map[string]string, error) {
+	var out map[string]string
+	if err := p.client.doJSON(ctx, "GET", "/localization/"+url.PathEscape(locale), nil, nil, &out); err != nil {
+		if err == identity.ErrNotFound {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+	if out == nil {
+		out = map[string]string{}
+	}
+	return out, nil
+}
+
+// SetLocalizationKey overrides a single message key for the given locale.
+// Keycloak expects Content-Type: text/plain for this endpoint.
+func (p *Provider) SetLocalizationKey(ctx context.Context, locale, key, value string) error {
+	return p.client.doText(ctx, "PUT", "/localization/"+url.PathEscape(locale)+"/"+url.PathEscape(key), value)
+}
+
+// DeleteLocalizationKey removes the custom override for a key, reverting to
+// the theme default.
+func (p *Provider) DeleteLocalizationKey(ctx context.Context, locale, key string) error {
+	return p.client.doJSON(ctx, "DELETE", "/localization/"+url.PathEscape(locale)+"/"+url.PathEscape(key), nil, nil, nil)
+}
+
 // CreateUserWithPassword provisions a Keycloak user with a temporary
 // password. On first login the user must change the password (Keycloak
 // enforces this automatically when temporary=true).

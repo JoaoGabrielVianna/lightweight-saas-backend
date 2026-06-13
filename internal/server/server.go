@@ -142,8 +142,8 @@ func NewServer(db *gorm.DB, cfg *config.Config) *Server {
 // live check (test paths / no-identity deployments); when non-nil it is
 // mounted as a third middleware on /admin/* after RequireAuth and
 // RequireRole("admin").
-func (s *Server) SetupRoutes(userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker, smtpHandler *SMTPHandler) {
-	SetupRouter(s.router, userHandler, identityHandler, auditHandler, provider, adminChecker, smtpHandler)
+func (s *Server) SetupRoutes(userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker, smtpHandler *SMTPHandler, emailTemplatesHandler *EmailTemplatesHandler) {
+	SetupRouter(s.router, userHandler, identityHandler, auditHandler, provider, adminChecker, smtpHandler, emailTemplatesHandler)
 	s.router.GET("/health", healthHandler)
 	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	mountLanding(s.router)

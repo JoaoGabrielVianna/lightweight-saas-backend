@@ -58,9 +58,10 @@ func main() {
 		log.Fatal("init identity: " + err.Error())
 	}
 	smtpHandler := server.NewSMTPHandler(identityProvider)
+	emailTemplatesHandler := server.NewEmailTemplatesHandler(identityProvider)
 
 	srv := server.NewServer(db, cfg)
-	srv.SetupRoutes(userHandler, identityHandler, auditHandler, provider, adminChecker, smtpHandler)
+	srv.SetupRoutes(userHandler, identityHandler, auditHandler, provider, adminChecker, smtpHandler, emailTemplatesHandler)
 	srv.Start(cfg.Port)
 }
 
