@@ -118,6 +118,10 @@ func (h *EmailTemplatesHandler) UpdateEmailTemplate(c *gin.Context) {
 		c.JSON(400, gin.H{"error": gin.H{"message": "invalid body: " + err.Error()}})
 		return
 	}
+	// Localization overrides only take effect when realm internationalization is
+	// enabled. Enable it transparently on first save — safe, additive operation.
+	_ = h.provider.EnableInternationalizationIfNeeded(c.Request.Context())
+
 	if err := h.provider.SetLocalizationKey(c.Request.Context(), emailTemplatesLocale, key, body.Value); err != nil {
 		c.JSON(502, gin.H{"error": gin.H{"message": "keycloak: " + err.Error()}})
 		return

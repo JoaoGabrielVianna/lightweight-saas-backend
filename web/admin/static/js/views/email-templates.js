@@ -2,6 +2,14 @@
 // Covers: GET /admin/settings/email-templates,
 //         PUT /admin/settings/email-templates/:key,
 //         DELETE /admin/settings/email-templates/:key.
+//
+// Variable syntax: Keycloak message bundles use Java MessageFormat positional
+// placeholders, NOT FreeMarker syntax. Use {0}, {2}, {3} — not ${link}.
+//
+//   {0} = link (action URL)
+//   {2} = realmName
+//   {3} = expiration formatted (e.g., "12 horas")
+//   {4} = required actions text  (invite only)
 
 import { h, mount } from "../lib/dom.js";
 import { apiTry } from "../lib/api.js";
@@ -26,12 +34,22 @@ const TABS = [
   },
 ];
 
+// Preview substitution — replaces MessageFormat placeholders with readable
+// sample values so the preview iframe looks like a real email.
+const PREVIEW_VARS = {
+  "{0}": "https://auth.corsienterprise.com/realms/corsi/login-actions/action?token=EXAMPLE",
+  "{1}": "720",
+  "{2}": "Corsi Enterprise",
+  "{3}": "12 horas",
+  "{4}": "Verificar Email, Redefinir Senha",
+};
+
 export default async function emailTemplatesView({ container }) {
   mount(container,
     pageHeader("Templates de Email", "Personalize os textos dos emails enviados pelo Keycloak.", [
       h("span", { class: "pill pill-neutral" }, "realm setting"),
     ]),
-    h("div", { id: "et-content" }, h("div", "row", spinner(), h("span", "muted", "carregando…"))),
+    h("div", { id: "et-content" }, h("div", { class: "row" }, spinner(), h("span", { class: "muted" }, "carregando…"))),
   );
 
   const r = await apiTry("/admin/settings/email-templates");
@@ -39,7 +57,7 @@ export default async function emailTemplatesView({ container }) {
   if (!target) return;
 
   if (!r.ok) {
-    mount(target, h("p", "muted", "Falha ao carregar templates: HTTP " + r.status));
+    mount(target, h("p", { class: "muted" }, "Falha ao carregar templates: HTTP " + r.status));
     return;
   }
 
@@ -56,7 +74,7 @@ function renderTabs(target, byKey) {
   TABS.forEach(tab => {
     const templates = tab.keys.map(k => byKey[k]).filter(Boolean);
     tabPanels[tab.id] = h("div", { style: { display: "none" } },
-      h("div", "col", { style: { gap: "1rem" } },
+      h("div", { class: "col", style: { gap: "1rem" } },
         ...templates.map(t => renderTemplateCard(t)),
       ),
     );
@@ -86,7 +104,6 @@ function renderTabs(target, byKey) {
   }, ...TABS.map(tab => tabButtons[tab.id]));
 
   mount(target, tabBar, ...TABS.map(tab => tabPanels[tab.id]));
-
   setTab(activeTab);
 }
 
@@ -94,7 +111,7 @@ function renderTemplateCard(template) {
   const isHtml = template.kind === "html";
 
   const textarea = h("textarea", {
-    rows: isHtml ? 12 : 2,
+    rows: isHtml ? 14 : 2,
     placeholder: "(usando padrão do Keycloak)",
     style: {
       width: "100%",
@@ -109,8 +126,6 @@ function renderTemplateCard(template) {
     class: template.override ? "pill pill-success" : "pill pill-neutral",
   }, template.override ? "personalizado" : "padrão");
 
-  const saveResult = h("span", "muted text-xs");
-
   const resetBtn = h("button", {
     class: "btn",
     style: { display: template.override ? "" : "none" },
@@ -121,7 +136,6 @@ function renderTemplateCard(template) {
   saveBtn.addEventListener("click", async () => {
     saveBtn.disabled = true;
     saveBtn.textContent = "salvando…";
-    saveResult.textContent = "";
 
     const r = await apiTry("/admin/settings/email-templates/" + encodeURIComponent(template.key), {
       method: "PUT",
@@ -160,33 +174,84 @@ function renderTemplateCard(template) {
       statusBadge.textContent = "padrão";
       statusBadge.className = "pill pill-neutral";
       resetBtn.style.display = "none";
+      updatePreviewEl?.();
     } else {
       toastBad("HTTP " + r.status, "Erro ao restaurar");
     }
   });
 
+  let updatePreviewEl = null;
+  const previewSection = isHtml ? renderPreview(textarea, fn => { updatePreviewEl = fn; }) : null;
+
+  const varHint = isHtml
+    ? h("p", { class: "muted text-xs", style: { marginTop: "0.25rem" } },
+        "Variáveis: ",
+        h("code", null, "{0}"),
+        " = link, ",
+        h("code", null, "{2}"),
+        " = nome da plataforma, ",
+        h("code", null, "{3}"),
+        " = expiração. Não use ${...}, use {0} {2} {3}.",
+      )
+    : null;
+
   return card({
-    title: h("div", "row", { style: { gap: "0.5rem", alignItems: "center" } },
-      h("span", null, template.label),
-      statusBadge,
-    ),
-    body: h("div", "col",
-      h("p", "muted text-xs", template.description),
-      isHtml
-        ? h("p", { class: "muted text-xs", style: { marginTop: "0.25rem" } },
-            "Variáveis obrigatórias: ",
-            h("code", null, "${link}"),
-            ", ",
-            h("code", null, "${linkExpirationFormatter(linkExpiration,'MINUTES')}"),
-            " — não remova.",
-          )
-        : null,
+    title: template.label,
+    actions: [statusBadge],
+    body: h("div", { class: "col" },
+      h("p", { class: "muted text-xs" }, template.description),
+      varHint,
       textarea,
-      h("div", "row", { style: { gap: "0.5rem", marginTop: "0.5rem" } },
+      previewSection,
+      h("div", { class: "row", style: { gap: "0.5rem", marginTop: "0.5rem" } },
         saveBtn,
         resetBtn,
-        saveResult,
       ),
     ),
   });
+}
+
+function renderPreview(textarea, registerUpdater) {
+  const iframe = h("iframe", {
+    sandbox: "allow-same-origin",
+    style: {
+      width: "100%",
+      height: "320px",
+      border: "1px solid var(--color-border, #333)",
+      borderRadius: "8px",
+      background: "#fff",
+      marginTop: "0.75rem",
+      display: "none",
+    },
+  });
+
+  function update() {
+    let html = textarea.value || "";
+    for (const [k, v] of Object.entries(PREVIEW_VARS)) {
+      html = html.split(k).join(v);
+    }
+    iframe.srcdoc = [
+      "<style>",
+      "  body { font-family: -apple-system, sans-serif; padding: 32px; color: #111; max-width: 600px; margin: 0 auto; line-height: 1.6; }",
+      "  a { color: #6366f1; }",
+      "  p { margin: 0 0 1rem; }",
+      "</style>",
+      html,
+    ].join("\n");
+  }
+
+  registerUpdater(update);
+  textarea.addEventListener("input", update);
+  update();
+
+  const toggle = h("button", { class: "btn", style: { fontSize: "0.8rem", marginTop: "0.5rem" } }, "▶ Mostrar prévia");
+  let open = false;
+  toggle.addEventListener("click", () => {
+    open = !open;
+    iframe.style.display = open ? "" : "none";
+    toggle.textContent = open ? "▼ Ocultar prévia" : "▶ Mostrar prévia";
+    if (open) update();
+  });
+
+  return h("div", null, toggle, iframe);
 }

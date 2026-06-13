@@ -50,6 +50,28 @@ func (p *Provider) UpdateSMTPConfig(ctx context.Context, cfg SMTPConfig) error {
 	return p.client.doJSON(ctx, "PUT", "", nil, body, nil)
 }
 
+// EnableInternationalizationIfNeeded ensures realm internationalization is
+// enabled so localization overrides (including email templates) are applied.
+// It is a no-op when already enabled.
+func (p *Provider) EnableInternationalizationIfNeeded(ctx context.Context) error {
+	var realm struct {
+		InternationalizationEnabled bool     `json:"internationalizationEnabled"`
+		SupportedLocales            []string `json:"supportedLocales"`
+		DefaultLocale               string   `json:"defaultLocale"`
+	}
+	if err := p.client.doJSON(ctx, "GET", "", nil, nil, &realm); err != nil {
+		return err
+	}
+	if realm.InternationalizationEnabled {
+		return nil
+	}
+	return p.client.doJSON(ctx, "PUT", "", nil, map[string]any{
+		"internationalizationEnabled": true,
+		"supportedLocales":            []string{"en"},
+		"defaultLocale":               "en",
+	}, nil)
+}
+
 // GetLocalization returns all custom message overrides stored for the given
 // locale. Returns an empty map (not an error) when no overrides exist yet.
 func (p *Provider) GetLocalization(ctx context.Context, locale string) (map[string]string, error) {
