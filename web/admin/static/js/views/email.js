@@ -204,6 +204,35 @@ function renderSMTPForm(target, initial) {
         ),
       ),
     }),
+
+    card({
+      title: "Layout dos emails",
+      actions: [h("span", { class: "pill pill-ok" }, "tema corsi ativo")],
+      body: h("div", "col",
+        h("p", { style: { fontSize: "13px", lineHeight: "1.6", margin: "0 0 10px" } },
+          "Os emails enviados pelo Keycloak (convite, reset de senha, verificação) usam o tema ",
+          h("strong", null, "corsi"),
+          " com o visual da Corsi Enterprise — header roxo, botões e textos em português.",
+        ),
+        h("div", {
+          style: {
+            background: "rgba(99,102,241,0.08)",
+            border: "1px solid rgba(99,102,241,0.25)",
+            borderRadius: "8px",
+            padding: "12px 14px",
+            fontSize: "13px",
+            lineHeight: "1.6",
+          },
+        },
+          h("strong", null, "ⓘ  Pendência operacional"),
+          h("br", null),
+          "Os arquivos de template (.ftl) estão copiados manualmente no container e são perdidos a cada reinício do Keycloak. ",
+          "Para torná-los permanentes, é necessário criar um ",
+          h("code", null, "Dockerfile.keycloak"),
+          " com o tema embutido na imagem e configurar o EasyPanel para usar essa imagem customizada.",
+        ),
+      ),
+    }),
   );
 
   updateHint();
