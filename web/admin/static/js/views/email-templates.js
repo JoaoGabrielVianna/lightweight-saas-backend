@@ -44,11 +44,38 @@ const PREVIEW_VARS = {
   "{4}": "Verificar Email, Redefinir Senha",
 };
 
+const infoCard = h("div", {
+  style: {
+    background: "rgba(99,102,241,0.08)",
+    border: "1px solid rgba(99,102,241,0.25)",
+    borderRadius: "8px",
+    padding: "14px 16px",
+    fontSize: "13px",
+    lineHeight: "1.7",
+    marginBottom: "1.5rem",
+  },
+},
+  h("strong", null, "ⓘ  Tema corsi ativo — alterações aqui não afetam os emails enviados"),
+  h("br", null),
+  "Os emails de convite, reset de senha e verificação usam o tema ",
+  h("strong", null, "corsi"),
+  " com templates FTL fixos (layout HTML em PT-BR com visual Corsi Enterprise). ",
+  "A API de localização do Keycloak que esta tela usa ",
+  h("strong", null, "não se aplica"),
+  " a temas FTL — o conteúdo dos arquivos ",
+  h("code", null, ".ftl"),
+  " prevalece. ",
+  "Para alterar o texto ou layout dos emails é necessário editar os arquivos em ",
+  h("code", null, "deploy/keycloak/themes/corsi/email/"),
+  " e rebuildar a imagem Docker do Keycloak.",
+);
+
 export default async function emailTemplatesView({ container }) {
   mount(container,
     pageHeader("Templates de Email", "Personalize os textos dos emails enviados pelo Keycloak.", [
       h("span", { class: "pill pill-neutral" }, "realm setting"),
     ]),
+    infoCard,
     h("div", { id: "et-content" }, h("div", { class: "row" }, spinner(), h("span", { class: "muted" }, "carregando…"))),
   );
 
