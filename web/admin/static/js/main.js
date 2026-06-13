@@ -28,6 +28,7 @@ import auditLogsView   from "./views/auditlogs.js";
 import apiExplorerView from "./views/apiexplorer.js";
 import swaggerView     from "./views/swagger.js";
 import settingsView    from "./views/settings.js";
+import emailView       from "./views/email.js";
 import docsView, { DOC_MAP } from "./views/docs.js";
 
 // ADMIN_NAV_FULL — the maximal nav. The boot sequence prunes it down based
@@ -52,7 +53,8 @@ const ADMIN_NAV_FULL = [
   { path: "/api-explorer",title: "API Explorer",icon: "⌘", section: "DEVELOPER",   apiExplorerOnly: true },
   { path: "/swagger",     title: "Swagger",     icon: "≡", section: "DEVELOPER" },
 
-  { path: "/settings",    title: "Settings",    icon: "⚙", section: "ADMIN" },
+  { path: "/email",       title: "Email / SMTP", icon: "✉", section: "ADMIN" },
+  { path: "/settings",   title: "Settings",     icon: "⚙", section: "ADMIN" },
 ];
 
 // pruneNav drops Playground when devTools is false, and API Explorer when
@@ -137,6 +139,7 @@ const ROUTES = {
   "/audit-logs":   auditLogsView,
   "/api-explorer": gateDevToolView(apiExplorerView, "apiExplorer"),
   "/swagger":      swaggerView,
+  "/email":        emailView,
   "/settings":     settingsView,
 
   // Docs.

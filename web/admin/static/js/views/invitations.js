@@ -88,89 +88,136 @@ function renderError(r) {
 }
 
 function openInviteModal(container) {
-  const email     = h("input", { type: "email", placeholder: "person@example.com", autocomplete: "off" });
-  const firstName = h("input", { type: "text",  placeholder: "Jane", autocomplete: "off" });
-  const lastName  = h("input", { type: "text",  placeholder: "Doe",  autocomplete: "off" });
-  // Roles are loaded live from GET /admin/roles. Fallback to the canonical
-  // built-in `user` role if the lookup fails so the modal stays usable.
-  const role  = h("select", null, h("option", { value: "user" }, "user"));
-  const expires = h("input", { type: "datetime-local", placeholder: "(optional)" });
+  const email     = h("input", { type: "email",    placeholder: "person@example.com", autocomplete: "off" });
+  const firstName = h("input", { type: "text",     placeholder: "Jane",              autocomplete: "off" });
+  const lastName  = h("input", { type: "text",     placeholder: "Doe",               autocomplete: "off" });
+  const role      = h("select", null, h("option", { value: "user" }, "user"));
+  const expires   = h("input", { type: "datetime-local", placeholder: "(optional)" });
+  const tempPass  = h("input", { type: "password", placeholder: "min. 8 characters", autocomplete: "new-password" });
 
-  // Fire role lookup once the modal is open. The select repopulates when
-  // the response lands; until then the user can still pick `user`.
+  // ── mode toggle ──────────────────────────────────────────────────────────
+  // "email" = classic invite-by-email flow (sends Keycloak action email).
+  // "password" = set a temporary password; user must change on first login.
+  const modeEmail    = h("input", { type: "radio", name: "invite-mode", value: "email",    checked: true });
+  const modePassword = h("input", { type: "radio", name: "invite-mode", value: "password" });
+
+  const emailSection    = h("div", "col", h("label", null, h("div", "muted", "expires at (optional)"), expires), h("p", "muted text-xs", "Keycloak sends an email with UPDATE_PASSWORD + VERIFY_EMAIL links. Requires SMTP to be configured."));
+  const passwordSection = h("div", "col", { style: { display: "none" } }, h("label", null, h("div", "muted", "temporary password *"), tempPass), h("p", "muted text-xs", "User must change this password on first login. No email is sent — share the password out-of-band."));
+
+  function refreshMode() {
+    const isPass = modePassword.checked;
+    emailSection.style.display    = isPass ? "none" : "";
+    passwordSection.style.display = isPass ? ""     : "none";
+  }
+  modeEmail.addEventListener("change",    refreshMode);
+  modePassword.addEventListener("change", refreshMode);
+
+  // Fire role lookup once the modal is open.
   apiTry("/admin/roles").then(({ ok, data }) => {
     if (!ok || !Array.isArray(data?.roles)) return;
     role.innerHTML = "";
     for (const r of data.roles) {
-      // Skip built-ins that aren't meaningful as initial roles.
       if (r.name === "offline_access" || r.name === "uma_authorization") continue;
       if (r.name.startsWith("default-roles-")) continue;
       const opt = h("option", { value: r.name }, r.name + (r.description ? " — " + r.description : ""));
       role.appendChild(opt);
     }
-    // Default selection to `user` if present.
     role.value = "user";
   });
 
   let busy = false;
   let close;
+
+  function submit() {
+    if (busy) return false;
+    const rawEmail = email.value.trim();
+    if (!rawEmail) { toastBad("Email is required.", "Missing email"); return false; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rawEmail)) {
+      toastBad("Enter a valid email address (e.g. person@example.com).", "Invalid email");
+      return false;
+    }
+
+    const isPass = modePassword.checked;
+
+    if (isPass) {
+      const pw = tempPass.value;
+      if (!pw) { toastBad("Temporary password is required.", "Missing field"); return false; }
+      if (pw.length < 8) { toastBad("Password must be at least 8 characters.", "Too short"); return false; }
+      busy = true;
+      apiTry("/admin/users/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email:              rawEmail,
+          first_name:         firstName.value.trim(),
+          last_name:          lastName.value.trim(),
+          temporary_password: pw,
+          roles:              [role.value],
+        }),
+      }).then(({ ok, status, data, error }) => {
+        if (ok) {
+          toastOk("User " + (data?.user?.email || rawEmail) + " created with temporary password.", "User created");
+          if (close) close();
+          if (container) invitationsView({ container });
+        } else {
+          toastBad(formatError(status, error), "Create failed");
+          busy = false;
+        }
+      });
+      return false;
+    }
+
+    // Email invite flow (original path).
+    busy = true;
+    const body = {
+      email:      rawEmail,
+      first_name: firstName.value.trim(),
+      last_name:  lastName.value.trim(),
+      roles:      [role.value],
+    };
+    if (expires.value) {
+      const d = new Date(expires.value);
+      if (!isNaN(d.getTime())) body.expires_at = d.toISOString();
+    }
+    createInvitation(body).then(({ ok, status, data, error }) => {
+      if (ok) {
+        toastOk("Invitation sent to " + (data?.email || body.email) + ".", "Invitation created");
+        if (close) close();
+        if (container) invitationsView({ container });
+      } else {
+        toastBad(formatError(status, error), "Invite failed");
+        busy = false;
+      }
+    });
+    return false;
+  }
+
   close = openModal({
-    title: "Invite user",
+    title: "Add user",
     body: h("div", "col",
+      // Mode selector
+      h("div", "col",
+        h("div", "muted", "method"),
+        h("div", "row",
+          h("label", null, modeEmail,    h("span", null, " Send email invite")),
+          h("label", null, modePassword, h("span", null, " Set temporary password")),
+        ),
+      ),
+      h("hr", { style: { margin: "0.5rem 0", border: "none", borderTop: "1px solid var(--border, #333)" } }),
+      // Common fields
       h("label", null, h("div", "muted", "email *"), email),
       h("div", "row",
         h("label", { style: { flex: "1" } }, h("div", "muted", "first name"), firstName),
         h("label", { style: { flex: "1" } }, h("div", "muted", "last name"),  lastName),
       ),
       h("label", null, h("div", "muted", "initial role *"), role),
-      h("label", null, h("div", "muted", "expires at (optional)"), expires),
-      h("p", "muted text-xs", "Keycloak creates the user with UPDATE_PASSWORD + VERIFY_EMAIL required actions and sends the action email."),
+      // Mode-specific sections
+      emailSection,
+      passwordSection,
     ),
     actions: [
       { label: "Cancel" },
-      { label: "Send invitation", primary: true, onClick: () => {
-        if (busy) return false;
-        // SMTP validation: reject malformed emails client-side. Keycloak's
-        // execute-actions-email endpoint hits the realm SMTP server, and a
-        // malformed local-part or missing domain produces a generic 502 by
-        // the time it reaches the operator — wasting an admin round-trip
-        // AND tying up Keycloak's SMTP socket for the timeout window.
-        // Pattern mirrors the server's identity.emailPattern verbatim so the
-        // two layers agree on what "valid" means.
-        const rawEmail = email.value.trim();
-        if (!rawEmail) {
-          toastBad("Email is required.", "Missing email");
-          return false;
-        }
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rawEmail)) {
-          toastBad("Enter a valid email address (e.g. person@example.com).", "Invalid email");
-          return false;
-        }
-        busy = true;
-        const body = {
-          email:      rawEmail,
-          first_name: firstName.value.trim(),
-          last_name:  lastName.value.trim(),
-          roles:      [role.value],
-        };
-        if (expires.value) {
-          // datetime-local is local-time without zone; turn it into RFC3339
-          // by appending the local offset via the Date constructor.
-          const d = new Date(expires.value);
-          if (!isNaN(d.getTime())) body.expires_at = d.toISOString();
-        }
-        createInvitation(body).then(({ ok, status, data, error }) => {
-          if (ok) {
-            toastOk("Invitation sent to " + (data?.email || body.email) + ".", "Invitation created");
-            if (close) close();
-            if (container) invitationsView({ container });
-          } else {
-            toastBad(formatError(status, error), "Invite failed");
-            busy = false;
-          }
-        });
-        return false;
-      } },
+      { label: "Confirm", primary: true, onClick: submit },
     ],
   });
 }

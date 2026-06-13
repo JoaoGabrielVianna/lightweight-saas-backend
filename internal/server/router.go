@@ -32,7 +32,7 @@ import (
 // the JWT-claim short-circuit (cheap non-admin denial) and only consults
 // Keycloak for tokens whose claim says they SHOULD pass — collapsing the
 // out-of-band revocation window from accessTokenLifespan to the cache TTL.
-func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker) {
+func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker, smtpHandler *SMTPHandler) {
 	// Public routes (none today — Keycloak handles login). Reserved for
 	// public health/info endpoints.
 
@@ -120,6 +120,15 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 			// handler hasn't been wired (e.g. tests).
 			if auditHandler != nil {
 				admin.GET("/audit-events", auditHandler.ListEvents)
+			}
+
+			// SMTP settings + user provisioning with temp password.
+			// Omitted when the SMTP handler isn't wired (no identity provider).
+			if smtpHandler != nil {
+				admin.GET("/settings/smtp", smtpHandler.GetSMTP)
+				admin.PUT("/settings/smtp", smtpHandler.UpdateSMTP)
+				admin.POST("/settings/smtp/test", smtpHandler.TestSMTP)
+				admin.POST("/users/password", smtpHandler.CreateUserWithPassword)
 			}
 		}
 	}

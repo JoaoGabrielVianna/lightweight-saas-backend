@@ -28,7 +28,7 @@ func SetupUser(db *gorm.DB) *user.Handler {
 }
 
 // SetupIdentity composes the identity-management wiring (Keycloak admin
-// provider → service → handler). Returns (nil, nil, nil) when the admin
+// provider → service → handler). Returns (nil, nil, nil, nil) when the admin
 // client credentials aren't configured — the router uses that signal to
 // OMIT the /admin/* routes entirely (404 vs 503 — caller can't tell the
 // feature exists).
@@ -39,19 +39,23 @@ func SetupUser(db *gorm.DB) *user.Handler {
 // immediately; the cache TTL only bounds the out-of-band revocation
 // window (changes made directly in Keycloak Admin UI).
 //
+// The fourth return value is the raw keycloak provider, exposed so the
+// composition root can wire additional handlers (e.g. SMTPHandler) that
+// need direct admin API access without going through identity.Service.
+//
 // Returns a non-nil error only on misconfiguration that the operator should
 // fix before serving traffic; today that's "client id set but secret empty"
 // (or vice versa). Network failures don't surface here — the admin client
 // is lazy, the first /users request triggers token acquisition.
-func SetupIdentity(cfg *config.Config) (*identity.Handler, *auth.CachedAdminChecker, error) {
+func SetupIdentity(cfg *config.Config) (*identity.Handler, *auth.CachedAdminChecker, *identitykc.Provider, error) {
 	idEmpty := cfg.KeycloakAdminClientID == ""
 	secretEmpty := cfg.KeycloakAdminClientSecret == ""
 	if idEmpty && secretEmpty {
 		log.Warn("Identity management routes disabled: KEYCLOAK_ADMIN_CLIENT_ID and KEYCLOAK_ADMIN_CLIENT_SECRET are unset")
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	if idEmpty != secretEmpty {
-		return nil, nil, fmt.Errorf("identity: half-configured admin client (id_set=%v, secret_set=%v) — set both or neither", !idEmpty, !secretEmpty)
+		return nil, nil, nil, fmt.Errorf("identity: half-configured admin client (id_set=%v, secret_set=%v) — set both or neither", !idEmpty, !secretEmpty)
 	}
 
 	adminURL := cfg.KeycloakAdminBaseURL
@@ -66,7 +70,7 @@ func SetupIdentity(cfg *config.Config) (*identity.Handler, *auth.CachedAdminChec
 		ClientSecret: cfg.KeycloakAdminClientSecret,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("identity provider init: %w", err)
+		return nil, nil, nil, fmt.Errorf("identity provider init: %w", err)
 	}
 
 	service := identity.NewService(provider)
@@ -83,7 +87,7 @@ func SetupIdentity(cfg *config.Config) (*identity.Handler, *auth.CachedAdminChec
 
 	log.Info("identity management enabled (admin client=" + cfg.KeycloakAdminClientID + ", base=" + adminURL +
 		", live-admin TTL=" + cfg.AdminLiveCheckTTL().String() + ")")
-	return handler, checker, nil
+	return handler, checker, provider, nil
 }
 
 // adminCheckerFromProvider adapts an identity.IdentityProvider into the
@@ -138,8 +142,8 @@ func NewServer(db *gorm.DB, cfg *config.Config) *Server {
 // live check (test paths / no-identity deployments); when non-nil it is
 // mounted as a third middleware on /admin/* after RequireAuth and
 // RequireRole("admin").
-func (s *Server) SetupRoutes(userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker) {
-	SetupRouter(s.router, userHandler, identityHandler, auditHandler, provider, adminChecker)
+func (s *Server) SetupRoutes(userHandler *user.Handler, identityHandler *identity.Handler, auditHandler *AuditHandler, provider auth.AuthProvider, adminChecker auth.AdminChecker, smtpHandler *SMTPHandler) {
+	SetupRouter(s.router, userHandler, identityHandler, auditHandler, provider, adminChecker, smtpHandler)
 	s.router.GET("/health", healthHandler)
 	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	mountLanding(s.router)
