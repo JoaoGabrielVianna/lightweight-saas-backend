@@ -69,6 +69,7 @@ pós-tag em [`roadmap/HARDENING_REPORT.md`](roadmap/HARDENING_REPORT.md).
 | [`operations/BACKUP_AND_RECOVERY.md`](operations/BACKUP_AND_RECOVERY.md) | Backup e restauração para as duas instâncias do Postgres (app + Keycloak), export/import do realm, simulação de disaster recovery. Cross-link: recuperação de usuário órfão de convite em [`validation/BUG_REPORT_CRUD.md`](validation/BUG_REPORT_CRUD.md) §I14b. |
 | [`operations/UPGRADE_AND_ROLLBACK.md`](operations/UPGRADE_AND_ROLLBACK.md) | Procedimento de upgrade por componente (api, Keycloak, Postgres), rollback para `v0.1.0-auth-foundation`, histórico de mudanças incompatíveis em [`architecture/PHASE3_BREAKING_CHANGE.md`](architecture/PHASE3_BREAKING_CHANGE.md). |
 | [`operations/MONITORING.md`](operations/MONITORING.md) | Endpoints de saúde, logs estruturados de audit/auth para alertar, fingerprint de negação live-admin do GAP-1, ganchos futuros de Prometheus/OTel. Lê [`security/SECURITY_REMEDIATION_GAP1.md`](security/SECURITY_REMEDIATION_GAP1.md) para a semântica do marcador. |
+| [`operations/KEYCLOAK_EMAIL_THEME.md`](operations/KEYCLOAK_EMAIL_THEME.md) | Estado do tema de email customizado (Corsi Enterprise), configuração de SMTP, limitação de persistência entre deploys e plano de solução definitiva via imagem Docker customizada. **Pendência operacional em aberto.** |
 
 Para fluxos específicos de inspeção de audit log, veja
 [`audit/AUDIT_OPERATIONS.md`](audit/AUDIT_OPERATIONS.md).
