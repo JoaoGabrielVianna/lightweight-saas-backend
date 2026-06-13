@@ -59,12 +59,17 @@ func mountAdminConsole(r *gin.Engine, cfg *config.Config) {
 	// DEV_PLAYGROUND_ENABLED so the API and the SPA stay in agreement
 	// without a second env var.
 	r.GET("/admin/config.json", func(c *gin.Context) {
+		scheme := "https"
+		if c.GetHeader("X-Forwarded-Proto") == "http" || (c.Request.TLS == nil && c.GetHeader("X-Forwarded-Proto") == "") {
+			scheme = "http"
+		}
+		redirectUri := scheme + "://" + c.Request.Host + "/admin"
 		c.JSON(http.StatusOK, gin.H{
 			"keycloakUrl": cfg.KeycloakURL,
 			"realm":       cfg.KeycloakRealm,
-			"clientId":    cfg.DevPlaygroundClientID,
+			"clientId":    cfg.AdminConsoleClientID(),
 			"apiBase":     "",
-			"redirectUri": "http://localhost:" + cfg.Port + "/admin",
+			"redirectUri": redirectUri,
 			"devTools":    cfg.DevPlaygroundEnabled,
 			"apiExplorer": cfg.DevPlaygroundEnabled,
 		})

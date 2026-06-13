@@ -96,6 +96,11 @@ type Config struct {
 	DevPlaygroundEnabled  bool
 	DevPlaygroundClientID string
 
+	// AdminConsoleClientID_ is the Keycloak client used by the /admin SPA
+	// for PKCE login. Exposed via AdminConsoleClientID(). When empty,
+	// falls back to DevPlaygroundClientID.
+	AdminConsoleClientID_ string
+
 	// AdminConsoleEnabled gates the /admin SPA independently from
 	// DevPlaygroundEnabled so production can serve the admin console
 	// WITHOUT exposing the /playground or /api-explorer dev tools.
@@ -117,6 +122,16 @@ type Config struct {
 	// 0 or unset means "use auth.DefaultAdminTTL (30 s)". A value > 0 in
 	// seconds is honored verbatim.
 	AdminLiveCheckTTLSeconds int
+}
+
+// AdminConsoleClientID returns the Keycloak client ID used by the admin
+// console SPA for PKCE login. Falls back to DevPlaygroundClientID when
+// ADMIN_CONSOLE_CLIENT_ID is not explicitly set.
+func (c *Config) AdminConsoleClientID() string {
+	if c.AdminConsoleClientID_ != "" {
+		return c.AdminConsoleClientID_
+	}
+	return c.DevPlaygroundClientID
 }
 
 // AdminLiveCheckTTL returns the configured live-admin cache TTL as a
@@ -190,6 +205,7 @@ func LoadConfig() *Config {
 		KeycloakAdminBaseURL:      getEnv("KEYCLOAK_ADMIN_BASE_URL", ""),
 		DevPlaygroundEnabled:      parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
 		DevPlaygroundClientID:     getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
+		AdminConsoleClientID_:     getEnv("ADMIN_CONSOLE_CLIENT_ID", ""),
 		AdminConsoleEnabled:       parseBool(getEnv("ADMIN_CONSOLE_ENABLED", "false")),
 		AdminLiveCheckTTLSeconds:  parseIntDefault(getEnv("ADMIN_LIVE_CHECK_TTL_SECONDS", ""), 0),
 	}
