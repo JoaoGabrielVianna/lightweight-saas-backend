@@ -6,7 +6,7 @@
 // the sessionStorage tokens and the `/auth/debug` response.
 
 import { STORAGE_KEYS, getState, setState } from "./state.js";
-import { apiTry } from "./api.js";
+import { apiTry, setAuthHandlers } from "./api.js";
 
 // ─────────────── PKCE primitives ───────────────
 
@@ -171,6 +171,24 @@ export async function refreshDebug() {
   setState({ identity: null });
   return null;
 }
+
+// clearTokens — wipe all auth state from sessionStorage and Zustand-style
+// state without triggering a Keycloak backchannel logout. Used by the
+// onAuthFail handler so the user is redirected to login cleanly.
+function clearTokens() {
+  Object.values(STORAGE_KEYS).forEach((k) => {
+    if (k !== STORAGE_KEYS.theme) sessionStorage.removeItem(k);
+  });
+  setState({ token: null, identity: null });
+}
+
+// Register 401 interceptors with api.js at module-init time.
+// auth.js already imports api.js, so we pass callbacks here to avoid a
+// reverse import that would create a circular dependency.
+setAuthHandlers({
+  onRefresh:  refreshToken,
+  onAuthFail: () => { clearTokens(); startLogin(); },
+});
 
 // Decodes a JWT payload (cosmetic only — no signature verification). Used by
 // the Playground view's "raw decoded JWT" section.
