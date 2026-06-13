@@ -11,7 +11,7 @@
 import { h, mount } from "./lib/dom.js";
 import { setState, getState, STORAGE_KEYS } from "./lib/state.js";
 import { init as initRouter, navigate } from "./lib/router.js";
-import { completeLogin, refreshDebug, isAuthenticated } from "./lib/auth.js";
+import { completeLogin, refreshDebug, isAuthenticated, startLogin } from "./lib/auth.js";
 
 import { renderSidebar } from "./components/sidebar.js";
 import { renderTopbar }  from "./components/topbar.js";
@@ -188,6 +188,9 @@ async function boot() {
   // 3. Restore identity from existing token if any
   if (isAuthenticated()) {
     try { await refreshDebug(); } catch {}
+  } else {
+    await startLogin();
+    return;
   }
 
   // 4. Mount sidebar + topbar — both are mode-aware. The sidebar renders
