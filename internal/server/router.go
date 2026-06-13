@@ -41,6 +41,18 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 	private.Use(auth.RequireAuth(provider))
 	{
 		private.GET("/me", userHandler.Me)
+		private.GET("/auth/debug", func(c *gin.Context) {
+			id, _ := auth.IdentityFrom(c)
+			azp, _ := id.Raw["azp"].(string)
+			c.JSON(200, gin.H{
+				"received_sub": id.Subject,
+				"received_azp": azp,
+				"email":        id.Email,
+				"username":     id.Username,
+				"roles":        id.Roles,
+				"expires_at":   id.ExpiresAt,
+			})
+		})
 	}
 
 	// Admin route group — every endpoint under /admin/* requires an
