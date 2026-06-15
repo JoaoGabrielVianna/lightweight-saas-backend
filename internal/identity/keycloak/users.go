@@ -58,6 +58,9 @@ func (p *Provider) UpdateUser(ctx context.Context, id string, req identity.Updat
 	if req.Enabled != nil {
 		body.Enabled = *req.Enabled
 	}
+	if req.EmailVerified != nil {
+		body.EmailVerified = *req.EmailVerified
+	}
 
 	if err := p.client.doJSON(ctx, "PUT", "/users/"+url.PathEscape(id), nil, body, nil); err != nil {
 		return nil, err

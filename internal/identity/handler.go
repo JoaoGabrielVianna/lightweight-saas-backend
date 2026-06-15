@@ -470,10 +470,11 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	}
 	targetID := c.Param("id")
 	user, err := h.service.UpdateUser(c.Request.Context(), callerSubject(c), targetID, UpdateUserRequest{
-		FirstName: body.FirstName,
-		LastName:  body.LastName,
-		Email:     body.Email,
-		Enabled:   body.Enabled,
+		FirstName:     body.FirstName,
+		LastName:      body.LastName,
+		Email:         body.Email,
+		Enabled:       body.Enabled,
+		EmailVerified: body.EmailVerified,
 	})
 	target := audit.Target{Kind: "user", ID: targetID}
 	if err == nil && user != nil {

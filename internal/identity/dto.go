@@ -157,10 +157,11 @@ type CreateInvitationRequestBody struct {
 // Pointer fields distinguish "client omitted" from "client set to zero".
 // Omitted fields are preserved by the service+provider read-modify-write.
 type UpdateUserRequestBody struct {
-	FirstName *string `json:"first_name,omitempty" example:"Jane"`
-	LastName  *string `json:"last_name,omitempty"  example:"Doe"`
-	Email     *string `json:"email,omitempty"      example:"jane@example.com"`
-	Enabled   *bool   `json:"enabled,omitempty"    example:"true"`
+	FirstName     *string `json:"first_name,omitempty"      example:"Jane"`
+	LastName      *string `json:"last_name,omitempty"       example:"Doe"`
+	Email         *string `json:"email,omitempty"           example:"jane@example.com"`
+	Enabled       *bool   `json:"enabled,omitempty"         example:"true"`
+	EmailVerified *bool   `json:"email_verified,omitempty"  example:"true"`
 }
 
 // UpdateRoleRequestBody is the HTTP shape for PATCH /admin/roles/:name.

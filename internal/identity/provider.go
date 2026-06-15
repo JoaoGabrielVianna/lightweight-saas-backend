@@ -238,10 +238,11 @@ type CreateRoleRequest struct {
 // Every field is optional — a nil pointer means "do not touch". The provider
 // is expected to read-modify-write so omitted fields preserve their value.
 type UpdateUserRequest struct {
-	FirstName *string
-	LastName  *string
-	Email     *string
-	Enabled   *bool
+	FirstName     *string
+	LastName      *string
+	Email         *string
+	Enabled       *bool
+	EmailVerified *bool
 }
 
 // UpdateRoleRequest is the input shape for IdentityProvider.UpdateRole.
