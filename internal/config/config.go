@@ -122,6 +122,11 @@ type Config struct {
 	// 0 or unset means "use auth.DefaultAdminTTL (30 s)". A value > 0 in
 	// seconds is honored verbatim.
 	AdminLiveCheckTTLSeconds int
+
+	// CORSAllowedOrigins is a comma-separated list of origins allowed to make
+	// cross-origin requests (e.g. "https://backoffice.example.com,http://localhost:5174").
+	// When empty, CORS is disabled (requests from other origins are rejected by the browser).
+	CORSAllowedOrigins []string
 }
 
 // AdminConsoleClientID returns the Keycloak client ID used by the admin
@@ -208,6 +213,7 @@ func LoadConfig() *Config {
 		AdminConsoleClientID_:     getEnv("ADMIN_CONSOLE_CLIENT_ID", ""),
 		AdminConsoleEnabled:       parseBool(getEnv("ADMIN_CONSOLE_ENABLED", "false")),
 		AdminLiveCheckTTLSeconds:  parseIntDefault(getEnv("ADMIN_LIVE_CHECK_TTL_SECONDS", ""), 0),
+		CORSAllowedOrigins:        parseCSV(getEnv("CORS_ALLOWED_ORIGINS", "")),
 	}
 
 	if cfg.KeycloakJWKSURL == "" && cfg.KeycloakURL != "" && cfg.KeycloakRealm != "" {

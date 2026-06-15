@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	_ "github.com/JoaoGabrielVianna/lightweight-saas-backend/docs"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth"
@@ -11,6 +12,7 @@ import (
 	identitykc "github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/identity/keycloak"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/logger"
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -126,8 +128,21 @@ type Server struct {
 // NewServer builds the Gin engine with the project's Gin configuration.
 func NewServer(db *gorm.DB, cfg *config.Config) *Server {
 	cfg.ApplyGinConfig()
+	r := gin.Default()
+
+	if len(cfg.CORSAllowedOrigins) > 0 {
+		r.Use(cors.New(cors.Config{
+			AllowOrigins:     cfg.CORSAllowedOrigins,
+			AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+			AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+			ExposeHeaders:    []string{"Content-Length"},
+			AllowCredentials: true,
+			MaxAge:           12 * time.Hour,
+		}))
+	}
+
 	return &Server{
-		router: gin.Default(),
+		router: r,
 		db:     db,
 		cfg:    cfg,
 	}
