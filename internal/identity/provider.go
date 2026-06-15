@@ -109,6 +109,10 @@ type IdentityProvider interface {
 	// to be configured on the realm.
 	SendResetPasswordEmail(ctx context.Context, userID string) error
 
+	// SetUserPassword sets a password directly via the Keycloak Admin API.
+	// When temporary is true the user must change it on next login.
+	SetUserPassword(ctx context.Context, userID, password string, temporary bool) error
+
 	// ResendInvitation re-dispatches the invitation action email for an
 	// existing invited user.
 	//

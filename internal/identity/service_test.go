@@ -187,6 +187,11 @@ func (f *fakeProvider) SendResetPasswordEmail(_ context.Context, userID string) 
 	return f.mutationCalls.resetPasswordErr
 }
 
+func (f *fakeProvider) SetUserPassword(_ context.Context, userID, _ string, _ bool) error {
+	f.mutationCalls.resetPasswordUserID = userID
+	return f.mutationCalls.resetPasswordErr
+}
+
 func (f *fakeProvider) ResendInvitation(_ context.Context, userID string) (*Invitation, error) {
 	f.mutationCalls.resendInvitationID = userID
 	if f.mutationCalls.resendInvitationErr != nil {

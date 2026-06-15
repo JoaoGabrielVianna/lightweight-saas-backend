@@ -104,6 +104,7 @@ func SetupRouter(router *gin.Engine, userHandler *user.Handler, identityHandler 
 			admin.PATCH("/roles/:name", identityHandler.UpdateRole)
 			admin.POST("/users/:id/roles", identityHandler.AssignRolesToUser)
 			admin.POST("/users/:id/reset-password", identityHandler.ResetUserPassword)
+			admin.PUT("/users/:id/password", identityHandler.SetUserPassword)
 			admin.POST("/invitations/:id/resend", identityHandler.ResendInvitation)
 
 			// ─── Stage 5.2D — DELETE ──────────────────────────────────

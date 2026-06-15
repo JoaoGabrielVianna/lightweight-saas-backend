@@ -388,6 +388,18 @@ func (s *Service) SendResetPasswordEmail(ctx context.Context, targetID string) e
 	return s.provider.SendResetPasswordEmail(ctx, targetID)
 }
 
+// SetUserPassword sets the user's password directly. When temporary is true
+// the user must change it on next login.
+func (s *Service) SetUserPassword(ctx context.Context, targetID, password string, temporary bool) error {
+	if !uuidPattern.MatchString(targetID) {
+		return fmt.Errorf("%w: id must be a UUID", ErrBadRequest)
+	}
+	if len(password) < 8 {
+		return fmt.Errorf("%w: password must be at least 8 characters", ErrBadRequest)
+	}
+	return s.provider.SetUserPassword(ctx, targetID, password, temporary)
+}
+
 // ResendInvitation re-sends the invitation action email. Idempotent.
 func (s *Service) ResendInvitation(ctx context.Context, targetID string) (*Invitation, error) {
 	if !uuidPattern.MatchString(targetID) {

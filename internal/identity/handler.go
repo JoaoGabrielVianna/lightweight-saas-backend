@@ -646,6 +646,44 @@ func (h *Handler) ResetUserPassword(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// SetUserPassword handles PUT /admin/users/:id/password. Sets the user's
+// password directly (no email required). Accepts {"password":"...","temporary":bool}.
+//
+// @Summary     Set user password (admin)
+// @Description Sets the user's Keycloak credential directly. When temporary=true
+// @Description the user must change the password on next login.
+// @Tags        users
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id   path     string true "Keycloak sub UUID"
+// @Param       body body     object true "password payload"
+// @Success     204
+// @Failure     400 {object} map[string]string
+// @Failure     401 {object} map[string]string
+// @Failure     403 {object} map[string]string
+// @Failure     404 {object} map[string]string
+// @Router      /admin/users/{id}/password [put]
+func (h *Handler) SetUserPassword(c *gin.Context) {
+	targetID := c.Param("id")
+	var body struct {
+		Password  string `json:"password"`
+		Temporary bool   `json:"temporary"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	err := h.service.SetUserPassword(c.Request.Context(), targetID, body.Password, body.Temporary)
+	logging.RecordMutation(c, audit.ActionUserPasswordReset,
+		audit.Target{Kind: "user", ID: targetID}, err)
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // ResendInvitation handles POST /admin/invitations/:id/resend.
 //
 // @Summary     Re-send an invitation email (admin)

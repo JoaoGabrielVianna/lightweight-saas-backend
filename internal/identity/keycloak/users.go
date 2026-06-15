@@ -74,6 +74,18 @@ func (p *Provider) SendResetPasswordEmail(ctx context.Context, userID string) er
 	return p.client.doJSON(ctx, "PUT", "/users/"+url.PathEscape(userID)+"/execute-actions-email", nil, actions, nil)
 }
 
+// SetUserPassword sets the user's password directly via the Keycloak Admin
+// credential reset endpoint. When temporary is true Keycloak will force the
+// user to change the password on next login.
+func (p *Provider) SetUserPassword(ctx context.Context, userID, password string, temporary bool) error {
+	body := struct {
+		Type      string `json:"type"`
+		Value     string `json:"value"`
+		Temporary bool   `json:"temporary"`
+	}{Type: "password", Value: password, Temporary: temporary}
+	return p.client.doJSON(ctx, "PUT", "/users/"+url.PathEscape(userID)+"/reset-password", nil, body, nil)
+}
+
 // DeleteUser removes a user. Keycloak cascades role-mappings and sessions
 // automatically; downstream effects (audit log entries, local DB rows in
 // future iterations) are the service tier's responsibility.
