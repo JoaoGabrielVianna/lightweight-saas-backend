@@ -356,7 +356,7 @@ func TestSetupIdentity_DisabledWhenBothEmpty(t *testing.T) {
 		KeycloakAdminClientID:     "",
 		KeycloakAdminClientSecret: "",
 	}
-	h, checker, err := SetupIdentity(cfg)
+	h, checker, _, err := SetupIdentity(cfg)
 	if err != nil {
 		t.Fatalf("expected nil error when both creds empty, got %v", err)
 	}
@@ -373,7 +373,7 @@ func TestSetupIdentity_RejectsHalfConfigured(t *testing.T) {
 			KeycloakAdminClientID:     "kc-admin",
 			KeycloakAdminClientSecret: "",
 		}
-		_, _, err := SetupIdentity(cfg)
+		_, _, _, err := SetupIdentity(cfg)
 		if err == nil {
 			t.Fatal("expected error on half-configured admin client")
 		}
@@ -388,7 +388,7 @@ func TestSetupIdentity_RejectsHalfConfigured(t *testing.T) {
 			KeycloakAdminClientID:     "",
 			KeycloakAdminClientSecret: "shh",
 		}
-		_, _, err := SetupIdentity(cfg)
+		_, _, _, err := SetupIdentity(cfg)
 		if err == nil {
 			t.Fatal("expected error on half-configured admin client")
 		}
@@ -405,7 +405,7 @@ func TestSetupIdentity_BuildsHandlerAndCacheWhenFullyConfigured(t *testing.T) {
 		KeycloakAdminClientSecret: "shh",
 		AdminLiveCheckTTLSeconds:  5,
 	}
-	h, checker, err := SetupIdentity(cfg)
+	h, checker, _, err := SetupIdentity(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestSetupIdentity_UsesAdminBaseURLWhenSet(t *testing.T) {
 		KeycloakAdminClientID:     "kc-admin",
 		KeycloakAdminClientSecret: "shh",
 	}
-	h, checker, err := SetupIdentity(cfg)
+	h, checker, _, err := SetupIdentity(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -503,7 +503,7 @@ func TestSetupRouter_MeRequiresAuth(t *testing.T) {
 	userHandler := SetupUser(&gorm.DB{})
 	provider := &fakeProvider{err: auth.ErrInvalidToken}
 
-	SetupRouter(r, userHandler, nil, nil, provider, nil)
+	SetupRouter(r, userHandler, nil, nil, provider, nil, nil, nil)
 
 	// No Authorization header → 401, regardless of provider behaviour.
 	w := httptest.NewRecorder()
@@ -527,7 +527,7 @@ func TestSetupRouter_AdminRoutesAbsentWhenIdentityNil(t *testing.T) {
 	userHandler := SetupUser(&gorm.DB{})
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 
-	SetupRouter(r, userHandler, nil, nil, provider, nil)
+	SetupRouter(r, userHandler, nil, nil, provider, nil, nil, nil)
 
 	// /admin/users should 404 — the group was never registered.
 	w := httptest.NewRecorder()
@@ -555,7 +555,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		KeycloakAdminClientSecret: "shh",
 		AdminLiveCheckTTLSeconds:  5,
 	}
-	identityHandler, _, err := SetupIdentity(cfg)
+	identityHandler, _, _, err := SetupIdentity(cfg)
 	if err != nil {
 		t.Fatalf("SetupIdentity: %v", err)
 	}
@@ -564,7 +564,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s1", Roles: []string{"viewer"}, ExpiresAt: time.Now().Add(time.Hour)}}
 		checker := &fakeAdminChecker{allow: true}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker)
+		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -582,7 +582,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s2", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 		checker := &fakeAdminChecker{allow: false}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker)
+		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/roles", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -600,7 +600,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s3", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 		checker := &fakeAdminChecker{allow: true}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker)
+		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
 
 		// /admin/users will fail at the handler (no real Keycloak), but the
 		// status will be something other than 401/403/404, proving the
@@ -622,7 +622,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		// branch where the RequireLiveAdmin middleware is not mounted.
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s4", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, nil)
+		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, nil, nil, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -645,7 +645,7 @@ func TestSetupRouter_AuditEventsRouteGatedOnHandlerPresence(t *testing.T) {
 		KeycloakAdminClientID:     "kc-admin",
 		KeycloakAdminClientSecret: "shh",
 	}
-	identityHandler, _, err := SetupIdentity(cfg)
+	identityHandler, _, _, err := SetupIdentity(cfg)
 	if err != nil {
 		t.Fatalf("SetupIdentity: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestSetupRouter_AuditEventsRouteGatedOnHandlerPresence(t *testing.T) {
 
 	t.Run("absent when audit handler nil", func(t *testing.T) {
 		r := newGin()
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker)
+		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
 		req := httptest.NewRequest(http.MethodGet, "/admin/audit-events", nil)
 		req.Header.Set("Authorization", "Bearer t")
 		w := httptest.NewRecorder()
@@ -668,7 +668,7 @@ func TestSetupRouter_AuditEventsRouteGatedOnHandlerPresence(t *testing.T) {
 		r := newGin()
 		mem := audit.NewMemoryRecorder(4)
 		auditHandler := NewAuditHandler(mem)
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, auditHandler, provider, checker)
+		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, auditHandler, provider, checker, nil, nil)
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/audit-events", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -700,7 +700,7 @@ func TestSetupRouter_AllExpectedAdminRoutesRegistered(t *testing.T) {
 		KeycloakAdminClientID:     "kc-admin",
 		KeycloakAdminClientSecret: "shh",
 	}
-	identityHandler, _, err := SetupIdentity(cfg)
+	identityHandler, _, _, err := SetupIdentity(cfg)
 	if err != nil {
 		t.Fatalf("SetupIdentity: %v", err)
 	}
@@ -708,7 +708,7 @@ func TestSetupRouter_AllExpectedAdminRoutesRegistered(t *testing.T) {
 	r := newGin()
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 	checker := &fakeAdminChecker{allow: true}
-	SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker)
+	SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
 
 	cases := []struct {
 		method, path string
@@ -793,7 +793,9 @@ func TestMountAdminConsole_ConfigJSONShape(t *testing.T) {
 	mountAdminConsole(r, cfg)
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin/config.json", nil))
+	// redirectUri now mirrors the request host (proxy-friendly), so drive the
+	// request with an explicit host rather than httptest's example.com default.
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "http://localhost:8080/admin/config.json", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -1283,7 +1285,7 @@ func TestServerSetupRoutes_HealthRegisteredWhenPlaygroundOff(t *testing.T) {
 	cfg := &config.Config{GinLogEnabled: false}
 	s := NewServer(&gorm.DB{}, cfg)
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s"}}
-	s.SetupRoutes(SetupUser(&gorm.DB{}), nil, nil, provider, nil)
+	s.SetupRoutes(SetupUser(&gorm.DB{}), nil, nil, provider, nil, nil, nil)
 
 	w := httptest.NewRecorder()
 	s.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
@@ -1314,7 +1316,7 @@ func TestServer_StartServesHealth(t *testing.T) {
 	cfg := &config.Config{GinLogEnabled: false}
 	s := NewServer(&gorm.DB{}, cfg)
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s"}}
-	s.SetupRoutes(SetupUser(&gorm.DB{}), nil, nil, provider, nil)
+	s.SetupRoutes(SetupUser(&gorm.DB{}), nil, nil, provider, nil, nil, nil)
 
 	go s.Start(port)
 
