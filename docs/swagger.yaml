@@ -167,6 +167,9 @@ definitions:
       email:
         example: jane@example.com
         type: string
+      email_verified:
+        example: true
+        type: boolean
       enabled:
         example: true
         type: boolean
@@ -1137,6 +1140,59 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a user (admin)
+      tags:
+      - users
+  /admin/users/{id}/password:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Sets the user's Keycloak credential directly. When temporary=true
+        the user must change the password on next login.
+      parameters:
+      - description: Keycloak sub UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: password payload
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Set user password (admin)
       tags:
       - users
   /admin/users/{id}/reset-password:

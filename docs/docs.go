@@ -1312,6 +1312,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/users/{id}/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets the user's Keycloak credential directly. When temporary=true\nthe user must change the password on next login.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Set user password (admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "password payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/users/{id}/reset-password": {
             "post": {
                 "security": [
@@ -2106,6 +2185,10 @@ const docTemplate = `{
                 "email": {
                     "type": "string",
                     "example": "jane@example.com"
+                },
+                "email_verified": {
+                    "type": "boolean",
+                    "example": true
                 },
                 "enabled": {
                     "type": "boolean",
