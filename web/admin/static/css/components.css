@@ -381,3 +381,141 @@ details.disclosure[open] > summary::before { content: "▾"; }
   border-bottom-color: var(--accent);
 }
 .tab:hover:not(.active) { color: var(--fg); }
+
+/* ─── Workspace context (Slice 6) ────────────────────────────────────────────
+   The selector lives in the topbar actions cluster, leftmost. It is the only
+   chrome that answers "which realm am I about to change?", so it is styled to
+   read as a control rather than as decoration: a bordered group, a label, and
+   the connection state pill sitting inside the same border. */
+
+.ws-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 2px 6px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-1);
+  max-width: 46ch;
+}
+.ws-select-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.ws-select {
+  appearance: none;
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 3px 22px 3px 8px;
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  max-width: 22ch;
+  cursor: pointer;
+  /* A caret drawn in CSS so the control does not depend on a font glyph or an
+     external asset — the console ships no images. */
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 10px center, right 6px center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.ws-select:hover  { border-color: var(--accent); }
+.ws-select:focus  { outline: 2px solid var(--accent-soft); outline-offset: 1px; }
+
+/* On narrow viewports the selector keeps its name and state but drops the
+   label — the state pill is the part that must never be cut off. */
+@media (max-width: 720px) {
+  .ws-select-label { display: none; }
+  .ws-select { max-width: 12ch; }
+}
+
+/* ws-banner — the in-page strip explaining a degraded but usable workspace
+   (read-only connection, unhealthy provider). Deliberately absent when the
+   connection is healthy: a banner that is always present stops being read. */
+.ws-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-1);
+  font-size: var(--fs-sm);
+  color: var(--fg-dim);
+}
+
+/* check-list — the per-check verification report. The list exists because
+   "unreachable", "wrong realm", "bad credentials" and "under-privileged" send
+   an operator to four different screens. */
+.check-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--sp-2) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+.check-list li {
+  padding: var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-1);
+}
+
+/* ─── Project credentials (Slice 7) ──────────────────────────────────────────
+   Two elements, both about the same thing: a credential's power is an explicit
+   choice, and its secret is shown once. */
+
+/* scope-option — one selectable capability. The whole row is the label, so the
+   hit area matches the text an operator is reading rather than a 13px box. */
+.scope-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-1);
+  cursor: pointer;
+}
+.scope-option:hover { border-color: var(--accent); }
+.scope-option input[type="checkbox"] { margin-top: 3px; flex: none; }
+
+/* scope-warning — the consequence a scope's NAME does not convey, shown at the
+   moment of selection, which is the only moment it can change a decision. */
+.scope-warning {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: var(--warn);
+}
+
+/* The one-time secret. Monospace and full width so the whole value is visible
+   without scrolling: an operator who cannot see all of it cannot tell whether
+   their copy succeeded. */
+.secret-field {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  padding: var(--sp-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev-2);
+  color: var(--fg);
+}
+
+/* A red left edge, unlike ws-banner's amber: this is not a degraded state to
+   work around, it is a value that ceases to exist when the modal closes. */
+.ws-banner-secret { border-left-color: var(--bad); }
+
+/* Legacy provider-settings banner keeps the neutral edge. */
+.ws-banner-legacy { border-left-color: var(--fg-dim); }

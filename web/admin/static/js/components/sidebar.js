@@ -4,8 +4,25 @@
 
 import { h, mount } from "../lib/dom.js";
 import { getState, subscribe } from "../lib/state.js";
-import { currentPath, navigate } from "../lib/router.js";
+import { currentPath, navigate, wsRoute } from "../lib/router.js";
 import { logout, isAuthenticated } from "../lib/auth.js";
+import { getCurrentWorkspaceId } from "../lib/workspaces.js";
+
+// resolveNavPath — turn a nav entry into the path it should link to.
+//
+// Workspace-scoped entries (`ws: true`) are declared workspace-relative in
+// main.js's ADMIN_NAV and resolved here against the selected workspace. That
+// is the whole cost of putting the workspace in the route: one rewrite, in one
+// place, instead of a workspace id threaded through every nav declaration.
+//
+// With no workspace selected they point at /workspaces, which is the only
+// place an operator can act. Linking them at a workspace-less URL would give
+// a page that can only explain itself.
+function resolveNavPath(item, currentWorkspaceId) {
+  if (!item.ws) return item.path;
+  if (!currentWorkspaceId) return "/workspaces";
+  return wsRoute(currentWorkspaceId, item.path);
+}
 
 /**
  * Render the sidebar into target.
@@ -42,20 +59,29 @@ export function renderSidebar(target, navSpec) {
       groups.get(key).push(item);
     }
 
+    const currentWorkspaceId = getCurrentWorkspaceId();
+
     const sections = [];
     for (const [name, items] of groups) {
       sections.push(
         h("div", "sidebar-section",
           h("div", "sidebar-section-title", name),
           h("nav", "sidebar-nav",
-            ...items.map(it => h("a", {
-              class: ["sidebar-link", path === it.path ? "active" : ""].filter(Boolean).join(" "),
-              href: "#" + it.path,
-              onclick: (e) => { e.preventDefault(); navigate(it.path); },
-            },
-              h("span", { class: "sidebar-link-icon", html: it.icon || "•" }),
-              h("span", null, it.title),
-            )),
+            ...items.map((it) => {
+              const target = resolveNavPath(it, currentWorkspaceId);
+              return h("a", {
+                class: ["sidebar-link", path === target ? "active" : ""].filter(Boolean).join(" "),
+                href: "#" + target,
+                // Workspace-scoped entries say which workspace they lead to,
+                // because the same label means a different realm depending on
+                // the selection.
+                title: it.ws && currentWorkspaceId ? `${it.title} in ${currentWorkspaceId}` : "",
+                onclick: (e) => { e.preventDefault(); navigate(target); },
+              },
+                h("span", { class: "sidebar-link-icon", html: it.icon || "•" }),
+                h("span", null, it.title),
+              );
+            }),
           ),
         )
       );

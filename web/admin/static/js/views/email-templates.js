@@ -3,6 +3,13 @@
 //         PUT /admin/settings/email-templates/:key,
 //         DELETE /admin/settings/email-templates/:key.
 //
+// ─── LEGACY PROVIDER SETTINGS — deliberately NOT workspace-scoped ───────────
+//
+// Same status as views/email.js: a provider realm setting with no /v1
+// equivalent, acting on THIS INSTALLATION's Keycloak realm regardless of the
+// workspace selected in the topbar. Its route carries no workspace segment, so
+// that cannot drift, and the page carries a banner saying so.
+//
 // Variable syntax: Keycloak message bundles use Java MessageFormat positional
 // placeholders, NOT FreeMarker syntax. Use {0}, {2}, {3} — not ${link}.
 //
@@ -15,6 +22,7 @@ import { h, mount } from "../lib/dom.js";
 import { apiTry } from "../lib/api.js";
 import { pageHeader, card, spinner } from "../components/common.js";
 import { toastOk, toastBad } from "../components/toast.js";
+import { legacyProviderBanner } from "../components/ws-states.js";
 
 const TABS = [
   {
@@ -73,8 +81,9 @@ const infoCard = h("div", {
 export default async function emailTemplatesView({ container }) {
   mount(container,
     pageHeader("Templates de Email", "Personalize os textos dos emails enviados pelo Keycloak.", [
-      h("span", { class: "pill pill-neutral" }, "realm setting"),
+      h("span", { class: "pill pill-neutral" }, "legacy realm setting"),
     ]),
+    legacyProviderBanner("Email templates"),
     infoCard,
     h("div", { id: "et-content" }, h("div", { class: "row" }, spinner(), h("span", { class: "muted" }, "carregando…"))),
   );

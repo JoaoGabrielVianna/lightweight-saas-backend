@@ -1,23 +1,32 @@
-// sessions.js — REAL GET /admin/sessions + DELETE /admin/sessions/:id
-// (Stage A + D). Bulk "Terminate all" is intentionally NOT a backend
-// endpoint in v0.2 — surfaced as COMING SOON.
+// sessions.js — workspace-scoped realm sessions.
+//
+// Slice 6: migrated from /admin/sessions to
+// GET /v1/workspaces/{workspace_id}/sessions and
+// DELETE /v1/workspaces/{workspace_id}/sessions/{session_id}.
+//
+// Bulk "Terminate all" is still not a backend capability on either surface —
+// surfaced as COMING SOON, unchanged.
 
 import { h, mount, relativeTime } from "../lib/dom.js";
-import { apiTry } from "../lib/api.js";
-import { pageHeader, pill, emptyState, spinner, statusBadge, disabledBtn } from "../components/common.js";
+import {
+  apiTry, wsPath, wsMutate, enterWorkspace, captureWorkspaceToken, isWorkspaceStale,
+} from "../lib/workspaces.js";
+import { pageHeader, pill, spinner, statusBadge, disabledBtn } from "../components/common.js";
 import { renderTable } from "../components/table.js";
 import { openModal } from "../components/modal.js";
 import { toastOk, toastBad } from "../components/toast.js";
-import { navigate } from "../lib/router.js";
+import {
+  renderGateState, renderAPIError, connectionBanner, writeBlockedReason, describeFailure,
+} from "../components/ws-states.js";
 
-export default async function sessionsView({ container }) {
+export default async function sessionsView({ container, params }) {
+  const workspaceId = params.workspace_id;
+
   mount(container,
     pageHeader("Active sessions", h("span", null,
-      "Live session view aggregated across every enabled client in the realm. Per-session revocation is live. ",
+      "Live sessions aggregated across every enabled client in this workspace's realm. Per-session revocation is live. ",
       statusBadge("live"),
     ), [
-      // Bulk terminate is not a v0.2 backend endpoint. Keep the button so
-      // the IA stays consistent, but never let it fire — disabled + tooltip.
       disabledBtn(h("span", null, "Terminate all ", statusBadge("coming-soon")), {
         classes: ["btn-warn"],
         title: "Disponível em breve",
@@ -26,12 +35,23 @@ export default async function sessionsView({ container }) {
     h("div", { id: "sess-content" }, h("div", "row", spinner(), h("span", "muted", "loading…"))),
   );
 
-  const r = await apiTry("/admin/sessions");
-  const target = container.querySelector("#sess-content");
+  const gate = await enterWorkspace(workspaceId);
+  let target = container.querySelector("#sess-content");
   if (!target) return;
+  if (!gate.ok) {
+    mount(target, renderGateState(gate, { onRetry: () => sessionsView({ container, params }) }));
+    return;
+  }
+  const blocked = writeBlockedReason(gate.connectionState, gate.connection);
 
+  const token = captureWorkspaceToken();
+  const r = await apiTry(wsPath(workspaceId, "/sessions"), { signal: token.signal });
+  if (isWorkspaceStale(token)) return;
+
+  target = container.querySelector("#sess-content");
+  if (!target) return;
   if (!r.ok) {
-    mount(target, renderError(r));
+    mount(target, renderAPIError(r, { onRetry: () => sessionsView({ container, params }) }));
     return;
   }
 
@@ -40,9 +60,14 @@ export default async function sessionsView({ container }) {
     client_names: s.clients ? Object.values(s.clients).join(", ") : "—",
   }));
 
-  renderTable(target, {
+  mount(target,
+    connectionBanner(gate.connectionState, gate.connection, { workspaceId }),
+    h("div", { id: "sess-table" }),
+  );
+
+  renderTable(container.querySelector("#sess-table"), {
     toolbar: {
-      actions: [h("button", { class: "btn btn-sm", onclick: () => sessionsView({ container }) }, "↻ refresh")],
+      actions: [h("button", { class: "btn btn-sm", onclick: () => sessionsView({ container, params }) }, "↻ refresh")],
     },
     columns: [
       { key: "username", title: "User", render: (v) => h("strong", null, v || "—") },
@@ -52,31 +77,18 @@ export default async function sessionsView({ container }) {
       { key: "last_access",  title: "Last activity", render: (v) => v ? relativeTime(v) : "—" },
       { key: "_actions", title: "", width: "120px", render: (_, row) => h("button", {
           class: "btn btn-xs btn-bad",
-          onclick: (e) => { e.stopPropagation(); confirmKill(row, container); },
+          disabled: !!blocked,
+          title: blocked || "Terminate this session",
+          onclick: (e) => { e.stopPropagation(); confirmKill(row, container, workspaceId, params); },
         }, "terminate"),
       },
     ],
     rows,
-    empty: { title: "No active sessions", body: "Sign in via the Playground to start one." },
+    empty: { title: "No active sessions", body: "Nobody is signed in to this workspace's realm right now." },
   });
 }
 
-function renderError(r) {
-  if (r.status === 401) {
-    return emptyState({
-      icon: "🔒",
-      title: "Sign in required",
-      body: "GET /admin/sessions requires a bearer token.",
-      action: h("button", { class: "btn btn-primary", onclick: () => navigate("/playground") }, "Go to Playground"),
-    });
-  }
-  if (r.status === 403) {
-    return emptyState({ icon: "⛔", title: "Admin role required", body: "Your token lacks the `admin` realm role." });
-  }
-  return emptyState({ icon: "✗", title: "Request failed", body: `HTTP ${r.status}: ${r.error?.message || "unknown"}` });
-}
-
-function confirmKill(row, container) {
+function confirmKill(row, container, workspaceId, params) {
   let busy = false;
   let close;
   close = openModal({
@@ -90,14 +102,17 @@ function confirmKill(row, container) {
       { label: "Terminate", bad: true, onClick: () => {
         if (busy) return false;
         busy = true;
-        apiTry("/admin/sessions/" + encodeURIComponent(row.id), { method: "DELETE" })
-          .then(({ ok, status, error }) => {
-            if (ok) {
+        // The session id belongs to workspaceId's realm; wsMutate refuses to
+        // send it anywhere else.
+        wsMutate(workspaceId, "/sessions/" + encodeURIComponent(row.id), { method: "DELETE" })
+          .then((res) => {
+            if (res.stale) { if (close) close(); return; }
+            if (res.ok) {
               toastOk("Session terminated.", "Revoked");
               if (close) close();
-              if (container) sessionsView({ container });
+              sessionsView({ container, params });
             } else {
-              toastBad(formatError(status, error), "Terminate failed");
+              toastBad(describeFailure(res), "Terminate failed");
               busy = false;
             }
           });
@@ -105,13 +120,4 @@ function confirmKill(row, container) {
       } },
     ],
   });
-}
-
-function formatError(status, error) {
-  if (status === 400) return "Malformed session id.";
-  if (status === 401) return "Sign in required.";
-  if (status === 403) return "Your token lacks the admin role.";
-  if (status === 404) return "Session already revoked or expired.";
-  if (status === 502) return "Keycloak is unreachable.";
-  return "HTTP " + status + ": " + (error?.message || "unknown");
 }

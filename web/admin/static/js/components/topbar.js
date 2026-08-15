@@ -10,6 +10,18 @@ import { h, mount } from "../lib/dom.js";
 import { getState, subscribe, setState, STORAGE_KEYS } from "../lib/state.js";
 import { currentPath, navigate } from "../lib/router.js";
 import { LOCALES, LOCALE_LABEL, getLocale, setLocale } from "../lib/locale.js";
+import { renderWorkspaceSelector } from "./workspace-selector.js";
+import { getCurrentWorkspace } from "../lib/workspaces.js";
+
+// workspaceSectionOf — the page segment of a workspace-scoped path, or null.
+//
+//   "/workspaces/ws_x/users"        → "users"
+//   "/workspaces/ws_x/users/<uuid>" → "users"
+//   "/overview"                     → null
+function workspaceSectionOf(path) {
+  const m = typeof path === "string" ? path.match(/^\/workspaces\/ws_[^/]+\/([^/?]+)/) : null;
+  return m ? m[1] : null;
+}
 
 // STORAGE_KEY for "last admin route visited", so toggling Admin→Docs→Admin
 // returns the user to the same admin page they were last on. Same shape for
@@ -44,9 +56,17 @@ export function renderTopbar(target, navSpec, onSearch) {
     const path  = currentPath();
     const inDocs = path === "/docs" || path.startsWith("/docs/");
     const activeNav = inDocs ? docsNav : adminNav;
-    const item  = activeNav.find(n => n.path === (route?.path || "")) ||
+    // Workspace-scoped routes are /workspaces/<id>/<section>, so the nav's
+    // declared path (`/users`) is matched against the SECTION rather than the
+    // whole path. Without this the breadcrumb would fall back to the raw path
+    // and show a uuid where a page name belongs.
+    const routePath = route?.path || "";
+    const wsSection = workspaceSectionOf(routePath);
+    const item  = activeNav.find(n => n.path === routePath) ||
+                  (wsSection ? activeNav.find(n => n.ws && n.path === "/" + wsSection) : null) ||
                   // Fall back to nearest-prefix match for parametric routes.
-                  activeNav.find(n => (route?.path || "").startsWith(n.path));
+                  activeNav.find(n => routePath.startsWith(n.path));
+    const workspace = getCurrentWorkspace();
 
     // Persist the latest path per mode so toggling back is non-destructive.
     try {
@@ -62,6 +82,11 @@ export function renderTopbar(target, navSpec, onSearch) {
       }, "≡"),
       h("nav", { class: "topbar-breadcrumbs", "aria-label": "breadcrumb" },
         h("span", "crumb", inDocs ? "Docs" : "Admin"),
+        // The workspace name sits IN the breadcrumb for workspace-scoped
+        // pages. "Users" alone does not say whose users, and this console's
+        // whole risk is acting on the wrong realm.
+        wsSection && workspace ? h("span", "crumb-sep", "/") : null,
+        wsSection && workspace ? h("span", "crumb", workspace.name) : null,
         h("span", "crumb-sep", "/"),
         h("span", "crumb-current", item ? item.title : (route?.path || "—")),
       ),
@@ -74,6 +99,10 @@ export function renderTopbar(target, navSpec, onSearch) {
         }),
       ),
       h("div", "topbar-actions",
+        // Workspace selector — admin mode only. In Docs mode there is no
+        // realm being administered, and a selector there would suggest the
+        // documentation changes with the workspace.
+        inDocs ? null : renderWorkspaceSelector(),
         // Docs-only language toggle. The toggle stays in admin chrome's
         // English regardless of the active locale — it's a control, not
         // translated content. Rendered FIRST in the actions cluster so

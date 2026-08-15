@@ -1,0 +1,13 @@
+{
+  "name": "lightweight-browser-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Operator-journey browser e2e for the LIGHTWEIGHT admin console. Chromium only, no mocked backend.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

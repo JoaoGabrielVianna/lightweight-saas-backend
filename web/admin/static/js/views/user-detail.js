@@ -1,53 +1,96 @@
-// user-detail.js — REAL GET /admin/users/:id + edit (PATCH) + send reset
-// email (POST) + delete (DELETE) + per-user role mappings. Stage A/B/C/D wired.
+// user-detail.js — workspace-scoped user detail and every user mutation.
+//
+// Slice 6: migrated from /admin/users/:id to
+// /v1/workspaces/{workspace_id}/users/{user_id} plus that user's roles,
+// sessions and password operations.
+//
+// This is the view where cross-workspace mutation is most dangerous, and it
+// is why Phase 9 exists. Every action here is built from TWO captured values:
+// the user id AND the workspace id it belongs to. Neither is read from global
+// state at click time. If the operator switches workspace while a dialog is
+// open, the switch listener closes it; if a click somehow still lands,
+// wsMutate refuses to send it. Two independent locks, because the failure mode
+// is deleting a real person in the wrong realm.
 
 import { h, mount, relativeTime } from "../lib/dom.js";
-import { apiTry } from "../lib/api.js";
+import {
+  apiTry, wsPath, wsMutate, enterWorkspace, captureWorkspaceToken, isWorkspaceStale,
+} from "../lib/workspaces.js";
 import { pageHeader, card, kvList, pill, spinner, emptyState, statusBadge } from "../components/common.js";
-import { navigate } from "../lib/router.js";
+import { navigate, wsRoute } from "../lib/router.js";
 import { openModal } from "../components/modal.js";
 import { toastOk, toastBad } from "../components/toast.js";
+import {
+  renderGateState, renderAPIError, connectionBanner, writeBlockedReason, describeFailure,
+} from "../components/ws-states.js";
 
 export default async function userDetailView({ container, params }) {
+  const workspaceId = params.workspace_id;
+  const userId = params.user_id;
+
   mount(container,
-    pageHeader("User detail", h("span", null, h("code", null, params.id), " ", statusBadge("live")), [
-      h("button", { class: "btn", onclick: () => navigate("/users") }, "← back to users"),
+    pageHeader("User detail", h("span", null, h("code", null, userId), " ", statusBadge("live")), [
+      h("button", { class: "btn", onclick: () => navigate(wsRoute(workspaceId, "users")) }, "← back to users"),
     ]),
     h("div", { id: "ud-content" }, h("div", "row", spinner(), h("span", "muted", "loading…"))),
   );
 
-  // Fetch the user + their roles in parallel.
+  const gate = await enterWorkspace(workspaceId);
+  let target = container.querySelector("#ud-content");
+  if (!target) return;
+  if (!gate.ok) {
+    mount(target, renderGateState(gate, { onRetry: () => userDetailView({ container, params }) }));
+    return;
+  }
+  const blocked = writeBlockedReason(gate.connectionState, gate.connection);
+
+  const token = captureWorkspaceToken();
   const [userR, rolesR] = await Promise.all([
-    apiTry("/admin/users/" + encodeURIComponent(params.id)),
-    apiTry("/admin/users/" + encodeURIComponent(params.id) + "/roles"),
+    apiTry(wsPath(workspaceId, "/users/" + encodeURIComponent(userId)), { signal: token.signal }),
+    apiTry(wsPath(workspaceId, "/users/" + encodeURIComponent(userId) + "/roles"), { signal: token.signal }),
   ]);
-  const target = container.querySelector("#ud-content");
+  if (isWorkspaceStale(token)) return;
+
+  target = container.querySelector("#ud-content");
   if (!target) return;
 
   if (!userR.ok) {
-    mount(target, emptyState({
-      icon: userR.status === 404 ? "?" : "✗",
-      title: userR.status === 404 ? "User not found" : "Request failed",
-      body: userR.status === 404
-        ? `No user with id ${params.id}.`
-        : `HTTP ${userR.status}: ${userR.error?.message || "unknown error"}`,
-    }));
+    mount(target, userR.error?.code === "user_not_found" || userR.status === 404
+      ? emptyState({
+          icon: "?",
+          title: "User not found",
+          body: `No user with id ${userId} exists in this workspace's realm.`,
+          action: h("button", { class: "btn", onclick: () => navigate(wsRoute(workspaceId, "users")) }, "Back to users"),
+        })
+      : renderAPIError(userR, { onRetry: () => userDetailView({ container, params }) }));
     return;
   }
   const u = userR.data;
   const userRoles = (rolesR.ok ? (rolesR.data.roles || []) : []);
 
+  // ctx bundles the two values every mutation on this page must be built
+  // from. Passing it around, rather than reading state, is what makes the
+  // cross-workspace mutation impossible to write by accident.
+  const ctx = { workspaceId, params, container, blocked };
+
+  const writeBtn = (props, label) => h("button", {
+    ...props,
+    disabled: !!blocked,
+    title: blocked || props.title || "",
+  }, label);
+
   mount(target,
+    connectionBanner(gate.connectionState, gate.connection, { workspaceId }),
+
     card({
       title: u.username || "user",
       subtitle: u.email,
       actions: [
-        h("button", { class: "btn", onclick: () => openEditModal(u, container) }, "Edit"),
-        h("button", { class: "btn", onclick: () => toggleEnabled(u, container) },
-          u.enabled ? "Disable" : "Enable"),
-        h("button", { class: "btn btn-warn", id: "ud-reset-btn", onclick: (e) => sendResetEmail(u, e.currentTarget) }, "Send reset email"),
-        h("button", { class: "btn btn-warn", onclick: () => confirmLogoutAll(u) }, "Logout all sessions"),
-        h("button", { class: "btn btn-bad", onclick: () => confirmDelete(u) }, "Delete"),
+        writeBtn({ class: "btn", onclick: () => openEditModal(u, ctx) }, "Edit"),
+        writeBtn({ class: "btn", onclick: () => toggleEnabled(u, ctx) }, u.enabled ? "Disable" : "Enable"),
+        writeBtn({ class: "btn btn-warn", id: "ud-reset-btn", onclick: (e) => sendResetEmail(u, ctx, e.currentTarget) }, "Send reset email"),
+        writeBtn({ class: "btn btn-warn", onclick: () => confirmLogoutAll(u, ctx) }, "Logout all sessions"),
+        writeBtn({ class: "btn btn-bad", onclick: () => confirmDelete(u, ctx) }, "Delete"),
       ],
       body: h("div", null,
         h("div", "row",
@@ -69,14 +112,14 @@ export default async function userDetailView({ container, params }) {
       title: h("span", null, "Realm roles ", statusBadge("live")),
       subtitle: "Assign or remove realm roles for this user",
       actions: [
-        h("button", { class: "btn btn-sm", onclick: () => openAssignRoleModal(u, userRoles, container) }, "+ Assign role"),
+        writeBtn({ class: "btn btn-sm", onclick: () => openAssignRoleModal(u, userRoles, ctx) }, "+ Assign role"),
       ],
-      body: renderRoles(u, userRoles, container),
+      body: renderRoles(u, userRoles, ctx),
     }),
 
     card({
       title: "Attributes",
-      subtitle: "Keycloak custom user attributes",
+      subtitle: "Provider-side custom user attributes",
       body: renderAttributes(u.attributes),
     }),
 
@@ -90,21 +133,21 @@ export default async function userDetailView({ container, params }) {
   );
 }
 
-function renderRoles(u, roles, container) {
+function renderRoles(u, roles, ctx) {
   if (!roles.length) {
     return h("p", "muted", "This user has no realm roles assigned.");
   }
   return h("div", "row",
     ...roles.map(r => h("span", { style: { display: "inline-flex", alignItems: "center", gap: "4px", marginRight: "8px" } },
       pill(r.name, r.name === "admin" ? "accent" : (r.builtin ? "neutral" : "ok")),
-      // Built-ins (offline_access, uma_authorization, default-roles-*) can't
-      // be removed cleanly via the API — Keycloak rejects unmapping them.
-      // Hide the X for those; service guards will still 403 if abused.
+      // Built-ins cannot be unmapped cleanly through this surface; the service
+      // guards would refuse anyway.
       r.builtin ? null : h("button", {
         class: "btn btn-xs btn-bad",
         style: { padding: "2px 6px", lineHeight: "1" },
-        title: "Remove this role",
-        onclick: () => confirmUnassign(u, r, container),
+        disabled: !!ctx.blocked,
+        title: ctx.blocked || "Remove this role",
+        onclick: () => confirmUnassign(u, r, ctx),
       }, "×"),
     )),
   );
@@ -117,9 +160,16 @@ function renderAttributes(attrs) {
   return kvList(Object.entries(attrs).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v)]));
 }
 
-// ─── Mutations ───────────────────────────────────────────────────────────
+// ─── Mutations ───────────────────────────────────────────────────────────────
+//
+// Every one takes ctx and uses ctx.workspaceId. None reads the current
+// workspace.
 
-function openEditModal(u, container) {
+function reload(ctx) {
+  userDetailView({ container: ctx.container, params: ctx.params });
+}
+
+function openEditModal(u, ctx) {
   const firstName = h("input", { type: "text", value: u.first_name || "", autocomplete: "off" });
   const lastName  = h("input", { type: "text", value: u.last_name  || "", autocomplete: "off" });
   const email     = h("input", { type: "email", value: u.email     || "", autocomplete: "off" });
@@ -138,11 +188,6 @@ function openEditModal(u, container) {
       { label: "Cancel" },
       { label: "Save changes", primary: true, onClick: () => {
         if (busy) return false;
-        // SMTP validation: if the email field changed, enforce the same
-        // pattern the server uses (identity.emailPattern). The server will
-        // reject malformed emails with 400, but client-side rejection
-        // avoids the round-trip AND prevents an SMTP-bound retry later
-        // (verify-email action emails won't land if the address is bad).
         const newEmail = email.value.trim();
         const emailChanged = newEmail !== (u.email || "");
         if (emailChanged && newEmail !== "" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)) {
@@ -150,8 +195,6 @@ function openEditModal(u, container) {
           return false;
         }
         busy = true;
-        // Only send fields that actually changed so the PATCH stays tight
-        // and we don't accidentally re-write identical values into Keycloak.
         const body = {};
         if (firstName.value.trim() !== (u.first_name || "")) body.first_name = firstName.value.trim();
         if (lastName.value.trim()  !== (u.last_name  || "")) body.last_name  = lastName.value.trim();
@@ -161,13 +204,14 @@ function openEditModal(u, container) {
           if (close) close();
           return false;
         }
-        patchUser(u.id, body).then(({ ok, status, error }) => {
-          if (ok) {
+        patchUser(ctx, u.id, body).then((res) => {
+          if (res.stale) { if (close) close(); return; }
+          if (res.ok) {
             toastOk("User updated.", "Saved");
             if (close) close();
-            if (container) userDetailView({ container, params: { id: u.id } });
+            reload(ctx);
           } else {
-            toastBad(formatError(status, error), "Update failed");
+            toastBad(describeFailure(res), "Update failed");
             busy = false;
           }
         });
@@ -177,17 +221,16 @@ function openEditModal(u, container) {
   });
 }
 
-function toggleEnabled(u, container) {
-  // No modal for enable; modal for disable (it's the irreversible-ish one
-  // that can lock people out — confirmation is worth one click).
+function toggleEnabled(u, ctx) {
   const turningOff = u.enabled;
   if (!turningOff) {
-    patchUser(u.id, { enabled: true }).then(({ ok, status, error }) => {
-      if (ok) {
+    patchUser(ctx, u.id, { enabled: true }).then((res) => {
+      if (res.stale) return;
+      if (res.ok) {
         toastOk("User enabled.", "Saved");
-        if (container) userDetailView({ container, params: { id: u.id } });
+        reload(ctx);
       } else {
-        toastBad(formatError(status, error), "Enable failed");
+        toastBad(describeFailure(res), "Enable failed");
       }
     });
     return;
@@ -206,13 +249,14 @@ function toggleEnabled(u, container) {
       { label: "Disable", bad: true, onClick: () => {
         if (busy) return false;
         busy = true;
-        patchUser(u.id, { enabled: false }).then(({ ok, status, error }) => {
-          if (ok) {
+        patchUser(ctx, u.id, { enabled: false }).then((res) => {
+          if (res.stale) { if (close) close(); return; }
+          if (res.ok) {
             toastOk("User disabled.", "Saved");
             if (close) close();
-            if (container) userDetailView({ container, params: { id: u.id } });
+            reload(ctx);
           } else {
-            toastBad(formatError(status, error), "Disable failed");
+            toastBad(describeFailure(res), "Disable failed");
             busy = false;
           }
         });
@@ -222,22 +266,19 @@ function toggleEnabled(u, container) {
   });
 }
 
-function sendResetEmail(u, btn) {
-  // UI-003: double-clicks on this button used to send N action emails to the
-  // user's inbox (Keycloak does not dedupe). The button is disabled while the
-  // request is in flight; on completion (success or failure) we re-enable so
-  // the operator can retry. Guards on the actual DOM node so a stale closure
-  // from a re-render can't bypass the flag.
+function sendResetEmail(u, ctx, btn) {
+  // UI-003: double-clicks used to send N action emails.
   if (!btn || btn.disabled) return;
   btn.disabled = true;
   const originalLabel = btn.textContent;
   btn.textContent = "Sending…";
-  apiTry("/admin/users/" + encodeURIComponent(u.id) + "/reset-password", { method: "POST" })
-    .then(({ ok, status, error }) => {
-      if (ok) {
+  wsMutate(ctx.workspaceId, "/users/" + encodeURIComponent(u.id) + "/reset-password", { method: "POST" })
+    .then((res) => {
+      if (res.stale) return;
+      if (res.ok) {
         toastOk("Password-reset email sent to " + (u.email || u.username) + ".", "Email queued");
       } else {
-        toastBad(formatError(status, error), "Reset failed");
+        toastBad(describeFailure(res), "Reset failed");
       }
     })
     .finally(() => {
@@ -248,27 +289,28 @@ function sendResetEmail(u, btn) {
     });
 }
 
-function confirmLogoutAll(u) {
+function confirmLogoutAll(u, ctx) {
   let busy = false;
   let close;
   close = openModal({
     title: "Logout every session?",
     body: h("p", null,
       "This invalidates every active session for ", h("strong", null, u.username || u.email),
-      " across every client. They'll be signed out everywhere immediately.",
+      " across every client in this workspace's realm.",
     ),
     actions: [
       { label: "Cancel" },
       { label: "Logout all", bad: true, onClick: () => {
         if (busy) return false;
         busy = true;
-        apiTry("/admin/users/" + encodeURIComponent(u.id) + "/sessions", { method: "DELETE" })
-          .then(({ ok, status, error }) => {
-            if (ok) {
+        wsMutate(ctx.workspaceId, "/users/" + encodeURIComponent(u.id) + "/sessions", { method: "DELETE" })
+          .then((res) => {
+            if (res.stale) { if (close) close(); return; }
+            if (res.ok) {
               toastOk("All sessions terminated.", "Logged out everywhere");
               if (close) close();
             } else {
-              toastBad(formatError(status, error), "Logout failed");
+              toastBad(describeFailure(res), "Logout failed");
               busy = false;
             }
           });
@@ -278,7 +320,7 @@ function confirmLogoutAll(u) {
   });
 }
 
-function confirmDelete(u) {
+function confirmDelete(u, ctx) {
   let busy = false;
   let close;
   close = openModal({
@@ -286,7 +328,7 @@ function confirmDelete(u) {
     body: h("div", null,
       h("p", null, "Permanently delete ", h("strong", null, u.username || u.email), "?"),
       h("p", "muted text-xs",
-        "Self-delete and last-admin removal are blocked at the API tier — you'll see a 403 if either applies.",
+        "Self-delete and last-admin removal are refused by the API — you'll see a caller_forbidden if either applies.",
       ),
     ),
     actions: [
@@ -294,14 +336,15 @@ function confirmDelete(u) {
       { label: "Delete", bad: true, onClick: () => {
         if (busy) return false;
         busy = true;
-        apiTry("/admin/users/" + encodeURIComponent(u.id), { method: "DELETE" })
-          .then(({ ok, status, error }) => {
-            if (ok) {
+        wsMutate(ctx.workspaceId, "/users/" + encodeURIComponent(u.id), { method: "DELETE" })
+          .then((res) => {
+            if (res.stale) { if (close) close(); return; }
+            if (res.ok) {
               toastOk("User deleted.", "Deleted");
               if (close) close();
-              navigate("/users");
+              navigate(wsRoute(ctx.workspaceId, "users"));
             } else {
-              toastBad(formatError(status, error), "Delete failed");
+              toastBad(describeFailure(res), "Delete failed");
               busy = false;
             }
           });
@@ -311,15 +354,14 @@ function confirmDelete(u) {
   });
 }
 
-function openAssignRoleModal(u, currentRoles, container) {
-  // Build a name set of roles already assigned so we don't show duplicates.
+function openAssignRoleModal(u, currentRoles, ctx) {
   const assigned = new Set(currentRoles.map(r => r.name));
   const select = h("select", null, h("option", { value: "" }, "Loading roles…"));
 
-  // Roles dropdown loads from GET /admin/roles, filtering out built-ins
-  // (Keycloak rejects assigning offline_access / uma_authorization through
-  // this surface) and roles already present.
-  apiTry("/admin/roles").then(({ ok, data }) => {
+  // The role list comes from the same workspace the assignment will target.
+  const token = captureWorkspaceToken();
+  apiTry(wsPath(ctx.workspaceId, "/roles"), { signal: token.signal }).then(({ ok, data }) => {
+    if (isWorkspaceStale(token)) return;
     if (!ok || !Array.isArray(data?.roles)) return;
     select.innerHTML = "";
     const available = data.roles.filter(r => !r.builtin && !assigned.has(r.name));
@@ -338,7 +380,7 @@ function openAssignRoleModal(u, currentRoles, container) {
     title: "Assign role",
     body: h("div", "col",
       h("label", null, h("div", "muted", "role"), select),
-      h("p", "muted text-xs", "Granting `admin` is unrestricted — but removing your own admin later is blocked."),
+      h("p", "muted text-xs", "Granting `admin` is unrestricted — but removing your own admin later is refused."),
     ),
     actions: [
       { label: "Cancel" },
@@ -349,17 +391,18 @@ function openAssignRoleModal(u, currentRoles, container) {
           return false;
         }
         busy = true;
-        apiTry("/admin/users/" + encodeURIComponent(u.id) + "/roles", {
+        wsMutate(ctx.workspaceId, "/users/" + encodeURIComponent(u.id) + "/roles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ roles: [select.value] }),
-        }).then(({ ok, status, error }) => {
-          if (ok) {
+        }).then((res) => {
+          if (res.stale) { if (close) close(); return; }
+          if (res.ok) {
             toastOk(`Role "${select.value}" assigned.`, "Assigned");
             if (close) close();
-            if (container) userDetailView({ container, params: { id: u.id } });
+            reload(ctx);
           } else {
-            toastBad(formatError(status, error), "Assign failed");
+            toastBad(describeFailure(res), "Assign failed");
             busy = false;
           }
         });
@@ -369,7 +412,7 @@ function openAssignRoleModal(u, currentRoles, container) {
   });
 }
 
-function confirmUnassign(u, role, container) {
+function confirmUnassign(u, role, ctx) {
   let busy = false;
   let close;
   close = openModal({
@@ -380,15 +423,17 @@ function confirmUnassign(u, role, container) {
       { label: "Remove", bad: true, onClick: () => {
         if (busy) return false;
         busy = true;
-        apiTry("/admin/users/" + encodeURIComponent(u.id) + "/roles/" + encodeURIComponent(role.name), {
-          method: "DELETE",
-        }).then(({ ok, status, error }) => {
-          if (ok) {
+        wsMutate(ctx.workspaceId,
+          "/users/" + encodeURIComponent(u.id) + "/roles/" + encodeURIComponent(role.name),
+          { method: "DELETE" },
+        ).then((res) => {
+          if (res.stale) { if (close) close(); return; }
+          if (res.ok) {
             toastOk(`Role "${role.name}" removed.`, "Removed");
             if (close) close();
-            if (container) userDetailView({ container, params: { id: u.id } });
+            reload(ctx);
           } else {
-            toastBad(formatError(status, error), "Remove failed");
+            toastBad(describeFailure(res), "Remove failed");
             busy = false;
           }
         });
@@ -398,21 +443,10 @@ function confirmUnassign(u, role, container) {
   });
 }
 
-async function patchUser(id, body) {
-  return apiTry("/admin/users/" + encodeURIComponent(id), {
+function patchUser(ctx, id, body) {
+  return wsMutate(ctx.workspaceId, "/users/" + encodeURIComponent(id), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-}
-
-function formatError(status, error) {
-  if (status === 400) return "Invalid input. Check email format and field values.";
-  if (status === 401) return "Sign in required.";
-  if (status === 403) return "Blocked by a service-tier guard: self-action or last-admin protection.";
-  if (status === 404) return "User or referenced role not found.";
-  if (status === 409) return "Conflict — duplicate email or role.";
-  if (status === 502) return "Keycloak unreachable (or SMTP not configured for email actions).";
-  if (status === 503) return "Identity management not configured.";
-  return "HTTP " + status + ": " + (error?.message || "unknown");
 }

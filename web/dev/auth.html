@@ -14,7 +14,7 @@
     <header class="hdr">
       <h1>auth-console <span class="pulse" id="pulse" title="ui live">●</span></h1>
       <span class="badge badge-dev" title="local development only">DEV ONLY</span>
-      <p class="hdr-sub">unified developer console for the Keycloak integration · validation source: <code>/auth/debug</code></p>
+      <p class="hdr-sub">unified developer console for the Keycloak integration · validation source: <code>/dev/auth/debug</code></p>
     </header>
 
     <!-- ───────── 1. CONNECTION STATUS ───────── -->
@@ -75,7 +75,7 @@
     <section class="card" id="card-introspect" hidden>
       <header class="card-hdr">
         <h2>// token introspection</h2>
-        <span class="card-sub">source <code>GET /auth/debug</code></span>
+        <span class="card-sub">source <code>GET /dev/auth/debug</code></span>
         <button class="btn-xs" id="btn-refresh-debug">↻ refresh</button>
       </header>
       <dl class="kv">
@@ -137,7 +137,7 @@
       </details>
       <details>
         <summary>
-          /auth/debug response
+          /dev/auth/debug response
           <button class="btn-xs" data-copy="raw-debug">copy</button>
         </summary>
         <pre id="raw-debug" class="pre">—</pre>
@@ -153,7 +153,7 @@
 
     <footer class="ftr">
       <p>tokens live in <code>sessionStorage</code> only · closing the tab clears them</p>
-      <p class="muted">backend gate <code>DEV_PLAYGROUND_ENABLED</code> · validation source <code>/auth/debug</code> · auth flow Authorization Code + PKCE</p>
+      <p class="muted">backend gate <code>DEV_PLAYGROUND_ENABLED</code> · validation source <code>/dev/auth/debug</code> · auth flow Authorization Code + PKCE</p>
     </footer>
   </main>
   <script src="/dev/auth/auth.js" defer></script>

@@ -1,13 +1,29 @@
-// invitations.js — REAL GET / POST / DELETE /admin/invitations and
-// POST /admin/invitations/:id/resend. Full Stage B/C/D wiring.
+// invitations.js — workspace-scoped invitations.
+//
+// Slice 6: migrated from /admin/invitations to
+// /v1/workspaces/{workspace_id}/invitations (list, create, revoke, resend).
+//
+// One shape change beyond the path, flagged in FRONTEND_READINESS §4.3: the
+// "set a temporary password" mode used to POST /admin/users/password. Its /v1
+// equivalent is POST /v1/workspaces/{id}/users, same field names, but its
+// validation now happens in the shared service and returns the structured
+// envelope — so its inline errors go through describeFailure like everything
+// else rather than reading `error.message` directly.
+//
+// An invitation id IS a user id (see WORKSPACE_IDENTITY_API.md §1): revoking
+// deletes the underlying user. That model is preserved verbatim from /admin.
 
 import { h, mount, relativeTime } from "../lib/dom.js";
-import { apiTry } from "../lib/api.js";
-import { pageHeader, pill, emptyState, spinner, statusBadge } from "../components/common.js";
+import {
+  apiTry, wsPath, wsMutate, enterWorkspace, captureWorkspaceToken, isWorkspaceStale,
+} from "../lib/workspaces.js";
+import { pageHeader, pill, spinner, statusBadge } from "../components/common.js";
 import { renderTable } from "../components/table.js";
 import { openModal } from "../components/modal.js";
 import { toastOk, toastBad } from "../components/toast.js";
-import { navigate } from "../lib/router.js";
+import {
+  renderGateState, renderAPIError, connectionBanner, writeBlockedReason, describeFailure,
+} from "../components/ws-states.js";
 
 const STATUS_VARIANT = {
   pending:  "warn",
@@ -16,31 +32,59 @@ const STATUS_VARIANT = {
   revoked:  "neutral",
 };
 
-export default async function invitationsView({ container }) {
+export default async function invitationsView({ container, params }) {
+  const workspaceId = params.workspace_id;
+
   mount(container,
     pageHeader("Invitations", h("span", null,
-      "Pending invitations derived from Keycloak users with required actions. Invite, resend and revoke are all live. ",
+      "Pending invitations derived from users with required actions in this workspace's realm. ",
       statusBadge("live"),
     ), [
-      h("button", { class: "btn btn-primary", onclick: () => openInviteModal(container) }, "+ Invite user"),
+      h("button", {
+        class: "btn btn-primary",
+        id: "inv-new-btn",
+        onclick: () => openInviteModal(container, workspaceId, params),
+      }, "+ Invite user"),
     ]),
     h("div", { id: "inv-content" }, h("div", "row", spinner(), h("span", "muted", "loading…"))),
   );
 
-  const r = await apiTry("/admin/invitations");
-  const target = container.querySelector("#inv-content");
+  const gate = await enterWorkspace(workspaceId);
+  let target = container.querySelector("#inv-content");
   if (!target) return;
+  if (!gate.ok) {
+    mount(target, renderGateState(gate, { onRetry: () => invitationsView({ container, params }) }));
+    return;
+  }
 
+  const blocked = writeBlockedReason(gate.connectionState, gate.connection);
+  const newBtn = container.querySelector("#inv-new-btn");
+  if (newBtn && blocked) {
+    newBtn.disabled = true;
+    newBtn.title = blocked;
+  }
+
+  const token = captureWorkspaceToken();
+  const r = await apiTry(wsPath(workspaceId, "/invitations"), { signal: token.signal });
+  if (isWorkspaceStale(token)) return;
+
+  target = container.querySelector("#inv-content");
+  if (!target) return;
   if (!r.ok) {
-    mount(target, renderError(r));
+    mount(target, renderAPIError(r, { onRetry: () => invitationsView({ container, params }) }));
     return;
   }
 
   const rows = r.data.invitations || [];
 
-  renderTable(target, {
+  mount(target,
+    connectionBanner(gate.connectionState, gate.connection, { workspaceId }),
+    h("div", { id: "inv-table" }),
+  );
+
+  renderTable(container.querySelector("#inv-table"), {
     toolbar: {
-      actions: [h("button", { class: "btn btn-sm", onclick: () => invitationsView({ container }) }, "↻ refresh")],
+      actions: [h("button", { class: "btn btn-sm", onclick: () => invitationsView({ container, params }) }, "↻ refresh")],
     },
     columns: [
       { key: "email",            title: "Email",  render: (v, row) => h("strong", null, v || row.username || "—") },
@@ -52,15 +96,15 @@ export default async function invitationsView({ container }) {
       { key: "_actions", title: "", width: "180px", render: (_, row) => h("div", "row",
           h("button", {
             class: "btn btn-xs",
-            disabled: row.status !== "pending",
-            title: row.status === "pending" ? "Re-send the invitation email" : "Only pending invitations can be resent",
-            onclick: (e) => { e.stopPropagation(); resendInvitation(row, container, e.currentTarget); },
+            disabled: row.status !== "pending" || !!blocked,
+            title: blocked || (row.status === "pending" ? "Re-send the invitation email" : "Only pending invitations can be resent"),
+            onclick: (e) => { e.stopPropagation(); resendInvitation(row, container, workspaceId, params, e.currentTarget); },
           }, "resend"),
           h("button", {
             class: "btn btn-xs btn-bad",
-            disabled: row.status === "accepted",
-            title: row.status === "accepted" ? "Accepted invitations cannot be revoked (use Users → Delete)" : "Revoke the invitation",
-            onclick: (e) => { e.stopPropagation(); confirmRevoke(row, container); },
+            disabled: row.status === "accepted" || !!blocked,
+            title: blocked || (row.status === "accepted" ? "Accepted invitations cannot be revoked (use Users → Delete)" : "Revoke the invitation"),
+            onclick: (e) => { e.stopPropagation(); confirmRevoke(row, container, workspaceId, params); },
           }, "revoke"),
         ),
       },
@@ -68,26 +112,12 @@ export default async function invitationsView({ container }) {
     rows,
     empty: {
       title: "No pending invitations",
-      body: "Users with no required actions and no invited_by attribute are excluded from this list. Once Stage B ships POST /admin/users/invite, new invitations show up here.",
+      body: "Users with no required actions and no invited_by attribute are excluded from this list.",
     },
   });
 }
 
-function renderError(r) {
-  if (r.status === 401) {
-    return emptyState({
-      icon: "🔒",
-      title: "Sign in required",
-      action: h("button", { class: "btn btn-primary", onclick: () => navigate("/playground") }, "Go to Playground"),
-    });
-  }
-  if (r.status === 403) {
-    return emptyState({ icon: "⛔", title: "Admin role required" });
-  }
-  return emptyState({ icon: "✗", title: "Request failed", body: `HTTP ${r.status}: ${r.error?.message || "unknown"}` });
-}
-
-function openInviteModal(container) {
+function openInviteModal(container, workspaceId, routeParams) {
   const email     = h("input", { type: "email",    placeholder: "person@example.com", autocomplete: "off" });
   const firstName = h("input", { type: "text",     placeholder: "Jane",              autocomplete: "off" });
   const lastName  = h("input", { type: "text",     placeholder: "Doe",               autocomplete: "off" });
@@ -95,13 +125,12 @@ function openInviteModal(container) {
   const expires   = h("input", { type: "datetime-local", placeholder: "(optional)" });
   const tempPass  = h("input", { type: "password", placeholder: "min. 8 characters", autocomplete: "new-password" });
 
-  // ── mode toggle ──────────────────────────────────────────────────────────
-  // "email" = classic invite-by-email flow (sends Keycloak action email).
-  // "password" = set a temporary password; user must change on first login.
+  // "email" = invite-by-email (a provider action email).
+  // "password" = provision directly with a temporary password.
   const modeEmail    = h("input", { type: "radio", name: "invite-mode", value: "email",    checked: true });
   const modePassword = h("input", { type: "radio", name: "invite-mode", value: "password" });
 
-  const emailSection    = h("div", "col", h("label", null, h("div", "muted", "expires at (optional)"), expires), h("p", "muted text-xs", "Keycloak sends an email with UPDATE_PASSWORD + VERIFY_EMAIL links. Requires SMTP to be configured."));
+  const emailSection    = h("div", "col", h("label", null, h("div", "muted", "expires at (optional)"), expires), h("p", "muted text-xs", "The provider sends an email with UPDATE_PASSWORD + VERIFY_EMAIL links. Requires SMTP on that realm."));
   const passwordSection = h("div", "col", { style: { display: "none" } }, h("label", null, h("div", "muted", "temporary password *"), tempPass), h("p", "muted text-xs", "User must change this password on first login. No email is sent — share the password out-of-band."));
 
   function refreshMode() {
@@ -112,17 +141,20 @@ function openInviteModal(container) {
   modeEmail.addEventListener("change",    refreshMode);
   modePassword.addEventListener("change", refreshMode);
 
-  // Fire role lookup once the modal is open.
-  apiTry("/admin/roles").then(({ ok, data }) => {
+  // Role list comes from the SAME workspace this invitation will be created
+  // in. Reading it from anywhere else would offer role names that do not exist
+  // in the target realm.
+  const rolesToken = captureWorkspaceToken();
+  apiTry(wsPath(workspaceId, "/roles"), { signal: rolesToken.signal }).then(({ ok, data }) => {
+    if (isWorkspaceStale(rolesToken)) return;
     if (!ok || !Array.isArray(data?.roles)) return;
     role.innerHTML = "";
     for (const r of data.roles) {
       if (r.name === "offline_access" || r.name === "uma_authorization") continue;
       if (r.name.startsWith("default-roles-")) continue;
-      const opt = h("option", { value: r.name }, r.name + (r.description ? " — " + r.description : ""));
-      role.appendChild(opt);
+      role.appendChild(h("option", { value: r.name }, r.name + (r.description ? " — " + r.description : "")));
     }
-    role.value = "user";
+    if ([...role.options].some(o => o.value === "user")) role.value = "user";
   });
 
   let busy = false;
@@ -144,7 +176,9 @@ function openInviteModal(container) {
       if (!pw) { toastBad("Temporary password is required.", "Missing field"); return false; }
       if (pw.length < 8) { toastBad("Password must be at least 8 characters.", "Too short"); return false; }
       busy = true;
-      apiTry("/admin/users/password", {
+      // FRONTEND_READINESS §4.3: POST /admin/users/password → POST .../users.
+      // Same field names; the validation now lives in the shared service.
+      wsMutate(workspaceId, "/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -154,20 +188,20 @@ function openInviteModal(container) {
           temporary_password: pw,
           roles:              [role.value],
         }),
-      }).then(({ ok, status, data, error }) => {
-        if (ok) {
-          toastOk("User " + (data?.user?.email || rawEmail) + " created with temporary password.", "User created");
+      }).then((res) => {
+        if (res.stale) { if (close) close(); return; }
+        if (res.ok) {
+          toastOk("User " + (res.data?.user?.email || res.data?.email || rawEmail) + " created with temporary password.", "User created");
           if (close) close();
-          if (container) invitationsView({ container });
+          invitationsView({ container, params: routeParams });
         } else {
-          toastBad(formatError(status, error), "Create failed");
+          toastBad(describeFailure(res), "Create failed");
           busy = false;
         }
       });
       return false;
     }
 
-    // Email invite flow (original path).
     busy = true;
     const body = {
       email:      rawEmail,
@@ -179,13 +213,18 @@ function openInviteModal(container) {
       const d = new Date(expires.value);
       if (!isNaN(d.getTime())) body.expires_at = d.toISOString();
     }
-    createInvitation(body).then(({ ok, status, data, error }) => {
-      if (ok) {
-        toastOk("Invitation sent to " + (data?.email || body.email) + ".", "Invitation created");
+    wsMutate(workspaceId, "/invitations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((res) => {
+      if (res.stale) { if (close) close(); return; }
+      if (res.ok) {
+        toastOk("Invitation sent to " + (res.data?.email || body.email) + ".", "Invitation created");
         if (close) close();
-        if (container) invitationsView({ container });
+        invitationsView({ container, params: routeParams });
       } else {
-        toastBad(formatError(status, error), "Invite failed");
+        toastBad(describeFailure(res), "Invite failed");
         busy = false;
       }
     });
@@ -195,7 +234,6 @@ function openInviteModal(container) {
   close = openModal({
     title: "Add user",
     body: h("div", "col",
-      // Mode selector
       h("div", "col",
         h("div", "muted", "method"),
         h("div", "row",
@@ -204,14 +242,12 @@ function openInviteModal(container) {
         ),
       ),
       h("hr", { style: { margin: "0.5rem 0", border: "none", borderTop: "1px solid var(--border, #333)" } }),
-      // Common fields
       h("label", null, h("div", "muted", "email *"), email),
       h("div", "row",
         h("label", { style: { flex: "1" } }, h("div", "muted", "first name"), firstName),
         h("label", { style: { flex: "1" } }, h("div", "muted", "last name"),  lastName),
       ),
       h("label", null, h("div", "muted", "initial role *"), role),
-      // Mode-specific sections
       emailSection,
       passwordSection,
     ),
@@ -222,42 +258,22 @@ function openInviteModal(container) {
   });
 }
 
-async function createInvitation(body) {
-  return apiTry("/admin/invitations", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-function formatError(status, error) {
-  if (status === 400) return "Invalid input. Check email format and expires_at is in the future.";
-  if (status === 401) return "Sign in required.";
-  if (status === 403) return "Action blocked by a service-tier guard (self-protection or admin role required).";
-  if (status === 404) return "Invitation or referenced role not found.";
-  if (status === 409) return "A user with that email already exists.";
-  if (status === 502) return "Keycloak is unreachable (this often means SMTP is not configured).";
-  if (status === 503) return "Identity management not configured.";
-  return "HTTP " + status + ": " + (error?.message || "unknown");
-}
-
-function resendInvitation(row, container, btn) {
-  // UI-004: double-clicking the row's resend button used to dispatch N
-  // duplicate invitation emails (Keycloak does not dedupe action emails).
-  // Disable the per-row button while the request is in flight; re-enable on
-  // failure so the operator can retry. On success the parent view re-renders
-  // and the button is recreated fresh — no manual re-enable needed.
+function resendInvitation(row, container, workspaceId, params, btn) {
+  // UI-004: double-clicking used to dispatch N duplicate emails (the provider
+  // does not dedupe action emails). Guarded on the DOM node so a stale closure
+  // from a re-render cannot bypass the flag.
   if (!btn || btn.disabled) return;
   btn.disabled = true;
   const originalLabel = btn.textContent;
   btn.textContent = "sending…";
-  apiTry("/admin/invitations/" + encodeURIComponent(row.id) + "/resend", { method: "POST" })
-    .then(({ ok, status, error }) => {
-      if (ok) {
+  wsMutate(workspaceId, "/invitations/" + encodeURIComponent(row.id) + "/resend", { method: "POST" })
+    .then((res) => {
+      if (res.stale) return;
+      if (res.ok) {
         toastOk("Invitation email re-sent to " + (row.email || row.username || row.id) + ".", "Invitation resent");
-        if (container) invitationsView({ container });
+        invitationsView({ container, params });
       } else {
-        toastBad(formatError(status, error), "Resend failed");
+        toastBad(describeFailure(res), "Resend failed");
         if (document.body.contains(btn)) {
           btn.disabled = false;
           btn.textContent = originalLabel;
@@ -266,28 +282,29 @@ function resendInvitation(row, container, btn) {
     });
 }
 
-function confirmRevoke(row, container) {
+function confirmRevoke(row, container, workspaceId, params) {
   let busy = false;
   let close;
   close = openModal({
     title: "Revoke invitation?",
     body: h("div", null,
       h("p", null, "Revoke invitation for ", h("strong", null, row.email || row.username || row.id), "?"),
-      h("p", "muted text-xs", "This deletes the underlying Keycloak user. If they had already accepted, use Users → Delete instead."),
+      h("p", "muted text-xs", "This deletes the underlying user in this workspace's realm. If they had already accepted, use Users → Delete instead."),
     ),
     actions: [
       { label: "Cancel" },
       { label: "Revoke", bad: true, onClick: () => {
         if (busy) return false;
         busy = true;
-        apiTry("/admin/invitations/" + encodeURIComponent(row.id), { method: "DELETE" })
-          .then(({ ok, status, error }) => {
-            if (ok) {
+        wsMutate(workspaceId, "/invitations/" + encodeURIComponent(row.id), { method: "DELETE" })
+          .then((res) => {
+            if (res.stale) { if (close) close(); return; }
+            if (res.ok) {
               toastOk("Invitation revoked.", "Revoked");
               if (close) close();
-              if (container) invitationsView({ container });
+              invitationsView({ container, params });
             } else {
-              toastBad(formatError(status, error), "Revoke failed");
+              toastBad(describeFailure(res), "Revoke failed");
               busy = false;
             }
           });
