@@ -14,10 +14,14 @@ judgement call, the runbook says so explicitly.
 
 - The docker-compose stack in `docker-compose.yml` is the unit of
   deployment (postgres + keycloak-postgres + mailpit + keycloak + api).
-- Migrations run automatically — `gorm.AutoMigrate(&user.User{})` in
-  [`internal/database/database.go`](../../internal/database/database.go)
-  executes at API startup. There is **no separate migration binary**;
-  `make migrate` is currently a no-op placeholder.
+- Migrations run automatically — the versioned SQL in
+  [`internal/database/migrations/`](../../internal/database/migrations/) is
+  embedded in the binary and applied by
+  [`internal/database/database.go`](../../internal/database/database.go) at API
+  startup. They can instead be run as a separate step: set
+  `DB_MIGRATE_ON_BOOT=false` and run `make migrate` (or
+  `go run ./cmd/migrate up`) before starting the new binary. Full procedure in
+  [`docs/MIGRATIONS.md`](../MIGRATIONS.md).
 - The current release is **v0.2.0**. Previous tag for rollback is
   **v0.1.0-auth-foundation**.
 - Git identity, ssh keys, and registry credentials are already in place.
@@ -39,11 +43,11 @@ Before touching anything in prod, **capture state you can roll back to**.
 
 ### 2.1 Snapshot the application database
 
-`gorm.AutoMigrate` only ever adds columns / indexes — it never drops or
-narrows. So a snapshot of the DB taken before the upgrade is a valid
-restore target if the new release misbehaves; a snapshot taken *after*
-the upgrade may carry columns the old binary doesn't know about (benign:
-old code ignores unknown columns).
+A snapshot taken before the upgrade is your restore target if the new release
+misbehaves. Take it every time: unlike the old `AutoMigrate`, versioned
+migrations **can** drop and narrow — that is the point of them — so you can no
+longer assume a forward migration is additive. Check the migration files in the
+release diff before deciding how much you need the snapshot.
 
 ```sh
 # Snapshot the app DB (host port 5432 in compose)
@@ -115,16 +119,22 @@ Do not proceed with a tag whose target you don't recognise.
 
 ## 4. Migrate
 
-This codebase has no separate migration tool. Schema changes are
-applied by `gorm.AutoMigrate` when the API binary starts. The
-operationally relevant fact:
+Schema changes are versioned SQL migrations embedded in the API binary
+([`docs/MIGRATIONS.md`](../MIGRATIONS.md)). The operationally relevant facts:
 
-- **AutoMigrate is additive only.** It will create tables, add columns,
-  and add indexes. It will not drop or narrow.
-- That means: starting the new API *is* the migration. There is no
-  "migrate then start" — the steps are fused.
-- A failed migration manifests as the API binary exiting non-zero at
-  start; the container will be in `Restarting` status.
+- **By default, starting the new API *is* the migration** — the steps are fused.
+  To separate them, set `DB_MIGRATE_ON_BOOT=false` and run `make migrate` (or
+  `go run ./cmd/migrate up`) before starting the new binary. Prefer that when
+  several API replicas start at once, or when you want the migration's outcome
+  before any traffic is served.
+- **Migrations are no longer additive-only.** A release may legitimately drop or
+  narrow. Read the migration files in the release diff.
+- `make migrate-version` reports the applied version, and exits non-zero if the
+  database is dirty. It is the fastest post-deploy sanity check.
+- A failed migration manifests as the API binary exiting non-zero at start; the
+  container will be in `Restarting` status, and the database is left marked
+  dirty. **Every subsequent boot then fails on purpose** until recovered — see
+  [MIGRATIONS.md §5](../MIGRATIONS.md#5-when-a-migration-fails).
 
 If a release ever introduces a **destructive** schema change (see
 [`docs/architecture/PHASE3_BREAKING_CHANGE.md`](../architecture/PHASE3_BREAKING_CHANGE.md)

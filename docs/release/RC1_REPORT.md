@@ -52,7 +52,7 @@ Highlights:
 - Privilege escalation (T6): every admin verb denied to non-admin tokens; header injection (`X-User-Role: admin`) ignored; cross-client tokens rejected at `azp` check (401) *before* RBAC.
 - Concurrent admin actions (T5): 10 parallel `POST /admin/roles` with the same name → `1×201 / 9×409` (race-safe).
 
-Findings carried to [KNOWN_LIMITATIONS.md §1](../roadmap/KNOWN_LIMITATIONS.md#1-security--hardening-backlog): **F1** (no rate limiting, Medium), **F2** (post-logout JWT remains valid until `exp`, Low-Med), **F3** (no DPoP / `jti` revocation, Low). All three are consistent with the documented OAuth2 bearer model — not regressions, surfaced for the next iteration.
+Findings carried to [KNOWN_LIMITATIONS.md §1](../roadmap/KNOWN_LIMITATIONS.md#1-security--hardening-backlog-agent-a--info-findings): **F1** (no rate limiting, Medium), **F2** (post-logout JWT remains valid until `exp`, Low-Med), **F3** (no DPoP / `jti` revocation, Low). All three are consistent with the documented OAuth2 bearer model — not regressions, surfaced for the next iteration.
 
 **Agent A verdict: GO.**
 
@@ -97,7 +97,7 @@ Pagination added to `ListInvitations` and `ListUsersByRole` (page size 200, hard
 
 New tests cover all three changes plus the pagination ceiling; one prior test that asserted the bug was replaced.
 
-Remaining limitations explicitly enumerated by the agent — carried to [KNOWN_LIMITATIONS.md §3](../roadmap/KNOWN_LIMITATIONS.md#3-invitation-reliability-residual).
+Remaining limitations explicitly enumerated by the agent — carried to [KNOWN_LIMITATIONS.md §3](../roadmap/KNOWN_LIMITATIONS.md#6-invitation-reliability-residual-agent-c).
 
 **Agent C verdict: GO.**
 
@@ -119,7 +119,7 @@ What is **not** landed in RC1 (handed off to the identity owner):
 1. `logging.WireDefault()` call at bootstrap (likely `cmd/api/main.go` or `internal/server/server.go`).
 2. `audit.Record(...)` call sites in `internal/identity/handler.go` (mapping table of 13 handlers → 13 actions in [AUDIT_EVENTS.md "Call sites"](../audit/AUDIT_EVENTS.md#2-call-sites-in-internalidentityhandlergo)).
 
-Until both are wired, every `audit.Record` call is silently dropped. **This is the most material limitation of RC1** — see [§5](#5-known-gaps-at-rc1) and [KNOWN_LIMITATIONS.md §4](../roadmap/KNOWN_LIMITATIONS.md#4-audit-events-not-yet-emitted).
+Until both are wired, every `audit.Record` call is silently dropped. **This is the most material limitation of RC1** — see [§5](#5-known-gaps-at-rc1) and [KNOWN_LIMITATIONS.md §4](../roadmap/KNOWN_LIMITATIONS.md#3-audit--observability-handoff-agent-d).
 
 **Agent D verdict: GO with explicit handoff** — infrastructure is shipped and stable; the wiring step is a separate, low-risk follow-up that does not affect any other v0.2 contract.
 

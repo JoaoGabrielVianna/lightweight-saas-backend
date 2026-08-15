@@ -17,7 +17,7 @@ If step 2 or 3 failed (transient role-mapping error, SMTP misconfigured, network
 
 **Contract now.** If steps 2 or 3 fail, the provider best-effort deletes the half-provisioned user before returning the original error. The cleanup runs on a fresh `context.Background()` with a 5-second timeout — the caller's context may already be cancelled (often the reason we're rolling back), and we don't want a cancelled-ctx error to mask the original failure. Cleanup failures are intentionally swallowed: the caller already has an actionable error, and a failed cleanup leaves a recoverable state (the orphan can be re-deleted on retry).
 
-**Implementation.** See [internal/identity/keycloak/invitations.go](internal/identity/keycloak/invitations.go) — `CreateInvitation` uses a deferred `compensateInvitationCreate` keyed off a `committed` boolean that flips to true only after step 3 (email dispatch) returns nil.
+**Implementation.** See [internal/identity/keycloak/invitations.go](../../internal/identity/keycloak/invitations.go) — `CreateInvitation` uses a deferred `compensateInvitationCreate` keyed off a `committed` boolean that flips to true only after step 3 (email dispatch) returns nil.
 
 **Boundary.** Step 4 (the trailing GET) does NOT trigger rollback. By that point the invitation is provisioned end-to-end — the user can already see the email in their inbox — so failing the API call on a cosmetic GET would lose work the user can act on. Instead, the provider synthesizes a response from the request fields (see `synthesizeFreshInvitation`).
 
@@ -34,7 +34,7 @@ If step 2 or 3 failed (transient role-mapping error, SMTP misconfigured, network
 - Returns `ErrConflict` when the user has no pending **invite** actions — that is, no overlap between the user's `requiredActions` and `{VERIFY_EMAIL, UPDATE_PASSWORD}`. This covers both accepted invitations (no pending actions at all) and users who only have unrelated actions like `CONFIGURE_TOTP` queued by an admin.
 - Otherwise PUTs only the **intersection** of the invite action set with the user's currently-pending actions. A user who completed `VERIFY_EMAIL` and still needs `UPDATE_PASSWORD` gets only `UPDATE_PASSWORD` in the resend.
 
-**Implementation.** See `intersectInviteActions` in [internal/identity/keycloak/invitations.go](internal/identity/keycloak/invitations.go).
+**Implementation.** See `intersectInviteActions` in [internal/identity/keycloak/invitations.go](../../internal/identity/keycloak/invitations.go).
 
 ### 3. Status precedence: accepted is terminal
 

@@ -70,7 +70,7 @@ The `_ = ...` swallowed the DELETE result. Manual `DELETE` of the orphan via the
 
 #### Fix (this branch)
 
-[internal/identity/keycloak/invitations.go](internal/identity/keycloak/invitations.go) — added `var log = logger.New("identity-kc")` and made the cleanup loud:
+[internal/identity/keycloak/invitations.go](../../internal/identity/keycloak/invitations.go) — added `var log = logger.New("identity-kc")` and made the cleanup loud:
 
 ```go
 func (p *Provider) compensateInvitationCreate(userID string) {
@@ -129,7 +129,7 @@ curl -s -X POST http://localhost:8080/admin/roles \
 # → {"id":"...","name":"uppercase","description":"",...}
 ```
 
-The destructive QA expectation was 400. The observed behaviour is documented as intentional in [internal/identity/service_test.go](internal/identity/service_test.go) `TestCreateRole_Success_NormalizesName` (`"  SUPPORT  "` → `"support"`). The destructive script was updated to assert the documented contract (`R02` now asserts `[200, 201]`).
+The destructive QA expectation was 400. The observed behaviour is documented as intentional in [internal/identity/service_test.go](../../internal/identity/service_test.go) `TestCreateRole_Success_NormalizesName` (`"  SUPPORT  "` → `"support"`). The destructive script was updated to assert the documented contract (`R02` now asserts `[200, 201]`).
 
 #### Why this is left alone
 
@@ -151,7 +151,7 @@ I did not modify the swagger annotations because **swagger is in the forbidden l
 
 ### 3.1 API destructive (59 checks)
 
-Source: [/tmp/smoketest_v02/destructive.py](file:///tmp/smoketest_v02/destructive.py) (outside the repo by mission design).
+Source: `/tmp/smoketest_v02/destructive.py` (outside the repo by mission design).
 Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](../evidence/crud-bugs/api).
 
 | ID | Category | Description | HTTP | Verdict |
@@ -208,7 +208,7 @@ Raw JSON dumps (request + response per test): [docs/evidence/crud-bugs/api/](../
 
 ### 3.2 UI destructive (12 checks)
 
-Source: [/tmp/smoketest_v02/destructive_ui.spec.mjs](file:///tmp/smoketest_v02/destructive_ui.spec.mjs).
+Source: `/tmp/smoketest_v02/destructive_ui.spec.mjs`.
 Screenshots + per-test JSON: [docs/evidence/crud-bugs/ui/](../evidence/crud-bugs/ui).
 
 | ID | Scenario | Verdict |

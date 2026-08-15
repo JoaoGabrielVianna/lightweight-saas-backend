@@ -99,7 +99,7 @@ Out of scope for v0.2 (recorded so the next iteration can pick them up):
 - **Token expiration and clock skew.** Forging an expired token requires either waiting an hour or signing one — neither was performed here. The Keycloak `accessTokenLifespan` is 3600s.
 - **Token-`aud` / `azp` enforcement** against unexpected client IDs. The middleware accepts the listed `KEYCLOAK_ALLOWED_CLIENT_IDS`; cross-client tokens were not tested in this run.
 - **Replay / nonce semantics.** No `nonce`/`jti` invalidation is implemented (none is claimed); a stolen bearer token is valid until expiry.
-- **Rate limiting / brute-force.** Keycloak's `bruteForceProtected` is enabled at the realm level (see [docs/VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md#L42)), but the API has no per-IP throttling and that surface was not probed.
+- **Rate limiting / brute-force.** Keycloak's `bruteForceProtected` is enabled at the realm level (see [docs/VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md)), but the API has no per-IP throttling and that surface was not probed.
 - **CORS, CSP, secure cookies, HSTS.** No HTTP security headers were inspected here.
 - **Dependency / supply-chain audit.** This is a runtime-guard validation only; static analysis (`govulncheck`, etc.) is separate.
 

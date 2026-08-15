@@ -4,14 +4,16 @@ Thanks for taking the time to contribute! This project aims to be a reusable IAM
 
 ## Code of conduct
 
-By participating, you agree to uphold our [Code of Conduct](CODE_OF_CONDUCT.md). Be kind, assume good faith, and keep discussion focused on the project.
+Be kind, assume good faith, and keep discussion focused on the project.
+Harassment of any kind is not tolerated. (There is no separate
+`CODE_OF_CONDUCT.md` file yet — see [TD-017](docs/TECH_DEBT.md#td-017).)
 
 ## Ways to contribute
 
-- **Found a bug?** → Open a [Bug report](.github/ISSUE_TEMPLATE/bug_report.yml).
-- **Have an idea?** → Open a [Feature request](.github/ISSUE_TEMPLATE/feature_request.yml).
+- **Found a bug?** → Open an [issue](https://github.com/JoaoGabrielVianna/lightweight-saas-backend/issues/new). Include the reproduction details listed under [Reporting bugs](#reporting-bugs).
+- **Have an idea?** → Open an [issue](https://github.com/JoaoGabrielVianna/lightweight-saas-backend/issues/new) describing the problem before the solution.
 - **Security issue?** → Do **not** open a public issue. See [SECURITY.md](SECURITY.md).
-- **Improving docs?** → PRs to anything under `docs/` are always welcome.
+- **Improving docs?** → PRs to anything under `docs/` are always welcome. Read [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md) first so you know what the canonical set is.
 
 For non-trivial changes (new endpoints, architecture changes, dependency bumps), please open an issue first to discuss the approach before sending a PR.
 
@@ -65,12 +67,64 @@ Full walkthrough in [`docs/getting-started/QUICKSTART.md`](docs/getting-started/
 A good PR:
 
 - Targets `main`.
-- Has a clear title and description (the PR template helps).
+- Has a clear title and description.
 - Passes `make ci` locally.
 - Includes tests for new behavior.
-- Updates `docs/` when behavior or operator-facing surface changes.
 - Updates [`CHANGELOG.md`](CHANGELOG.md) under the `Unreleased` section for user-visible changes.
 - Does not bundle unrelated changes.
+
+If the PR touches `sdk/go/`, two extra things apply:
+
+- The SDK is a **separate module**, so `make ci` reaches it only through the
+  `sdk-*` targets. `make sdk-check` is the one to run.
+- Changing an exported declaration changes what consumers depend on. The gate
+  will fail until you run `make sdk-api-update` and commit the resulting
+  [`sdk/go/api.txt`](sdk/go/api.txt) diff. That is the review asking whether the
+  break is intended — pre-v1 it may be, and it belongs under **Breaking** in
+  [`sdk/go/CHANGELOG.md`](sdk/go/CHANGELOG.md).
+
+### Before you open a PR
+
+```bash
+make hooks-install   # once per clone — pre-commit + pre-push checks
+make ci              # what CI enforces  (~5s)
+make ci-full         # + coverage floor + frontend tests  (~10s)
+```
+
+Two documents carry the standard:
+
+- **[docs/CONTRIBUTION_CHECKLIST.md](docs/CONTRIBUTION_CHECKLIST.md)** — the
+  tickable short form. Copy it into your PR description.
+- **[docs/QUALITY_GATE.md](docs/QUALITY_GATE.md)** — the full criteria, what is
+  automated, and what needs reviewer judgement.
+
+Most of what used to be a review checklist is now enforced mechanically:
+formatting, `go vet`, 9 linters, the coverage floor, OpenAPI drift, broken
+documentation links, and documented numbers that no longer match the code. Put
+review effort into the parts a machine cannot judge — security, performance,
+and whether the prose is still true.
+
+### Keeping the documentation honest
+
+The canonical documentation set lives in [`docs/`](docs/) and is expected to
+match the code exactly. Update whichever of these your change affects:
+
+| If your change… | Update |
+|---|---|
+| Adds, removes or renames a route | [`docs/FEATURES.md`](docs/FEATURES.md) + the route counts in [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md#metrics) |
+| Adds an audit action | [`docs/FEATURES.md`](docs/FEATURES.md) + the action count in `PROJECT_STATUS.md` |
+| Changes a module's scope or maturity | [`docs/MODULES.md`](docs/MODULES.md) |
+| Changes layering, middleware order, or an invariant | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Makes an architectural decision | Add an `AD-nnn` entry to `PROJECT_STATUS.md` |
+| Introduces a shortcut | Add a `TD-nnn` entry to [`docs/TECH_DEBT.md`](docs/TECH_DEBT.md) |
+| Fixes or discovers a defect | [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) — record the regression guard too |
+| Adds a config value | `docs/MODULES.md` env table, `.env.example`, **and `docker-compose.yml`** |
+| Ships or reprioritizes roadmap work | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+
+**Never copy a number between documents.** Re-derive it — the commands are in
+[`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md#metrics). Stale counts are how
+this repository accumulated two months of misleading documentation
+([TD-001](docs/TECH_DEBT.md#td-001)).
 
 ## Reporting bugs
 
@@ -80,7 +134,7 @@ Before filing a bug, please:
 2. Try `make doctor` to rule out a local toolchain issue.
 3. Capture the smallest reproduction you can — version (`git rev-parse --short HEAD`), commands run, expected vs. actual output.
 
-Then open a [Bug report](.github/ISSUE_TEMPLATE/bug_report.yml).
+Then open an [issue](https://github.com/JoaoGabrielVianna/lightweight-saas-backend/issues/new).
 
 ## License
 

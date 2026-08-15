@@ -7,10 +7,55 @@ generated OpenAPI spec ([`swagger.yaml`](swagger.yaml) /
 *why* decisions were made, *what* was validated, and *what* remains
 open.
 
-If you are new to the repo: start with [`../README.md`](../README.md),
-then the [Quick Start](#quick-start) below, then
-[`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md), then come back here for the
-milestone history.
+---
+
+## 📌 Canonical documentation — start here
+
+These thirteen documents are the official, maintained description of the
+project. They are verified against the code — `make check-docs` fails the build
+if a link breaks or a published number stops matching. Where any other document
+in this repository disagrees with them, **they win** — and the code wins over
+all of them.
+
+### Understanding the project
+
+| Doc | Answers |
+|---|---|
+| **[PROJECT_STATUS.md](PROJECT_STATUS.md)** | What is the project, what state is it in, what are the real numbers? **Read this first.** |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | How is it built? How does a request flow? What are the invariants? |
+| **[MODULES.md](MODULES.md)** | What does each module do, what does it depend on, how mature is it? |
+| **[FEATURES.md](FEATURES.md)** | What exists, what is partial, what does not exist — with a code reference for every claim. |
+
+### Where it is going
+
+| Doc | Answers |
+|---|---|
+| **[ROADMAP.md](ROADMAP.md)** | What comes next, in what order, and why that order. |
+| **[MILESTONE_v0.4.md](MILESTONE_v0.4.md)** | The next milestone: objectives, scope, acceptance criteria, risks. |
+| **[RISKS.md](RISKS.md)** | The ten biggest threats to future evolution, scored by impact × probability. |
+
+### What is wrong with it
+
+| Doc | Answers |
+|---|---|
+| **[TECH_DEBT.md](TECH_DEBT.md)** | What shortcuts exist and what they cost. |
+| **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** | What is broken, what is an accepted trade-off, what the workarounds are. |
+
+### Working on it
+
+| Doc | Answers |
+|---|---|
+| **[QUALITY_GATE.md](QUALITY_GATE.md)** | What must every PR satisfy, and what is automated vs. reviewer judgement. |
+| **[testing/BROWSER_E2E.md](testing/BROWSER_E2E.md)** | The operator-boundary end-to-end suite: a real Chromium completing a real PKCE login and clicking through workspace → connection → project → credential → audit → revocation. How to run it, why traces and screenshots are off and how that is proved, and how it differs from the machine-boundary harness. |
+| **[CONTRIBUTION_CHECKLIST.md](CONTRIBUTION_CHECKLIST.md)** | The short, tickable form. Copy into your PR. |
+| **[HEALTH_CHECK.md](HEALTH_CHECK.md)** | Is the project healthy right now? Three tiers, with expected timings. |
+| **[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)** | How to cut a release, end to end. |
+
+New to the repo? Read [PROJECT_STATUS.md](PROJECT_STATUS.md), then
+[../README.md](../README.md) for the quick start, then
+[ARCHITECTURE.md](ARCHITECTURE.md). About to open a PR? Read
+[CONTRIBUTION_CHECKLIST.md](CONTRIBUTION_CHECKLIST.md). Everything below is
+supporting detail and historical record.
 
 ---
 
@@ -19,23 +64,54 @@ milestone history.
 ```
 docs/
 ├── INDEX.md                      ← you are here
-├── getting-started/QUICKSTART.md                 ← linear path: clone → run → first admin call
-├── archive/QUICKSTART_REVIEW.md       ← DX audit of getting-started/QUICKSTART.md (accuracy/consistency)
-├── getting-started/KEYCLOAK_SETUP.md             ← onboarding, env vars, troubleshooting
-├── architecture/                 ← config-as-source-of-truth design + breaking-change records
+│
+│   ── CANONICAL SET ──
+├── PROJECT_STATUS.md             ← current state, metrics, maturity, ADRs
+├── ARCHITECTURE.md               ← layers, request lifecycle, diagrams, invariants
+├── MODULES.md                    ← per-module reference
+├── FEATURES.md                   ← feature inventory with code references
+├── ROADMAP.md                    ← MVP / v1 / v2 / future
+├── TECH_DEBT.md                  ← debt register
+├── KNOWN_ISSUES.md               ← defects, limitations, workarounds
+│
+│   ── SUPPORTING ──
+├── WORKSPACES.md                 ← the Workspace domain and the /v1 API surface
+├── CONNECTIONS.md                ← identity-provider connections, secrets at rest, verify
+├── SECRET_KEY_ROTATION.md        ← master-key lifecycle: rotate, inspect, retire a key
+├── WORKSPACE_IDENTITY_RUNTIME.md ← how a request is routed to a workspace's realm
+├── WORKSPACE_IDENTITY_API.md     ← the /v1 identity surface, errors, route parity
+├── WORKSPACE_CONSOLE.md          ← the multi-workspace console: routing, isolation, TD-024
+├── PROJECTS.md                   ← machine credentials: scopes, workspace binding, revocation
+├── SDK_GO.md                     ← the Go SDK: coverage matrix, boundary gates, release
+├── FRONTEND_READINESS.md         ← pre-migration assessment (superseded)
+├── MIGRATIONS.md                 ← schema migrations: commands, authoring, recovery
+├── getting-started/QUICKSTART.md      ← linear path: clone → run → first admin call
+├── getting-started/KEYCLOAK_SETUP.md  ← onboarding, env vars, troubleshooting
+├── architecture/                 ← bootstrap design + breaking-change records
 │   ├── bootstrap.md
 │   └── PHASE3_BREAKING_CHANGE.md
 ├── docs.go / swagger.json/yaml   ← generated OpenAPI (do not hand-edit)
-├── audit/                        ← audit subsystem: model, wiring, operations, validation
+├── audit/                        ← audit subsystem: model, wiring, operations
 ├── operations/                   ← operator runbooks (backup, upgrade, monitoring)
-├── release/                      ← per-release reports, checklists, tag freezes
-├── security/                     ← gap audits, remediations, regressions, validations,
-│                                   secrets management, audit operations
-├── validation/                   ← functional / smoke / audit / CRUD validation evidence
+├── security/                     ← gap audits, remediations, secrets management
 ├── ui/                           ← admin-console UX catalog + dev playground guide
-├── roadmap/                      ← known limitations + post-tag hardening backlog
-└── evidence/                     ← raw artifacts (api/, screenshots/, security/, ...)
+│
+│   ── HISTORICAL RECORD (not maintained) ──
+├── release/                      ← per-release reports, checklists, tag freezes
+├── validation/                   ← smoke / audit / CRUD validation runs
+├── roadmap/                      ← superseded by ROADMAP.md + KNOWN_ISSUES.md
+├── archive/                      ← superseded reports
+└── evidence/                     ← raw artifacts from manual runs, May 2026
 ```
+
+> **On the historical sections.** `release/`, `validation/`, `roadmap/`,
+> `archive/` and `evidence/` are point-in-time records. They are useful for
+> understanding *why* something was done, but they are **not** kept current and
+> some of their claims are now stale. In particular
+> [`roadmap/KNOWN_LIMITATIONS.md`](roadmap/KNOWN_LIMITATIONS.md) is superseded by
+> [KNOWN_ISSUES.md](KNOWN_ISSUES.md), and the artifacts in `evidence/` all
+> predate 2026-06-13 — they are screenshots, not tests
+> ([TD-003](TECH_DEBT.md#td-003)).
 
 ---
 
@@ -65,6 +141,17 @@ roadmap in [`roadmap/HARDENING_REPORT.md`](roadmap/HARDENING_REPORT.md).
 
 | Doc | Scope |
 |-----|-------|
+| [`CONNECTIONS.md`](CONNECTIONS.md) | Identity-provider connections: the draft → active → retired lifecycle, AES-256-GCM secrets at rest and the master key, the read-only verification probe, and the partial index enforcing one active connection per workspace. |
+| [`SECRET_KEY_ROTATION.md`](SECRET_KEY_ROTATION.md) | The master-key lifecycle: the versioned keyring, how to rotate without downtime or re-entering credentials, how to know when an old key is safe to destroy, what a missing key degrades, and why a database backup alone does not restore an installation. |
+| [`WORKSPACE_IDENTITY_RUNTIME.md`](WORKSPACE_IDENTITY_RUNTIME.md) | The runtime boundary: how `/v1/workspaces/{id}/users` resolves a workspace's active Connection to a Keycloak realm per request, what the boundary hides, why the provider cache is keyed on connection id plus `updated_at`, and why legacy `/admin/*` was deliberately left on environment configuration. |
+| [`WORKSPACE_IDENTITY_API.md`](WORKSPACE_IDENTITY_API.md) | The complete `/v1/workspaces/{id}/...` identity surface: 24 operations across users, roles, sessions and invitations, the stable machine-readable error catalogue, the `caller_forbidden` vs `provider_forbidden` distinction, read-only connection semantics, and the route parity matrix against legacy `/admin/*`. |
+| [`PROJECTS.md`](PROJECTS.md) | Projects and machine credentials: how an external backend authenticates without an operator token, the opaque key format and why it is hashed rather than sealed, the permanent workspace binding that is the authorization boundary, the eight scopes and the two placements that make least privilege real, what `roles:write` cannot do, the operator-only control plane, and the credential lifecycle. |
+| [`SDK_GO.md`](SDK_GO.md) | The official Go SDK (`sdk/go`): why the workspace is bound at client construction rather than passed per call, why it is a separate Go module with no dependencies, the 24-of-24 parity matrix against the authorization registry and the OpenAPI document, the gates that stop the SDK drifting or learning what provider is behind the API, the real-stack acceptance suite, and the release model: the proven nested-module tag format, what the offline simulation establishes and what waits for the first pushed tag, and the bad-release policy. |
+| [`WORKSPACE_CONSOLE.md`](WORKSPACE_CONSOLE.md) | The multi-workspace admin console: why the workspace lives in the route rather than in application state, the three isolation mechanisms that stop one workspace's data or mutations reaching another, the connection-state vocabulary the UI gates writes on, how TD-024 was resolved without mutating a realm, and what deliberately stayed on legacy `/admin/*`. |
+| [`FRONTEND_READINESS.md`](FRONTEND_READINESS.md) | **Superseded** by `WORKSPACE_CONSOLE.md`. The pre-Slice-6 assessment of the admin console against the `/v1` surface: which views were expected to migrate mechanically, which were blocked, and the API-shape differences needing more than path replacement. Kept as the record of what was predicted. |
+| [`WORKSPACES.md`](WORKSPACES.md) | The Workspace domain: slug and lifecycle rules, public `ws_` ids, the `/v1` surface and its stable error codes, and which invariants the database enforces rather than the code. |
+| [`MIGRATIONS.md`](MIGRATIONS.md) | Schema migrations: the `make migrate*` commands, `DB_MIGRATE_ON_BOOT`, authoring rules, how databases predating versioned migrations are adopted, and dirty-state recovery. |
+| [`operations/RUNNING.md`](operations/RUNNING.md) | **The operational reference.** Full configuration matrix (generated from `internal/config/contract.go`), fail-fast validation, liveness vs readiness, graceful shutdown, metrics exposure, log correlation, the recovery unit (`DB` + `SECRETS_MASTER_KEY`), the production smoke procedure, and what retries at startup versus what fails fast. Start here to deploy. |
 | [`operations/BACKUP_AND_RECOVERY.md`](operations/BACKUP_AND_RECOVERY.md) | Backup & restore for both Postgres instances (app + Keycloak), realm export/import, disaster recovery drill. Cross-link: invitation orphan recovery in [`validation/BUG_REPORT_CRUD.md`](validation/BUG_REPORT_CRUD.md) §I14b. |
 | [`operations/UPGRADE_AND_ROLLBACK.md`](operations/UPGRADE_AND_ROLLBACK.md) | Per-component upgrade procedure (api, Keycloak, Postgres), rollback to `v0.1.0-auth-foundation`, breaking-change history in [`architecture/PHASE3_BREAKING_CHANGE.md`](architecture/PHASE3_BREAKING_CHANGE.md). |
 | [`operations/MONITORING.md`](operations/MONITORING.md) | Health endpoints, audit/auth structured logs to alert on, GAP-1 live-admin denial fingerprint, future Prometheus/OTel hooks. Reads [`security/SECURITY_REMEDIATION_GAP1.md`](security/SECURITY_REMEDIATION_GAP1.md) for the marker semantics. |
@@ -101,6 +188,7 @@ runbooks operators need post-tag.
 | [`security/SECURITY_GAPS.md`](security/SECURITY_GAPS.md) | Adversarial gap catalogue. GAP-1 (HIGH, fixed), GAP-2 (MED, open), GAP-3 (LOW, open), GAP-4 (INFO, open). |
 | [`security/SECURITY_REMEDIATION_GAP1.md`](security/SECURITY_REMEDIATION_GAP1.md) | Design + implementation of the GAP-1 fix (`auth.RequireLiveAdmin` + `CachedAdminChecker`). |
 | [`security/SECURITY_REGRESSION_GAP1.md`](security/SECURITY_REGRESSION_GAP1.md) | Post-fix adversarial regression (R1–R7 PASS). |
+| [`security/AUTHORIZATION_MATRIX.md`](security/AUTHORIZATION_MATRIX.md) | The `/v1` authorization boundary: the pipeline, the lifecycle states, caches and their staleness consequences, rate-limit ordering, audit semantics for rejected requests, and the three layers of negative evidence behind each. Closes [KI-018](KNOWN_ISSUES.md#ki-018). |
 | [`security/FINAL_SECURITY.md`](security/FINAL_SECURITY.md) | Security gate verdict — synthesis of the above. |
 
 ### Operator runbooks

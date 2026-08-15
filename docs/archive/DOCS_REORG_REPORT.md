@@ -75,7 +75,7 @@ Examples (from `docs/getting-started/QUICKSTART.md` after the reorg):
 
 ```markdown
 Sibling reference (no prefix):
-> See [`getting-started/KEYCLOAK_SETUP.md`](KEYCLOAK_SETUP.md)
+> See [`getting-started/KEYCLOAK_SETUP.md`](../getting-started/KEYCLOAK_SETUP.md)
                                             ^^^^^^^^^^^^^^^^^^ correct
 
 Cross-folder reference (one `..`):

@@ -35,7 +35,7 @@ as historical evidence.
 | `web/admin/static/js/views/docs.js` | **Untracked (was uncommitted)** | Added `_renderToken`, `_tocObserver` cleanup, and `queueMicrotask` defer in the `onLocaleChange` callback — defense-in-depth on top of the state.js fixes. IO leak from `renderToc` is now cured (handle stored in `_tocObserver`, disconnected on next render). |
 | `web/admin/static/js/lib/locale.js` | **Untracked, NOT modified** | The seed in state.js makes its existing `prev = getLocale()` filter correct — no edit needed. |
 | `web/admin/static/js/main.js` | **NOT modified** | Seed lives in state.js's module-load, so main.js has nothing to add. |
-| `web/admin/static/js/tests/` | **New** | 19 tests across `state.test.mjs` and `locale.test.mjs` pinning the iteration invariants and the regression scenario. See [tests/README.md](web/admin/static/js/tests/README.md). |
+| `web/admin/static/js/tests/` | **New** | 19 tests across `state.test.mjs` and `locale.test.mjs` pinning the iteration invariants and the regression scenario. See [tests/README.md](../../web/admin/static/js/tests/README.md). |
 
 ### Current docker / log state (post-fix observation window)
 
@@ -140,7 +140,7 @@ SAFE_FOR_DAILY_USE = false
 
 **Root cause of the Firefox freeze (confirmed):**
 A synchronous infinite loop inside `setState()` in
-[lib/state.js:22-27](web/admin/static/js/lib/state.js#L22-L27),
+[lib/state.js:22-27](../../web/admin/static/js/lib/state.js#L22-L27),
 triggered whenever the Docs view is mounted **with `localStorage.admin_docs_locale === "pt-BR"`** and **any subsequent
 `setState` is called** (route change, theme toggle, anything). The loop fires
 one `fetch("/admin/docs/.../QUICKSTART.pt-BR.md")` per iteration. Backend
@@ -150,16 +150,16 @@ fix landed — see §0). Firefox eventually stalls and is killed.
 
 The smoking gun is the combination of:
 
-1. `_state.locale` is **never initialised** in [lib/state.js:8-14](web/admin/static/js/lib/state.js#L8-L14)
+1. `_state.locale` is **never initialised** in [lib/state.js:8-14](../../web/admin/static/js/lib/state.js#L8-L14)
    (only `config / token / identity / theme / route`).
-2. [`onLocaleChange`](web/admin/static/js/lib/locale.js#L58-L67) initialises
+2. [`onLocaleChange`](../../web/admin/static/js/lib/locale.js#L58-L67) initialises
    `prev = getLocale()` **from localStorage** and then compares against
    `next = state.locale || DEFAULT_LOCALE` **from the in-memory store**.
    When localStorage is `"pt-BR"` and `state.locale` is undefined, `prev`
    and `next` mismatch **forever**, so the wrapper fires the callback on
    every `setState`.
 3. The callback is `() => docsView({...})` registered **inside** `docsView`
-   itself ([views/docs.js:104-106](web/admin/static/js/views/docs.js#L104-L106)),
+   itself ([views/docs.js:104-106](../../web/admin/static/js/views/docs.js#L104-L106)),
    so each fire **re-registers a fresh subscriber while `setState`'s
    `for…of` loop is still iterating the Set**. JS `Set` iterators visit
    entries added during iteration, so the loop never exits.
@@ -244,7 +244,7 @@ All logged HTTP statuses for `/admin/docs/*` are `200`. Response times are
 50 µs – 700 µs (the embed FS is in-memory; the backend is not the
 bottleneck). No `panic`, no `gin recovery`, no restart cascade.
 
-The backend handler ([internal/server/admin.go:90-127](internal/server/admin.go#L90-L127))
+The backend handler ([internal/server/admin.go:90-127](../../internal/server/admin.go#L90-L127))
 does exactly what it should: rejects `..`, refuses non-`.md`, reads from
 `docs.MarkdownFS`, sets `Cache-Control: no-store`. **The `no-store` header
 is correct for content under active iteration, but it means every loop
@@ -306,12 +306,12 @@ once the loop arms.
 
 Source files inspected (no edits):
 
-- [web/admin/static/js/views/docs.js](web/admin/static/js/views/docs.js) — 657 lines, owns docsView, fetchDoc, TOC, scrollspy, mermaid, search, copy buttons, internal-link interception.
-- [web/admin/static/js/lib/markdown.js](web/admin/static/js/lib/markdown.js) — 380 lines, hand-rolled renderer. No nested-render hot loop. `applyEmphasis`'s lookbehind regex is fine.
-- [web/admin/static/js/lib/highlight.js](web/admin/static/js/lib/highlight.js) — 184 lines, scoped to languages actually used in this repo. No catastrophic backtracking patterns seen.
-- [web/admin/static/js/lib/locale.js](web/admin/static/js/lib/locale.js) — 80 lines. **This is the file with the bug.**
-- [web/admin/static/js/lib/state.js](web/admin/static/js/lib/state.js) — 44 lines, the tiny pub/sub store. **Initial `_state` is missing the `locale` field.**
-- [web/admin/static/js/lib/router.js](web/admin/static/js/lib/router.js) — 109 lines. `handleChange` calls `setState({ route })` on every navigation; that's what arms the loop.
+- [web/admin/static/js/views/docs.js](../../web/admin/static/js/views/docs.js) — 657 lines, owns docsView, fetchDoc, TOC, scrollspy, mermaid, search, copy buttons, internal-link interception.
+- [web/admin/static/js/lib/markdown.js](../../web/admin/static/js/lib/markdown.js) — 380 lines, hand-rolled renderer. No nested-render hot loop. `applyEmphasis`'s lookbehind regex is fine.
+- [web/admin/static/js/lib/highlight.js](../../web/admin/static/js/lib/highlight.js) — 184 lines, scoped to languages actually used in this repo. No catastrophic backtracking patterns seen.
+- [web/admin/static/js/lib/locale.js](../../web/admin/static/js/lib/locale.js) — 80 lines. **This is the file with the bug.**
+- [web/admin/static/js/lib/state.js](../../web/admin/static/js/lib/state.js) — 44 lines, the tiny pub/sub store. **Initial `_state` is missing the `locale` field.**
+- [web/admin/static/js/lib/router.js](../../web/admin/static/js/lib/router.js) — 109 lines. `handleChange` calls `setState({ route })` on every navigation; that's what arms the loop.
 
 ---
 
@@ -325,20 +325,20 @@ Source files inspected (no edits):
 
 1. **Bootstrap conditions.** localStorage has `admin_docs_locale = "pt-BR"`
    (set in any previous session). `_state.locale` is `undefined` because
-   [lib/state.js:8-14](web/admin/static/js/lib/state.js#L8-L14) never
+   [lib/state.js:8-14](../../web/admin/static/js/lib/state.js#L8-L14) never
    declared a `locale` field:
    ```js
    const _state = { config: null, token: null, identity: null,
                     theme: "dark", route: null };   // no locale!
    ```
-2. **Docs view mounts.** [views/docs.js:104-106](web/admin/static/js/views/docs.js#L104-L106)
+2. **Docs view mounts.** [views/docs.js:104-106](../../web/admin/static/js/views/docs.js#L104-L106)
    registers a locale subscriber:
    ```js
    _localeUnsub = onLocaleChange(() => {
      docsView({ params, container, query });
    });
    ```
-   [`onLocaleChange`](web/admin/static/js/lib/locale.js#L58-L67) builds the
+   [`onLocaleChange`](../../web/admin/static/js/lib/locale.js#L58-L67) builds the
    wrapper:
    ```js
    let prev = getLocale();                 // → "pt-BR" (from localStorage)
@@ -386,17 +386,17 @@ will bite once the loop is fixed:
 
 - **Click listeners pile up on `#docs-article`.** `wireCopyButtons` and
   `wireInternalLinks` both call `article.addEventListener("click", …)`
-  ([views/docs.js:278](web/admin/static/js/views/docs.js#L278),
-  [:318](web/admin/static/js/views/docs.js#L318)). In normal operation
+  ([views/docs.js:278](../../web/admin/static/js/views/docs.js#L278),
+  [:318](../../web/admin/static/js/views/docs.js#L318)). In normal operation
   the article element is replaced every `mount`, so old listeners die
   with their host. In the loop scenario, dozens of dead articles
   accumulate per second before GC catches up.
 - **IntersectionObserver leak.** `renderToc`
-  ([:431-442](web/admin/static/js/views/docs.js#L431-L442)) creates a
+  ([:431-442](../../web/admin/static/js/views/docs.js#L431-L442)) creates a
   new `IntersectionObserver` on every docsView and never `disconnect()`s
   the previous one. Old observers stop firing (their targets are
   detached), but they hold the closure scope alive.
-- **No debounce on doc search.** [views/docs.js:138](web/admin/static/js/views/docs.js#L138)
+- **No debounce on doc search.** [views/docs.js:138](../../web/admin/static/js/views/docs.js#L138)
   fires `applySearchHighlight(value)` on every `oninput`. That helper
   walks every text node, builds DocumentFragments, and rewrites the
   article. Rapid typing in a long doc is O(keystrokes × text-nodes) of
@@ -433,7 +433,7 @@ The Mermaid path is **mostly correct**:
   subsequent docs reuse the same module.
 - It renders **every Mermaid block in the current doc** sequentially,
   not just visible ones (`for (let i = 0; i < blocks.length; i++)` in
-  [views/docs.js:620-636](web/admin/static/js/views/docs.js#L620-L636)).
+  [views/docs.js:620-636](../../web/admin/static/js/views/docs.js#L620-L636)).
   So the answer to the prompt's question is **B) renders ALL on open**,
   not A). For the current docs corpus this is fine because the per-doc
   block count is tiny:
@@ -469,7 +469,7 @@ this environment). Reasoning from code:
 - **`onLocaleChange` subscribers:** the loop adds one per iteration, but
   also removes the prior one. Steady-state: 1 sub. **Not leaked.**
 - **IntersectionObservers in renderToc:** one new IO per docsView call,
-  never disconnected ([views/docs.js:431-442](web/admin/static/js/views/docs.js#L431-L442)).
+  never disconnected ([views/docs.js:431-442](../../web/admin/static/js/views/docs.js#L431-L442)).
   Each IO retains its callback closure, which references `root`, `items`,
   and `tocLinks`. **Leaked. Steady growth proportional to navigation count.**
   Under the runaway loop this grows by 100s/second.

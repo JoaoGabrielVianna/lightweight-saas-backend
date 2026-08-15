@@ -1,12 +1,143 @@
 # Keycloak Setup
 
-Onboarding guide for the Keycloak-based authentication layer of
-`lightweight-saas-backend`. Follow it top-to-bottom from a fresh clone and
-you will end with a working stack, a token in your terminal, and a 200
-response from `/me`.
+> **Start with §0 below.** It is the only part you need in order to install
+> LIGHTWEIGHT against a Keycloak you already run. Everything from §1 onward
+> describes the *bundled evaluation* stack and the older single-realm
+> `/admin/*` surface, and was written before workspaces existed — useful for
+> development, misleading as an installation guide.
 
-Tested against the state of the repo at commit `Sprint 3` (Phase 3 sign-off,
-[VALIDATION_PHASE3.md](../validation/VALIDATION_PHASE3.md)).
+---
+
+## 0. What you must create in Keycloak
+
+LIGHTWEIGHT talks to Keycloak in **two unrelated ways**, and conflating them is
+the single most common way a first install goes wrong.
+
+| | Installation realm | Workspace realm |
+|---|---|---|
+| Answers | "who may administer LIGHTWEIGHT?" | "whose users am I managing?" |
+| How many | exactly one, fixed at boot | one per workspace, added at runtime |
+| Configured in | `.env`, before first start | the console, after first start |
+| LIGHTWEIGHT writes to it | never | yes — this is the point |
+
+The installation realm is **not** a realm you manage with the product. You can
+point both at the same Keycloak server; they must not be the same realm, or
+your operators become records LIGHTWEIGHT administers.
+
+### 0.1 The installation realm — needed before first boot
+
+In whatever realm you choose (`lightweight` is a reasonable name), create:
+
+**One public client, for the console's browser login.**
+
+| Setting | Value |
+|---|---|
+| Client ID | anything; it goes in `ADMIN_CONSOLE_CLIENT_ID` |
+| Client authentication | **off** (public) |
+| Standard flow | **on** |
+| Direct access grants | off |
+| Valid redirect URIs | `https://<your-lightweight-url>/admin` |
+| Web origins | `https://<your-lightweight-url>` |
+
+PKCE is used and requires no configuration; Keycloak accepts it on any public
+client. The redirect URI has no wildcard and no trailing slash — the console
+sends exactly `<base>/admin`. If you are unsure what your installation
+computed, open `<base>/admin/config.json`, which prints the `redirectUri` it
+will send.
+
+**One user holding the realm role `admin`.**
+
+That role name is not configurable. A token without it is rejected by every
+`/v1` route, which is the whole authorization rule for operators: LIGHTWEIGHT
+has no second permission model of its own, and scopes describe what a *machine*
+may do, never an operator.
+
+Then set, in `.env`:
+
+```sh
+KEYCLOAK_URL=https://sso.example.com     # as a BROWSER reaches it — drives `iss`
+KEYCLOAK_REALM=lightweight
+KEYCLOAK_CLIENT_ID=<the public client id>
+ADMIN_CONSOLE_CLIENT_ID=<the same public client id>
+KEYCLOAK_JWKS_URL=                       # empty: derived from the two above
+KEYCLOAK_ADMIN_BASE_URL=                 # empty: same
+```
+
+`KEYCLOAK_URL` must be the address **clients** use, because it decides the
+`iss` claim tokens must carry. An installation that puts an internal address
+here starts cleanly and then rejects every token as `invalid issuer`.
+
+If the API reaches Keycloak on a *different* address than browsers do — a
+private network, a container gateway — that is what the two empty variables
+above are for. Set `KEYCLOAK_JWKS_URL` **and** `KEYCLOAK_ADMIN_BASE_URL` to the
+address the API can reach, and leave `KEYCLOAK_URL` as the public one. Setting
+only the first produces an installation that starts, validates tokens, and then
+fails authorization checks it cannot route.
+
+**Optional: live revocation checks.** By default an operator's admin role is
+trusted for the lifetime of their token. To have LIGHTWEIGHT re-ask the
+provider on every request instead, add a second client to the installation
+realm — confidential, service account on, granted `view-users` and
+`view-realm` from `realm-management` — and set:
+
+```sh
+KEYCLOAK_ADMIN_CLIENT_ID=<that client>
+KEYCLOAK_ADMIN_CLIENT_SECRET=<its secret>
+```
+
+This closes the window in which a role revoked directly in Keycloak is still
+honoured here, bounded otherwise by `ADMIN_LIVE_CHECK_TTL_SECONDS` and token
+expiry. It is fail-closed on purpose: if the check cannot reach the provider,
+requests get `503` rather than falling back to the token's claim. Configure it
+only if the address above is genuinely reachable from the API, and leave both
+empty otherwise — `./scripts/init.sh` does that for you.
+
+### 0.2 A workspace's realm — needed per connection, after first boot
+
+For each realm you want to manage, create **one confidential client with a
+service account**:
+
+| Setting | Value |
+|---|---|
+| Client authentication | **on** (confidential) |
+| Service accounts roles | **on** |
+| Standard flow | off |
+| Direct access grants | off |
+
+Then grant its **service account user** roles from the `realm-management`
+client. What you grant decides what LIGHTWEIGHT reports the connection can do:
+
+| Granted | Verify reports | A credential can |
+|---|---|---|
+| nothing | `healthy`, `access_mode=limited` | nothing useful |
+| `view-users`, `view-realm` | `healthy`, `access_mode=read_only` | read users, roles, sessions |
+| `realm-admin` (or `manage-users` + `manage-realm`) | `healthy`, `access_mode=full` | everything the scopes allow |
+
+`realm-admin` is the simple answer and grants the rest. Copy the client's
+**Credentials → Client secret**; the console asks for it once, seals it with
+the installation's keyring, and never shows it again.
+
+That is the entire provider-side setup. Four values go into the console:
+base URL, realm, client id, client secret.
+
+### 0.3 Reading Verify
+
+Connection **Verify** distinguishes every way this can be wrong, so you should
+never have to guess:
+
+| Message | What is actually wrong |
+|---|---|
+| `provider unreachable` | base URL wrong, or LIGHTWEIGHT cannot route to it |
+| `realm not found` | realm name wrong, or the realm does not exist |
+| `admin client authentication failed` | client id or client secret wrong |
+| `…lacks realm-management privileges` | client is right, service account has no roles |
+| `…has no write privileges` | read-only roles only; grant `realm-admin` to write |
+
+Note the third row covers both a wrong id and a wrong secret. Keycloak answers
+`invalid_client` to both, and reporting which one was wrong would tell an
+attacker whether a client id exists.
+
+Full lifecycle and semantics: [CONNECTIONS.md](../CONNECTIONS.md).
 
 ---
 

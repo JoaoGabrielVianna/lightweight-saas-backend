@@ -199,7 +199,7 @@ testuser → `GET /admin/users/{adminuser}/sessions` → `403`. RequireRole guar
 
 ## F. Token replay (general) — same root cause as D
 
-Covered as INFO finding F3 in [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md#L99). Reconfirmed: 30 parallel replays of the same valid JWT → 30×200. Bearer JWTs are replayable until `exp`. Not a vulnerability in itself, but it is the carrier wave that makes GAP-1 / GAP-2 exploitable.
+Covered as INFO finding F3 in [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md). Reconfirmed: 30 parallel replays of the same valid JWT → 30×200. Bearer JWTs are replayable until `exp`. Not a vulnerability in itself, but it is the carrier wave that makes GAP-1 / GAP-2 exploitable.
 
 ---
 
@@ -320,9 +320,9 @@ The functional gate ([FINAL_SMOKE.md](../release/FINAL_SMOKE.md)) remains GO. Th
 
 | This report | Earlier finding                              |
 |-------------|----------------------------------------------|
-| GAP-1       | sharpens F2 from [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md#L155) (logout doesn't invalidate access token) — turns the INFO/Low-Med into an **HIGH demonstrated exploit** |
+| GAP-1       | sharpens F2 from [SECURITY_VALIDATION_v0.3.md](SECURITY_VALIDATION_v0.3.md) (logout doesn't invalidate access token) — turns the INFO/Low-Med into an **HIGH demonstrated exploit** |
 | GAP-2       | restates F2 against the session-termination attack vector specifically |
-| GAP-3       | same as F4 in [FINAL_SECURITY.md](FINAL_SECURITY.md#L116) and FS-1 in [FINAL_SMOKE.md](../release/FINAL_SMOKE.md#L113) |
+| GAP-3       | same as F4 in [FINAL_SECURITY.md](FINAL_SECURITY.md) and FS-1 in [FINAL_SMOKE.md](../release/FINAL_SMOKE.md) |
 | GAP-4       | new informational finding from this run |
 
 ---

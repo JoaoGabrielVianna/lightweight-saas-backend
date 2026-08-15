@@ -81,7 +81,7 @@ auth ] denied kind=forbidden method=GET path=/admin/users
        reason=live admin check denied: token role no longer present server-side
 ```
 
-**Verdict: PASS.** Pre-fix this step returned 200 (see [SECURITY_GAPS.md §D](SECURITY_GAPS.md#d-token-replay-after-privilege-revocation--gap-1-high)).
+**Verdict: PASS.** Pre-fix this step returned 200 (see [SECURITY_GAPS.md §D](SECURITY_GAPS.md#d-token-replay-after-privilege-revocation--gap-1-high--fixed-2026-05-20)).
 
 ---
 
