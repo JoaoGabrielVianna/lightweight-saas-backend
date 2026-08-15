@@ -100,6 +100,24 @@ func (p *Provider) DeleteLocalizationKey(ctx context.Context, locale, key string
 	return p.client.doJSON(ctx, "DELETE", "/localization/"+url.PathEscape(locale)+"/"+url.PathEscape(key), nil, nil, nil)
 }
 
+// CreateUser implements identity.IdentityProvider.
+//
+// It is a thin adapter onto CreateUserWithPassword rather than a second
+// implementation: the provisioning sequence, its compensating delete and its
+// informational read-back are subtle enough that having two of them would
+// guarantee they diverge. The legacy /admin/users/password route calls the
+// concrete method directly and is untouched; the workspace-scoped API reaches
+// the same code through the interface.
+func (p *Provider) CreateUser(ctx context.Context, req identity.CreateUserRequest) (*identity.User, error) {
+	return p.CreateUserWithPassword(ctx, CreateUserWithPasswordRequest{
+		Email:             req.Email,
+		FirstName:         req.FirstName,
+		LastName:          req.LastName,
+		TemporaryPassword: req.TemporaryPassword,
+		Roles:             req.Roles,
+	})
+}
+
 // CreateUserWithPassword provisions a Keycloak user with a temporary
 // password. On first login the user must change the password (Keycloak
 // enforces this automatically when temporary=true).
@@ -138,6 +156,13 @@ func (p *Provider) CreateUserWithPassword(ctx context.Context, req CreateUserWit
 
 	var raw kcUser
 	if err := p.client.doJSON(ctx, "GET", "/users/"+url.PathEscape(userID), nil, nil, &raw); err != nil {
+		// Deliberate: this final GET is INFORMATIONAL. The user already exists
+		// and the password is already set, so a read-back failure must not
+		// fail the operation or trigger the compensating delete — that would
+		// destroy a successfully provisioned account. Return the representation
+		// we know is true instead. Same contract as CreateInvitation step 5
+		// (see identity.IdentityProvider docs).
+		//nolint:nilerr // read-back is informational; see comment above
 		return &identity.User{ID: userID, Email: req.Email, Username: req.Email, Enabled: true}, nil
 	}
 	u := raw.toIdentity()

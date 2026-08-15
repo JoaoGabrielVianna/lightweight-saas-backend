@@ -503,7 +503,7 @@ func TestSetupRouter_MeRequiresAuth(t *testing.T) {
 	userHandler := SetupUser(&gorm.DB{})
 	provider := &fakeProvider{err: auth.ErrInvalidToken}
 
-	SetupRouter(r, userHandler, nil, nil, provider, nil, nil, nil)
+	SetupRouter(r, RouterDeps{User: userHandler, Provider: provider})
 
 	// No Authorization header → 401, regardless of provider behaviour.
 	w := httptest.NewRecorder()
@@ -527,7 +527,7 @@ func TestSetupRouter_AdminRoutesAbsentWhenIdentityNil(t *testing.T) {
 	userHandler := SetupUser(&gorm.DB{})
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 
-	SetupRouter(r, userHandler, nil, nil, provider, nil, nil, nil)
+	SetupRouter(r, RouterDeps{User: userHandler, Provider: provider})
 
 	// /admin/users should 404 — the group was never registered.
 	w := httptest.NewRecorder()
@@ -564,7 +564,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s1", Roles: []string{"viewer"}, ExpiresAt: time.Now().Add(time.Hour)}}
 		checker := &fakeAdminChecker{allow: true}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
+		SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Provider: provider, AdminChecker: checker})
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -582,7 +582,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s2", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 		checker := &fakeAdminChecker{allow: false}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
+		SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Provider: provider, AdminChecker: checker})
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/roles", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -600,7 +600,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s3", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 		checker := &fakeAdminChecker{allow: true}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
+		SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Provider: provider, AdminChecker: checker})
 
 		// /admin/users will fail at the handler (no real Keycloak), but the
 		// status will be something other than 401/403/404, proving the
@@ -622,7 +622,7 @@ func TestSetupRouter_AdminRoutesMountedWhenIdentityProvided(t *testing.T) {
 		// branch where the RequireLiveAdmin middleware is not mounted.
 		r := newGin()
 		provider := &fakeProvider{id: &auth.Identity{Subject: "s4", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, nil, nil, nil)
+		SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Provider: provider})
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/users", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -654,7 +654,7 @@ func TestSetupRouter_AuditEventsRouteGatedOnHandlerPresence(t *testing.T) {
 
 	t.Run("absent when audit handler nil", func(t *testing.T) {
 		r := newGin()
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
+		SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Provider: provider, AdminChecker: checker})
 		req := httptest.NewRequest(http.MethodGet, "/admin/audit-events", nil)
 		req.Header.Set("Authorization", "Bearer t")
 		w := httptest.NewRecorder()
@@ -668,7 +668,7 @@ func TestSetupRouter_AuditEventsRouteGatedOnHandlerPresence(t *testing.T) {
 		r := newGin()
 		mem := audit.NewMemoryRecorder(4)
 		auditHandler := NewAuditHandler(mem)
-		SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, auditHandler, provider, checker, nil, nil)
+		SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Audit: auditHandler, Provider: provider, AdminChecker: checker})
 
 		req := httptest.NewRequest(http.MethodGet, "/admin/audit-events", nil)
 		req.Header.Set("Authorization", "Bearer t")
@@ -708,7 +708,7 @@ func TestSetupRouter_AllExpectedAdminRoutesRegistered(t *testing.T) {
 	r := newGin()
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s", Roles: []string{"admin"}, ExpiresAt: time.Now().Add(time.Hour)}}
 	checker := &fakeAdminChecker{allow: true}
-	SetupRouter(r, SetupUser(&gorm.DB{}), identityHandler, nil, provider, checker, nil, nil)
+	SetupRouter(r, RouterDeps{User: SetupUser(&gorm.DB{}), Identity: identityHandler, Provider: provider, AdminChecker: checker})
 
 	cases := []struct {
 		method, path string
@@ -1285,7 +1285,7 @@ func TestServerSetupRoutes_HealthRegisteredWhenPlaygroundOff(t *testing.T) {
 	cfg := &config.Config{GinLogEnabled: false}
 	s := NewServer(&gorm.DB{}, cfg)
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s"}}
-	s.SetupRoutes(SetupUser(&gorm.DB{}), nil, nil, provider, nil, nil, nil)
+	s.SetupRoutes(RouterDeps{User: SetupUser(&gorm.DB{}), Provider: provider})
 
 	w := httptest.NewRecorder()
 	s.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
@@ -1316,7 +1316,7 @@ func TestServer_StartServesHealth(t *testing.T) {
 	cfg := &config.Config{GinLogEnabled: false}
 	s := NewServer(&gorm.DB{}, cfg)
 	provider := &fakeProvider{id: &auth.Identity{Subject: "s"}}
-	s.SetupRoutes(SetupUser(&gorm.DB{}), nil, nil, provider, nil, nil, nil)
+	s.SetupRoutes(RouterDeps{User: SetupUser(&gorm.DB{}), Provider: provider})
 
 	go s.Start(port)
 
@@ -1404,4 +1404,204 @@ func freePort(t *testing.T) string {
 		t.Fatalf("split host: %v", err)
 	}
 	return p
+}
+
+// ---------------------------------------------------------------------------
+// Server.SetupRoutes — flag matrix + /auth/debug contract
+//
+// Regression guard for KI-001 (see docs/KNOWN_ISSUES.md). Two defects shipped
+// together and neither was caught, because the only SetupRoutes test in the
+// suite ran with DevPlaygroundEnabled=false:
+//
+//  1. /auth/debug was registered twice (router.go + playground.go) — gin
+//     panics on duplicate routes, so the process died at boot whenever the
+//     playground was on. That is the default in .env.example.
+//  2. With the playground off, the surviving handler omitted `valid`,
+//     `issuer` and `allowed_clients`, which the admin SPA reads. The console
+//     rendered an authenticated admin as "not signed in".
+//
+// These tests pin both: every flag combination must construct, and the
+// /auth/debug payload must carry the fields the SPA depends on.
+// ---------------------------------------------------------------------------
+
+// setupRoutesFlagMatrix is the cartesian product of the two console flags.
+var setupRoutesFlagMatrix = []struct {
+	name             string
+	devPlayground    bool
+	adminConsole     bool
+	wantDevAuth      int // GET /dev/auth
+	wantDevAuthDebug int // GET /dev/auth/debug
+	wantAdminConsole int // GET /admin
+}{
+	{"both off", false, false, http.StatusNotFound, http.StatusNotFound, http.StatusNotFound},
+	{"playground only", true, false, http.StatusOK, http.StatusOK, http.StatusOK},
+	{"admin console only", false, true, http.StatusNotFound, http.StatusNotFound, http.StatusOK},
+	{"both on", true, true, http.StatusOK, http.StatusOK, http.StatusOK},
+}
+
+// TestServerSetupRoutes_FlagMatrixDoesNotPanic is the direct guard against
+// the duplicate-route panic. Before the fix, the two playground-enabled rows
+// panicked with "handlers are already registered for path '/auth/debug'".
+func TestServerSetupRoutes_FlagMatrixDoesNotPanic(t *testing.T) {
+	for _, tc := range setupRoutesFlagMatrix {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("SetupRoutes panicked (dev=%v admin=%v): %v",
+						tc.devPlayground, tc.adminConsole, r)
+				}
+			}()
+
+			cfg := &config.Config{
+				GinLogEnabled:         false,
+				Port:                  "8080",
+				DevPlaygroundEnabled:  tc.devPlayground,
+				DevPlaygroundClientID: "saas-dev-playground",
+				AdminConsoleEnabled:   tc.adminConsole,
+				KeycloakURL:           "http://localhost:8081",
+				KeycloakRealm:         "saas",
+				KeycloakClientID:      "saas-backend",
+			}
+			s := NewServer(&gorm.DB{}, cfg)
+			provider := &fakeProvider{id: &auth.Identity{Subject: "s"}}
+			s.SetupRoutes(RouterDeps{User: SetupUser(&gorm.DB{}), Provider: provider})
+
+			// /health and /auth/debug exist in every combination.
+			w := httptest.NewRecorder()
+			s.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
+			if w.Code != http.StatusOK {
+				t.Errorf("/health = %d, want 200", w.Code)
+			}
+		})
+	}
+}
+
+// TestServerSetupRoutes_FlagMatrixRouteVisibility pins which surfaces each
+// flag combination exposes. The dev-only introspection twin must never be
+// registered when the playground is off.
+//
+// Asserts against gin's route table rather than HTTP status: the console and
+// playground routes are served with c.File from web/, which 404s under the
+// test's working directory (internal/server) even when correctly registered.
+// The route table answers the gating question directly.
+func TestServerSetupRoutes_FlagMatrixRouteVisibility(t *testing.T) {
+	for _, tc := range setupRoutesFlagMatrix {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.Config{
+				GinLogEnabled:         false,
+				Port:                  "8080",
+				DevPlaygroundEnabled:  tc.devPlayground,
+				DevPlaygroundClientID: "saas-dev-playground",
+				AdminConsoleEnabled:   tc.adminConsole,
+				KeycloakURL:           "http://localhost:8081",
+				KeycloakRealm:         "saas",
+				KeycloakClientID:      "saas-backend",
+			}
+			s := NewServer(&gorm.DB{}, cfg)
+			provider := &fakeProvider{id: &auth.Identity{Subject: "s"}}
+			s.SetupRoutes(RouterDeps{User: SetupUser(&gorm.DB{}), Provider: provider})
+
+			registered := map[string]bool{}
+			for _, r := range s.router.Routes() {
+				registered[r.Method+" "+r.Path] = true
+			}
+
+			checks := []struct {
+				route string
+				want  bool
+			}{
+				{"GET /dev/auth", tc.wantDevAuth != http.StatusNotFound},
+				{"GET /dev/auth/debug", tc.wantDevAuthDebug != http.StatusNotFound},
+				{"GET /admin", tc.wantAdminConsole != http.StatusNotFound},
+				// Always mounted, in every combination.
+				{"GET /auth/debug", true},
+				{"GET /health", true},
+				{"GET /me", true},
+			}
+			for _, c := range checks {
+				if registered[c.route] != c.want {
+					t.Errorf("%s: registered=%v, want %v", c.route, registered[c.route], c.want)
+				}
+			}
+
+			// Exactly one /auth/debug registration — the duplicate that
+			// caused KI-001 would have panicked above, but pin the count so
+			// a future refactor can't reintroduce a second mount silently.
+			var n int
+			for _, r := range s.router.Routes() {
+				if r.Path == "/auth/debug" {
+					n++
+				}
+			}
+			if n != 1 {
+				t.Errorf("/auth/debug registered %d times, want exactly 1", n)
+			}
+		})
+	}
+}
+
+// TestAuthDebug_RequiresAuth pins that the always-on introspection route is
+// gated. The unauthenticated twin is /dev/auth/debug and is dev-only.
+func TestAuthDebug_RequiresAuth(t *testing.T) {
+	cfg := &config.Config{
+		GinLogEnabled:    false,
+		KeycloakURL:      "http://localhost:8081",
+		KeycloakRealm:    "saas",
+		KeycloakClientID: "saas-backend",
+	}
+	s := NewServer(&gorm.DB{}, cfg)
+	provider := &fakeProvider{err: errors.New("bad token")}
+	s.SetupRoutes(RouterDeps{User: SetupUser(&gorm.DB{}), Provider: provider})
+
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/auth/debug", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("/auth/debug without token = %d, want 401", w.Code)
+	}
+}
+
+// TestAuthDebug_ReturnsSPAContract pins the response fields the admin console
+// reads. sidebar.js gates the whole user card on `valid`; settings.js renders
+// `issuer` and `allowed_clients`; overview.js reads `received_sub`/`received_azp`.
+// Dropping any of these silently breaks the console without failing a build.
+func TestAuthDebug_ReturnsSPAContract(t *testing.T) {
+	cfg := &config.Config{
+		GinLogEnabled:            false,
+		KeycloakURL:              "http://localhost:8081",
+		KeycloakRealm:            "saas",
+		KeycloakClientID:         "saas-backend",
+		KeycloakAllowedClientIDs: []string{"saas-backend", "saas-admin-console"},
+	}
+	s := NewServer(&gorm.DB{}, cfg)
+	provider := &fakeProvider{id: &auth.Identity{Subject: "sub-1", Email: "a@b.test"}}
+	s.SetupRoutes(RouterDeps{User: SetupUser(&gorm.DB{}), Provider: provider})
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/debug", nil)
+	req.Header.Set("Authorization", "Bearer any-token-the-fake-accepts")
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("/auth/debug = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+
+	// The exact field set the SPA reads. Presence is the contract; values
+	// depend on the token and are covered by the authDebugHandler tests.
+	for _, k := range []string{
+		"issuer", "allowed_clients", "received_azp", "received_sub",
+		"exp", "expired", "iat", "aud", "email", "roles", "valid", "reason",
+	} {
+		if _, ok := got[k]; !ok {
+			t.Errorf("response missing %q — admin console reads this field", k)
+		}
+	}
+
+	if got["issuer"] != "http://localhost:8081/realms/saas" {
+		t.Errorf("issuer = %v, want the realm URL", got["issuer"])
+	}
 }

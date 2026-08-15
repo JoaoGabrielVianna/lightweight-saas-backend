@@ -75,7 +75,6 @@ var stressScales = []int{100, 500, 1000}
 
 func TestListInvitations_Stress_AllScales(t *testing.T) {
 	for _, n := range stressScales {
-		n := n
 		t.Run(fmt.Sprintf("%dUsers", n), func(t *testing.T) {
 			users := make([]string, n)
 			for i := 0; i < n; i++ {
@@ -149,7 +148,6 @@ func TestListInvitations_Stress_FiltersNonInvitationsAtScale(t *testing.T) {
 
 func TestListUsersByRole_Stress_AllScales(t *testing.T) {
 	for _, n := range stressScales {
-		n := n
 		t.Run(fmt.Sprintf("%dUsers", n), func(t *testing.T) {
 			users := make([]string, n)
 			for i := 0; i < n; i++ {

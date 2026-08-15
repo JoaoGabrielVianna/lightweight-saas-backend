@@ -26,8 +26,8 @@ const playgroundAssetDir = "web/dev"
 
 // mountPlayground wires the DEV-ONLY developer-auth surface IFF
 // cfg.DevPlaygroundEnabled is true. It exposes both the in-browser
-// Keycloak login UI (/dev/auth) and a token-introspection endpoint
-// (/auth/debug). Neither must ever be enabled in production.
+// Keycloak login UI (/dev/auth) and an UNAUTHENTICATED token-introspection
+// endpoint (/dev/auth/debug). Neither must ever be enabled in production.
 //
 // Surface:
 //
@@ -35,16 +35,19 @@ const playgroundAssetDir = "web/dev"
 //	GET  /dev/auth/auth.js        — playground JS (PKCE flow)
 //	GET  /dev/auth/styles.css     — playground stylesheet
 //	GET  /dev/auth/config.json    — runtime config the JS fetches on load
-//	GET  /auth/debug              — token-introspection endpoint (DEV-ONLY)
+//	GET  /dev/auth/debug          — token introspection, no auth (DEV-ONLY)
 //
 // All endpoints respond 404 when the env flag is false, which is the
 // default. Production deployments simply don't set DEV_PLAYGROUND_ENABLED.
+//
+// Note the authenticated twin at /auth/debug is mounted unconditionally by
+// Server.SetupRoutes and is NOT part of this dev surface.
 func mountPlayground(r *gin.Engine, cfg *config.Config, provider auth.AuthProvider) {
 	if !cfg.DevPlaygroundEnabled {
 		return
 	}
 
-	log.Warn("DEV_PLAYGROUND_ENABLED=true — mounting /dev/auth + /auth/debug (DEV-ONLY). Do not run this in production.")
+	log.Warn("DEV_PLAYGROUND_ENABLED=true — mounting /dev/auth + /dev/auth/debug (DEV-ONLY). Do not run this in production.")
 
 	r.GET("/dev/auth", servePlaygroundFile("auth.html", "text/html; charset=utf-8"))
 	r.GET("/dev/auth/auth.js", servePlaygroundFile("auth.js", "application/javascript; charset=utf-8"))
@@ -64,10 +67,22 @@ func mountPlayground(r *gin.Engine, cfg *config.Config, provider auth.AuthProvid
 		})
 	})
 
-	r.GET("/auth/debug", authDebugHandler(cfg, provider))
+	// Unauthenticated twin of /auth/debug. This is the one that can answer
+	// "why was my token rejected?" — the authenticated route mounted in
+	// SetupRoutes cannot, because RequireAuth rejects an invalid or expired
+	// token before the handler runs. Same handler, DEV-ONLY path.
+	r.GET("/dev/auth/debug", authDebugHandler(cfg, provider))
 }
 
-// authDebugHandler returns a gin handler implementing GET /auth/debug.
+// authDebugHandler returns the token-introspection handler. It backs BOTH
+// introspection routes:
+//
+//   - GET /auth/debug      — mounted always, behind RequireAuth, by
+//     Server.SetupRoutes. This is what the admin console consumes; the
+//     SPA reads `valid`, `issuer` and `allowed_clients` from it.
+//   - GET /dev/auth/debug  — mounted by mountPlayground, DEV-ONLY, NO auth.
+//     The only variant that can explain a rejected token, since the
+//     authenticated route never reaches the handler for a bad token.
 //
 // Purpose: collapse the "is my token rejected and why?" debugging loop into
 // a single curl. It accepts a token via either Authorization: Bearer or
@@ -89,10 +104,11 @@ func mountPlayground(r *gin.Engine, cfg *config.Config, provider auth.AuthProvid
 //
 // Security: the endpoint surfaces unverified claim values. That's
 // intentional — debugging a rejected token requires showing what was in it.
-// Because the route is gated by DEV_PLAYGROUND_ENABLED (off by default),
-// and the only information exposed is what the caller already has (their
-// own token + the API's expected issuer/clients), there is no
-// confidentiality risk in dev.
+// The information exposed is what the caller already has (their own token)
+// plus this API's expected issuer/client whitelist. The unauthenticated
+// mount is gated by DEV_PLAYGROUND_ENABLED (off by default); the always-on
+// mount at /auth/debug requires a valid token, so neither variant leaks
+// configuration to an anonymous caller in production.
 func authDebugHandler(cfg *config.Config, provider auth.AuthProvider) gin.HandlerFunc {
 	expectedIssuer := strings.TrimRight(cfg.KeycloakURL, "/") + "/realms/" + cfg.KeycloakRealm
 	allowedClients := cfg.KeycloakAllowedClientIDs

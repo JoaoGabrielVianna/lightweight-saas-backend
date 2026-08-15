@@ -60,6 +60,22 @@ type IdentityProvider interface {
 
 	// ─── Stage 5.2B — CREATE ──────────────────────────────────────────
 
+	// CreateUser provisions a user directly with a temporary password,
+	// bypassing the invitation email flow entirely.
+	//
+	// This is the creation path for installations without SMTP, and the one
+	// an operator uses when they intend to hand the password over out of
+	// band. The user is created with UPDATE_PASSWORD pending, so the
+	// temporary password is single-use by construction.
+	//
+	// Reliability invariant, identical in shape to CreateInvitation's: if
+	// setting the password or assigning roles fails after the user was
+	// created, the implementation MUST best-effort delete the
+	// half-provisioned user so the caller can retry with the same email.
+	// The final read-back is informational — a failure there MUST NOT roll
+	// back a user whose password is already set.
+	CreateUser(ctx context.Context, req CreateUserRequest) (*User, error)
+
 	// CreateRole creates a new realm role. The provider returns the
 	// freshly-created role as it sits in Keycloak (id assigned).
 	// Returns ErrConflict when a role with the same name already exists.
@@ -251,6 +267,25 @@ type UpdateUserRequest struct {
 // of scope for this iteration.
 type UpdateRoleRequest struct {
 	Description *string
+}
+
+// CreateUserRequest is the input shape for IdentityProvider.CreateUser.
+// Every field is validated at the service tier before reaching the provider,
+// so implementations forward verbatim and every provider behaves identically.
+type CreateUserRequest struct {
+	// Email doubles as the username. Keycloak permits them to differ; this
+	// API does not offer that, because a realm where they diverge produces
+	// two ways to name the same person and no rule for which one wins.
+	Email     string
+	FirstName string
+	LastName  string
+	// TemporaryPassword is set with temporary=true, so Keycloak forces a
+	// change on first login. The service bounds its length; it is never
+	// logged, never echoed in a response, and never part of an audit event.
+	TemporaryPassword string
+	// Roles is the realm-role NAMES to assign. Optional — a user with no
+	// explicit roles still receives the realm's default-roles composite.
+	Roles []string
 }
 
 // CreateInvitationRequest is the input shape for IdentityProvider.CreateInvitation.
