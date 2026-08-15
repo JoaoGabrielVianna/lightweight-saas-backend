@@ -1,0 +1,7 @@
+{
+  "id": "2f1c8f2a-6d51-4a1e-9f2b-3c4d5e6f7a8b",
+  "name": "billing-admin",
+  "description": "Can view and refund invoices",
+  "composite": false,
+  "builtin": false
+}

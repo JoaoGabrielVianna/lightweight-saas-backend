@@ -1,0 +1,10 @@
+{
+  "id": "4d5e6f70-8192-4a3b-9c5d-6e7f8091a2b3",
+  "email": "newcomer@example.test",
+  "username": "newcomer@example.test",
+  "required_actions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
+  "invited_by": "operator@example.test",
+  "expires_at": "2026-12-31T23:59:59Z",
+  "created_at": "2026-08-12T10:00:00Z",
+  "status": "pending"
+}

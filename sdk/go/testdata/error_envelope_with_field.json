@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Request is invalid",
+    "field": "temporary_password",
+    "request_id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+  }
+}

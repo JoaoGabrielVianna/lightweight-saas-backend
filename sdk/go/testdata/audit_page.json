@@ -1,0 +1,41 @@
+{
+  "items": [
+    {
+      "id": "evt_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+      "event": "user.created",
+      "outcome": "success",
+      "actor": {
+        "type": "project",
+        "project_id": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "credential_id": "key_9b2f4c1a-1111-4222-8333-444455556666"
+      },
+      "resource": {
+        "type": "user",
+        "id": "9c1e6679-7425-40de-944b-e07fc1f90ae7"
+      },
+      "metadata": {
+        "email": "ada@example.test"
+      },
+      "request_id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+      "occurred_at": "2026-08-10T14:03:11Z"
+    },
+    {
+      "id": "evt_5a6b7c8d-9e0f-4112-8334-556677889900",
+      "event": "user.deleted",
+      "outcome": "failure",
+      "actor": {
+        "type": "operator",
+        "subject": "8f14e45f-ceea-467a-9575-27f2c2c34f3f",
+        "email": "operator@example.test"
+      },
+      "reason_code": "provider_unavailable",
+      "request_id": "9a8b7c6d-5e4f-4312-8231-100908070605",
+      "occurred_at": "2026-08-10T13:59:02Z"
+    }
+  ],
+  "pagination": {
+    "count": 2,
+    "limit": 50,
+    "next_cursor": "MTc1NDg0MTM5MTAwMDAwMDAwMC4z"
+  }
+}

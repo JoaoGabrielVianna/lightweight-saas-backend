@@ -1,0 +1,12 @@
+{
+  "id": "7a2b3c4d-5e6f-4708-8192-a3b4c5d6e7f8",
+  "user_id": "9c1e6679-7425-40de-944b-e07fc1f90ae7",
+  "username": "ada@example.test",
+  "ip_address": "203.0.113.42",
+  "user_agent": "Mozilla/5.0",
+  "started_at": "2026-08-12T08:00:00Z",
+  "last_access": "2026-08-12T08:42:17Z",
+  "clients": {
+    "account-console": "Account Console"
+  }
+}

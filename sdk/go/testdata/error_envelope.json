@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "insufficient_scope",
+    "message": "This credential does not carry the scope required for this operation",
+    "request_id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+  }
+}
