@@ -149,9 +149,9 @@ export LIGHTWEIGHT_API_KEY=lw_sk_…
 go get github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go@v0.1.0
 ```
 
-> **Not published yet.** That is the verified installation command and it will
-> work unchanged from the first SDK release onward, but `v0.1.0` does not exist
-> on GitHub today. See [Release](docs/SDK_GO.md#release).
+> Ask for the **module version**, `@v0.1.0`. The git tag that publishes it is
+> `sdk/go/v0.1.0`; those are different strings and only the first one belongs in
+> a `go get`. See [Release](docs/SDK_GO.md#release).
 
 ```go
 import lightweight "github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go"

@@ -19,16 +19,17 @@
 #
 # ─── Why it snapshots the working tree ──────────────────────────────────────
 #
-# Git tags point at commits. In this repository the entire SDK is currently
-# UNTRACKED, so tagging HEAD would produce a tag containing no module at all —
-# and a simulation built that way would report success while proving the
-# opposite of what it claimed.
+# Git tags point at commits, and the working tree is not the commit. Whenever the
+# two differ — an SDK change still unstaged, a changelog edited but not yet
+# committed — a simulation built from HEAD would report on content the author is
+# not looking at, and one built from the tree would silently claim more than a
+# tag could deliver.
 #
 # It therefore copies the files that a commit WOULD contain (`git ls-files -co
 # --exclude-standard`: tracked plus untracked-but-not-ignored), commits them into
 # a temporary repository, and tags that. What it proves is a statement about
 # *this content*, not about this repository's history — which is the strongest
-# honest claim available before the work is committed.
+# honest claim available for a tree that may not yet be committed.
 #
 # ─── What it does not prove ─────────────────────────────────────────────────
 #
