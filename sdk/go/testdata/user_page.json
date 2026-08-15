@@ -1,0 +1,27 @@
+{
+  "users": [
+    {
+      "id": "9c1e6679-7425-40de-944b-e07fc1f90ae7",
+      "username": "ada@example.test",
+      "email": "ada@example.test",
+      "first_name": "Ada",
+      "last_name": "Lovelace",
+      "enabled": true,
+      "email_verified": false,
+      "created_at": "2026-08-10T14:03:11Z"
+    },
+    {
+      "id": "1b0f1f4e-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      "username": "grace@example.test",
+      "email": "grace@example.test",
+      "first_name": "Grace",
+      "last_name": "Hopper",
+      "enabled": false,
+      "email_verified": true,
+      "created_at": "2026-08-11T09:15:00Z"
+    }
+  ],
+  "first": 20,
+  "max": 50,
+  "count": 2
+}

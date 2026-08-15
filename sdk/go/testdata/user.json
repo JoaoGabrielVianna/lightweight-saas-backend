@@ -1,0 +1,14 @@
+{
+  "id": "9c1e6679-7425-40de-944b-e07fc1f90ae7",
+  "username": "ada@example.test",
+  "email": "ada@example.test",
+  "first_name": "Ada",
+  "last_name": "Lovelace",
+  "enabled": true,
+  "email_verified": false,
+  "created_at": "2026-08-10T14:03:11Z",
+  "attributes": {
+    "department": ["research"],
+    "employee_id": ["e-4471"]
+  }
+}

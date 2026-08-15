@@ -1,0 +1,212 @@
+{
+  "_comment": [
+    "The SDK's coverage decision for every Project-accessible route.",
+    "",
+    "This file exists to stop ONE specific kind of silent drift: a route added to",
+    "the server's authorization registry as project-accessible, shipped, and never",
+    "considered from the SDK's side. Nothing would fail. The capability would",
+    "simply be invisible to every Go consumer, indefinitely, and nobody would find",
+    "out until a developer asked why they had to write raw HTTP for it.",
+    "",
+    "So it is a gate rather than documentation, checked from BOTH sides:",
+    "",
+    "  internal/authz/sdk_coverage_test.go  every scoped route in the registry has",
+    "                                       an entry here, with the scope the",
+    "                                       registry actually enforces, and every",
+    "                                       entry names a route that exists and is",
+    "                                       documented in the OpenAPI spec.",
+    "",
+    "  sdk/go/coverage_test.go              every entry marked `supported` names a",
+    "                                       method this package really exports, and",
+    "                                       that method's doc comment states the",
+    "                                       required scope.",
+    "",
+    "It is JSON, and not Go, precisely because the two checkers are in two",
+    "different modules. The SDK module cannot be imported by the server module",
+    "without undoing the boundary this slice exists to create, so the shared fact",
+    "has to live in something both can read without importing either.",
+    "",
+    "`status` is `supported` or `unsupported`. `unsupported` REQUIRES a `reason`:",
+    "an omission somebody argued for is a decision, an omission nobody wrote down",
+    "is an oversight, and the gate cannot tell them apart on its own.",
+    "",
+    "Operator-only routes are deliberately absent. They are not project-accessible,",
+    "so they are not this SDK's to classify — the registry has already refused",
+    "them to every credential that could exist."
+  ],
+
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/users",
+      "scope": "users:read",
+      "status": "supported",
+      "sdk": "UsersService.List"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/:workspace_id/users",
+      "scope": "users:write",
+      "status": "supported",
+      "sdk": "UsersService.Create"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id",
+      "scope": "users:read",
+      "status": "supported",
+      "sdk": "UsersService.Get"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id",
+      "scope": "users:write",
+      "status": "supported",
+      "sdk": "UsersService.Update"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id",
+      "scope": "users:write",
+      "status": "supported",
+      "sdk": "UsersService.Delete"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id/reset-password",
+      "scope": "users:write",
+      "status": "supported",
+      "sdk": "UsersService.SendPasswordReset"
+    },
+
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/roles",
+      "scope": "roles:read",
+      "status": "supported",
+      "sdk": "RolesService.List"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/:workspace_id/roles",
+      "scope": "roles:write",
+      "status": "supported",
+      "sdk": "RolesService.Create"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/roles/:role_name",
+      "scope": "roles:read",
+      "status": "supported",
+      "sdk": "RolesService.Get"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/workspaces/:workspace_id/roles/:role_name",
+      "scope": "roles:write",
+      "status": "supported",
+      "sdk": "RolesService.Update"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspaces/:workspace_id/roles/:role_name",
+      "scope": "roles:write",
+      "status": "supported",
+      "sdk": "RolesService.Delete"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/roles/:role_name/users",
+      "scope": "roles:read",
+      "status": "supported",
+      "sdk": "RolesService.ListUsers"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id/roles",
+      "scope": "roles:read",
+      "status": "supported",
+      "sdk": "RolesService.ListForUser"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id/roles",
+      "scope": "roles:write",
+      "status": "supported",
+      "sdk": "RolesService.Grant"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id/roles/:role_name",
+      "scope": "roles:write",
+      "status": "supported",
+      "sdk": "RolesService.Revoke"
+    },
+
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/sessions",
+      "scope": "sessions:read",
+      "status": "supported",
+      "sdk": "SessionsService.List"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspaces/:workspace_id/sessions/:session_id",
+      "scope": "sessions:revoke",
+      "status": "supported",
+      "sdk": "SessionsService.Revoke"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id/sessions",
+      "scope": "sessions:read",
+      "status": "supported",
+      "sdk": "SessionsService.ListForUser"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspaces/:workspace_id/users/:user_id/sessions",
+      "scope": "sessions:revoke",
+      "status": "supported",
+      "sdk": "SessionsService.RevokeAllForUser"
+    },
+
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/invitations",
+      "scope": "invitations:read",
+      "status": "supported",
+      "sdk": "InvitationsService.List"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/:workspace_id/invitations",
+      "scope": "invitations:write",
+      "status": "supported",
+      "sdk": "InvitationsService.Create"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspaces/:workspace_id/invitations/:invitation_id/resend",
+      "scope": "invitations:write",
+      "status": "supported",
+      "sdk": "InvitationsService.Resend"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspaces/:workspace_id/invitations/:invitation_id",
+      "scope": "invitations:write",
+      "status": "supported",
+      "sdk": "InvitationsService.Revoke"
+    },
+
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/:workspace_id/audit",
+      "scope": "audit:read",
+      "status": "supported",
+      "sdk": "AuditService.List"
+    }
+  ]
+}

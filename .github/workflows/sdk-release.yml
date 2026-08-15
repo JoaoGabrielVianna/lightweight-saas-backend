@@ -1,0 +1,184 @@
+# Validate an SDK release tag. It does NOT publish anything.
+#
+# ─── What publishing a Go module actually is ────────────────────────────────
+#
+# There is no registry step and no artifact to upload: the module IS the git tag.
+# By the time this workflow starts, `sdk/go/v0.1.0` is already pushed and
+# proxy.golang.org will serve it to the first person who asks. That timing is the
+# whole design constraint — this workflow cannot prevent a bad release, only
+# detect one, loudly, before anyone has depended on it.
+#
+# Which is why the checks it runs are the ones that stay useful after the fact:
+# they tell the maintainer whether to immediately publish a fixed patch version.
+# Published versions are immutable; deleting the tag is not a rollback, because
+# the proxy and checksum database may already hold it. See docs/SDK_GO.md.
+#
+# ─── Why this is not just `make ci` ─────────────────────────────────────────
+#
+# The full branch CI (ci.yml) spends tens of minutes on PostgreSQL, Keycloak,
+# Chromium and the e2e harnesses. None of that is about whether the MODULE is
+# releasable, and running it here would buy nothing that the branch gate had not
+# already proven for this very commit — the ancestry check below is what makes
+# that true.
+#
+# So this gate is narrow and fast, and the `ancestry` job is what stops narrow
+# from meaning "a way around the wide one".
+name: SDK release
+
+on:
+  push:
+    tags:
+      - 'sdk/go/v*'
+  # Runnable by hand against a tag, for re-checking a release after fixing CI
+  # itself. It still validates a tag; it cannot create one.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing SDK tag to validate, e.g. sdk/go/v0.1.0'
+        required: true
+        type: string
+
+# Read-only. This workflow validates and refuses; it creates no release, uploads
+# no asset and moves no ref, so write access would be permission it never
+# exercises. If a GitHub Release step is ever added it will need
+# `contents: write` — that is the moment to grant it, scoped to that job.
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-release-${{ github.ref }}
+  cancel-in-progress: false   # a release check is not worth cancelling
+
+jobs:
+  # ── The trust model ───────────────────────────────────────────────────────
+  #
+  # A developer must not be able to tag arbitrary broken code and have it blessed
+  # merely because the tag workflow's tests are narrower than the branch's.
+  #
+  # The mechanism is ancestry, not a CI-status lookup: require the tagged commit
+  # to be reachable from `main`. It does not prove the branch CI was green — it
+  # proves the commit went through the branch where green is required, which is
+  # exactly the step a tag can otherwise skip. Checking the API for a green run
+  # would be more precise and considerably more machinery; this is one git
+  # command, and it closes the hole that matters.
+  ancestry:
+    name: tagged commit is on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (full history — ancestry needs it)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: The tagged commit must be reachable from main
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          commit=$(git rev-parse HEAD)
+          if git merge-base --is-ancestor "$commit" origin/main; then
+            echo "  + $commit is an ancestor of origin/main"
+          else
+            echo "  ✗ $commit is NOT reachable from origin/main"
+            echo ""
+            echo "    This tag would publish code the full branch CI never gated."
+            echo "    Merge the release content to main first, confirm CI is green,"
+            echo "    then tag the merged commit."
+            exit 1
+          fi
+
+  # ── The release gate ──────────────────────────────────────────────────────
+  #
+  # One script, the same one a maintainer runs locally as `make
+  # sdk-release-check`. Duplicating its logic in YAML would create a second
+  # implementation of "is this releasable", and the copy in CI is the one that
+  # would not get the fix.
+  validate:
+    name: validate ${{ inputs.tag || github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # The SDK's own go.mod, not the server's: this job is about the module
+          # being published, and its minimum Go is a promise to consumers that
+          # the server's newer toolchain must not quietly satisfy on its behalf.
+          go-version-file: sdk/go/go.mod
+          cache: false
+
+      - name: Validate the release tag
+        run: ./scripts/check-sdk-release.sh --tag "${{ inputs.tag || github.ref_name }}"
+
+  # ── External consumer ─────────────────────────────────────────────────────
+  #
+  # Separate from `validate` because it answers a different question and has a
+  # different failure meaning: not "is the module well-formed" but "can somebody
+  # who is not us compile against it". A failure here is a broken public surface.
+  consumer:
+    name: external consumer compiles
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sdk/go/go.mod
+          cache: false
+
+      - run: make sdk-consumer-check
+
+      # The tag-resolution proof: a throwaway git remote, a real path-prefixed
+      # tag, and a consumer that resolves through it with no replace directive.
+      # It is what proves the tag FORMAT, which is the one release property that
+      # is invisible until a consumer gets it wrong.
+      - name: Tag-resolution simulation
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          # The script takes a VERSION; the tag prefix is its own business.
+          ./scripts/sdk-release-simulation.sh "${tag#sdk/go/}"
+
+  # ── After the fact ────────────────────────────────────────────────────────
+  #
+  # The public proxy is the only thing that can confirm the release is real, and
+  # it is also the only check here that depends on infrastructure outside this
+  # repository. It is allowed to fail without failing the workflow: the proxy can
+  # take minutes to observe a new tag, and a red X for "you were quick" would
+  # train everyone to ignore this workflow's result.
+  proxy:
+    name: public proxy resolution (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [validate]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sdk/go/go.mod
+          cache: false
+
+      - name: Is it installable from proxy.golang.org?
+        run: |
+          version="${{ inputs.tag || github.ref_name }}"
+          version="${version#sdk/go/}"
+          # The proxy may not have seen the tag yet; give it a few tries rather
+          # than reporting a race as a release defect.
+          for attempt in 1 2 3 4 5; do
+            if ./scripts/first-publish-smoke.sh "$version"; then exit 0; fi
+            echo "  … attempt $attempt did not resolve; waiting 60s for the proxy"
+            sleep 60
+          done
+          echo "  ! not resolvable yet — re-run this job, or run 'make sdk-publish-smoke VERSION=$version' locally"
+          exit 1

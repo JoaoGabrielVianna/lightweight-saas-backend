@@ -1,0 +1,237 @@
+# Exported API of the LIGHTWEIGHT Go SDK.
+#
+# GENERATED — do not edit. Regenerate with: make sdk-api-update
+#
+# Every line here is a promise to someone who has already shipped. A diff in
+# this file is the review asking whether that promise is being broken on
+# purpose. Pre-v1 it may be; silently is the only forbidden way.
+#
+# module github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go
+
+const APIKeyPrefix = "lw_sk_"
+const AuditActorOperator AuditActorType = "operator"
+const AuditActorProject AuditActorType = "project"
+const AuditOutcomeFailure AuditOutcome = "failure"
+const AuditOutcomeSuccess AuditOutcome = "success"
+const CodeAuditUnavailable = "audit_unavailable"
+const CodeAuthorizationUnavailable = "authorization_unavailable"
+const CodeCallerForbidden = "caller_forbidden"
+const CodeConflict = "conflict"
+const CodeConnectionMissing = "workspace_connection_missing"
+const CodeConnectionReadOnly = "connection_read_only"
+const CodeConnectionUnusable = "workspace_connection_unusable"
+const CodeCredentialInvalid = "credential_invalid"
+const CodeInsufficientScope = "insufficient_scope"
+const CodeInternalError = "internal_error"
+const CodeInvalidRequest = "invalid_request"
+const CodeInvalidRoleName = "invalid_role_name"
+const CodeInvalidSessionID = "invalid_session_id"
+const CodeInvalidUserID = "invalid_user_id"
+const CodeInvalidWorkspaceID = "invalid_workspace_id"
+const CodeInvitationNotFound = "invitation_not_found"
+const CodeOperatorOnly = "operator_only"
+const CodeProviderForbidden = "provider_forbidden"
+const CodeProviderUnavailable = "provider_unavailable"
+const CodeRateLimitExceeded = "rate_limit_exceeded"
+const CodeRoleAlreadyExists = "role_already_exists"
+const CodeRoleNotFound = "role_not_found"
+const CodeRolePrivileged = "role_privileged"
+const CodeRoleReserved = "role_reserved"
+const CodeSessionNotFound = "session_not_found"
+const CodeUserNotFound = "user_not_found"
+const CodeWorkspaceArchived = "workspace_archived"
+const CodeWorkspaceMismatch = "workspace_mismatch"
+const CodeWorkspaceNotFound = "workspace_not_found"
+const DefaultTimeout
+const EnvAPIKey = "LIGHTWEIGHT_API_KEY"
+const EnvBaseURL = "LIGHTWEIGHT_URL"
+const EnvWorkspaceID = "LIGHTWEIGHT_WORKSPACE_ID"
+field APIError.Code string
+field APIError.Field string
+field APIError.Message string
+field APIError.Method string
+field APIError.Op string
+field APIError.Path string
+field APIError.RequestID string
+field APIError.StatusCode int
+field AuditActor.CredentialID string
+field AuditActor.Email string
+field AuditActor.ProjectID string
+field AuditActor.Subject string
+field AuditActor.Type AuditActorType
+field AuditEvent.Actor AuditActor
+field AuditEvent.Event string
+field AuditEvent.ID string
+field AuditEvent.Metadata map[string]any
+field AuditEvent.OccurredAt time.Time
+field AuditEvent.Outcome AuditOutcome
+field AuditEvent.ReasonCode string
+field AuditEvent.RequestID string
+field AuditEvent.Resource *AuditResource
+field AuditListOptions.ActorType AuditActorType
+field AuditListOptions.Cursor string
+field AuditListOptions.Event string
+field AuditListOptions.From time.Time
+field AuditListOptions.Limit int
+field AuditListOptions.Outcome AuditOutcome
+field AuditListOptions.To time.Time
+field AuditPage.Items []AuditEvent
+field AuditPage.Pagination AuditPagination
+field AuditPagination.Count int
+field AuditPagination.Limit int
+field AuditPagination.NextCursor string
+field AuditResource.ID string
+field AuditResource.Type string
+field Client.Audit *AuditService
+field Client.Invitations *InvitationsService
+field Client.Roles *RolesService
+field Client.Sessions *SessionsService
+field Client.Users *UsersService
+field Config.APIKey string
+field Config.BaseURL string
+field Config.HTTPClient *http.Client
+field Config.UserAgent string
+field Config.WorkspaceID string
+field CreateInvitationRequest.Email string
+field CreateInvitationRequest.ExpiresAt *time.Time
+field CreateInvitationRequest.FirstName string
+field CreateInvitationRequest.InvitedBy string
+field CreateInvitationRequest.LastName string
+field CreateInvitationRequest.Roles []string
+field CreateRoleRequest.Description string
+field CreateRoleRequest.Name string
+field CreateUserRequest.Email string
+field CreateUserRequest.FirstName string
+field CreateUserRequest.LastName string
+field CreateUserRequest.Roles []string
+field CreateUserRequest.TemporaryPassword string
+field Invitation.CreatedAt time.Time
+field Invitation.Email string
+field Invitation.ExpiresAt string
+field Invitation.ID string
+field Invitation.InvitedBy string
+field Invitation.RequiredActions []string
+field Invitation.Status string
+field Invitation.Username string
+field ProtocolError.Err error
+field ProtocolError.Method string
+field ProtocolError.Op string
+field ProtocolError.Path string
+field ProtocolError.RequestID string
+field ProtocolError.StatusCode int
+field RequestError.Err error
+field RequestError.Method string
+field RequestError.Op string
+field RequestError.Path string
+field Role.Builtin bool
+field Role.Composite bool
+field Role.Description string
+field Role.ID string
+field Role.Name string
+field Session.Clients map[string]string
+field Session.ID string
+field Session.IPAddress string
+field Session.LastAccess time.Time
+field Session.StartedAt time.Time
+field Session.UserAgent string
+field Session.UserID string
+field Session.Username string
+field UpdateRoleRequest.Description *string
+field UpdateUserRequest.Email *string
+field UpdateUserRequest.EmailVerified *bool
+field UpdateUserRequest.Enabled *bool
+field UpdateUserRequest.FirstName *string
+field UpdateUserRequest.LastName *string
+field User.Attributes map[string][]string
+field User.CreatedAt time.Time
+field User.Email string
+field User.EmailVerified bool
+field User.Enabled bool
+field User.FirstName string
+field User.ID string
+field User.LastName string
+field User.Username string
+field UserListOptions.First int
+field UserListOptions.Max int
+field UserListOptions.Search string
+field UserPage.Count int
+field UserPage.First int
+field UserPage.Max int
+field UserPage.Users []User
+func Bool(v bool) *bool
+func NewClient(cfg Config) (*Client, error)
+func NewClientFromEnv() (*Client, error)
+func String(v string) *string
+func Version() string
+method (*APIError) Error() string
+method (*APIError) RetryAfter() (d time.Duration, ok bool)
+method (*AuditService) All(ctx context.Context, opts AuditListOptions) iter.Seq2[AuditEvent, error]
+method (*AuditService) List(ctx context.Context, opts AuditListOptions) (*AuditPage, error)
+method (*Client) BaseURL() string
+method (*Client) GoString() string
+method (*Client) String() string
+method (*Client) WorkspaceID() string
+method (*InvitationsService) Create(ctx context.Context, req CreateInvitationRequest) (*Invitation, error)
+method (*InvitationsService) List(ctx context.Context) ([]Invitation, error)
+method (*InvitationsService) Resend(ctx context.Context, invitationID string) (*Invitation, error)
+method (*InvitationsService) Revoke(ctx context.Context, invitationID string) error
+method (*ProtocolError) Error() string
+method (*ProtocolError) Unwrap() error
+method (*RequestError) Error() string
+method (*RequestError) Unwrap() error
+method (*RolesService) Create(ctx context.Context, req CreateRoleRequest) (*Role, error)
+method (*RolesService) Delete(ctx context.Context, name string) error
+method (*RolesService) Get(ctx context.Context, name string) (*Role, error)
+method (*RolesService) Grant(ctx context.Context, userID string, roleNames ...string) error
+method (*RolesService) List(ctx context.Context) ([]Role, error)
+method (*RolesService) ListForUser(ctx context.Context, userID string) ([]Role, error)
+method (*RolesService) ListUsers(ctx context.Context, name string) (*UserPage, error)
+method (*RolesService) Revoke(ctx context.Context, userID, roleName string) error
+method (*RolesService) Update(ctx context.Context, name string, req UpdateRoleRequest) (*Role, error)
+method (*SessionsService) List(ctx context.Context) ([]Session, error)
+method (*SessionsService) ListForUser(ctx context.Context, userID string) ([]Session, error)
+method (*SessionsService) Revoke(ctx context.Context, sessionID string) error
+method (*SessionsService) RevokeAllForUser(ctx context.Context, userID string) error
+method (*UsersService) Create(ctx context.Context, req CreateUserRequest) (*User, error)
+method (*UsersService) Delete(ctx context.Context, userID string) error
+method (*UsersService) Get(ctx context.Context, userID string) (*User, error)
+method (*UsersService) List(ctx context.Context, opts UserListOptions) (*UserPage, error)
+method (*UsersService) SendPasswordReset(ctx context.Context, userID string) error
+method (*UsersService) Update(ctx context.Context, userID string, req UpdateUserRequest) (*User, error)
+method (AuditPage) HasMore() bool
+method (Config) GoString() string
+method (Config) String() string
+method (CreateUserRequest) GoString() string
+method (CreateUserRequest) String() string
+method (Invitation) ExpiresAtTime() (t time.Time, ok bool)
+type APIError struct
+type AuditActor struct
+type AuditActorType string
+type AuditEvent struct
+type AuditListOptions struct
+type AuditOutcome string
+type AuditPage struct
+type AuditPagination struct
+type AuditResource struct
+type AuditService struct
+type Client struct
+type Config struct
+type CreateInvitationRequest struct
+type CreateRoleRequest struct
+type CreateUserRequest struct
+type Invitation struct
+type InvitationsService struct
+type ProtocolError struct
+type RequestError struct
+type Role struct
+type RolesService struct
+type Session struct
+type SessionsService struct
+type UpdateRoleRequest struct
+type UpdateUserRequest struct
+type User struct
+type UserListOptions struct
+type UserPage struct
+type UsersService struct
+var ErrConfig
+var ErrInvalidArgument
