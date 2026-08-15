@@ -66,19 +66,30 @@ func WireDefault() audit.Recorder {
 	return audit.SetDefault(NewAuditSink())
 }
 
-// WireDefaultWithMemory installs an audit.Multi recorder that fans every
-// event out to two sinks:
+// WireDefaultWithMemory installs an audit.Multi recorder that fans every event
+// out to the sinks that are wired.
 //
-//  1. AuditSink — the durable, append-only log stream (the source of
-//     truth a downstream audit_log loader would tail).
-//  2. MemoryRecorder — a bounded ring buffer the admin console reads to
-//     answer "what just happened?" without giving the UI a database.
+//  1. AuditSink — one structured JSON line per event. Durable only if
+//     something is shipping logs, which is why it is no longer the whole story.
+//  2. durable — the PostgreSQL trail, when a store is available. This is the
+//     authority for workspace history: it survives a restart, which is the one
+//     thing the other two do not.
+//  3. MemoryRecorder — a bounded ring the legacy /admin/audit-events endpoint
+//     reads. Process-level and volatile, and kept exactly as it was: that
+//     surface has no workspace and must stay byte-compatible.
 //
-// Returned MemoryRecorder is the handle the HTTP layer needs to snapshot
-// the buffer. Capacity is clamped by the recorder itself; a non-positive
-// value becomes 1.
-func WireDefaultWithMemory(capacity int) *audit.MemoryRecorder {
+// Three sinks, but not three authorities. Each answers a different question —
+// "what is in the log stream", "what has ever happened in this workspace",
+// "what just happened on this box" — and no consumer reads two of them for the
+// same answer.
+//
+// durable may be nil, which is the deployment with no database. audit.Multi
+// skips nil entries, so the fan-out needs no conditional here.
+//
+// Returned MemoryRecorder is the handle the legacy HTTP layer needs. Capacity
+// is clamped by the recorder itself; a non-positive value becomes 1.
+func WireDefaultWithMemory(capacity int, durable audit.Recorder) *audit.MemoryRecorder {
 	mem := audit.NewMemoryRecorder(capacity)
-	audit.SetDefault(audit.Multi{NewAuditSink(), mem})
+	audit.SetDefault(audit.Multi{NewAuditSink(), durable, mem})
 	return mem
 }

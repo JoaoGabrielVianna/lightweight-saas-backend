@@ -7,15 +7,20 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/user"
 )
 
-// TestUserModelMigrationShape pins the schema contract the database
-// package's AutoMigrate is responsible for. The actual migration runs
-// against a postgres instance only under -tags=integration; here we
-// verify the model exposes the columns/tags the migration depends on,
-// so a future rename of the GORM tag is caught at unit-test time.
+// TestUserModelMigrationShape pins the schema contract the baseline
+// migration is responsible for. Since the schema moved from gorm
+// AutoMigrate to versioned SQL (migrations/000001_baseline.up.sql),
+// the model no longer *creates* anything — but it still has to agree
+// with the SQL, because gorm builds every query from these tags.
+//
+// The SQL side of the same contract is pinned by
+// TestBaselineMigration_MatchesAutoMigrateShape; a rename that touches
+// only one side fails one of the two.
 func TestUserModelMigrationShape(t *testing.T) {
 	// Reflect on the User struct so we don't depend on a specific
 	// field order — the contract is "these fields exist with these
@@ -70,6 +75,13 @@ func TestUserModelMigrationShape(t *testing.T) {
 // keeps the child quick even on hosts with very slow DNS.
 func TestConnect_FatalOnUnreachable(t *testing.T) {
 	if os.Getenv("LSB_DB_CONNECT_CHILD") == "1" {
+		// Shrink the retry so this measures the BOUND, not its length. Connect
+		// retries a database that might still be starting; what has to be
+		// proven here is that the retry ends and the process exits, and that
+		// is the same property at three attempts as at ten.
+		connectAttempts = 3
+		connectBackoff = 10 * time.Millisecond
+
 		// gorm.Open with the postgres driver does a real connection
 		// preflight; with an unroutable host + 1s timeout it surfaces
 		// the failure to log.Fatal which calls os.Exit(1).
@@ -93,5 +105,10 @@ func TestConnect_FatalOnUnreachable(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Failed to connect to database") {
 		t.Errorf("child output did not contain expected message. got:\n%s", out.String())
+	}
+	// The retry must be visible in the log, or a slow-starting database would
+	// look like an instant failure and nobody would know a retry happened.
+	if !strings.Contains(out.String(), "retrying in") {
+		t.Errorf("child output shows no retry attempts; the bounded retry is not running:\n%s", out.String())
 	}
 }

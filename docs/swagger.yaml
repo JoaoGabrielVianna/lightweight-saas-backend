@@ -2,13 +2,37 @@ basePath: /
 definitions:
   audit.Actor:
     properties:
+      credential_id:
+        type: string
       email:
         type: string
-      subject:
+      project_id:
+        description: |-
+          Project fields. ProjectID and CredentialID are the public `prj_` and
+          `key_` ids: the credential id is what an operator revokes, so an audit
+          line names the exact key to pull rather than the project that held it.
         type: string
+      subject:
+        description: Operator fields.
+        type: string
+      type:
+        allOf:
+        - $ref: '#/definitions/audit.ActorType'
+        description: |-
+          Type is "operator" or "project". Empty only for an unattributed event
+          (no principal on the request), which is preserved as a visible gap
+          rather than defaulted to a plausible value.
       username:
         type: string
     type: object
+  audit.ActorType:
+    enum:
+    - operator
+    - project
+    type: string
+    x-enum-varnames:
+    - ActorOperator
+    - ActorProject
   audit.Target:
     properties:
       id:
@@ -17,6 +41,361 @@ definitions:
         type: string
       name:
         type: string
+    type: object
+  auditlog.ActorResponse:
+    properties:
+      credential_id:
+        example: key_9b2f4c1a-1111-4222-8333-444455556666
+        type: string
+      email:
+        example: ada@example.com
+        type: string
+      project_id:
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        type: string
+      subject:
+        example: 9c1e6679-7425-40de-944b-e07fc1f90ae7
+        type: string
+      type:
+        enum:
+        - operator
+        - project
+        example: operator
+        type: string
+    type: object
+  auditlog.ErrorBody:
+    properties:
+      code:
+        example: invalid_request
+        type: string
+      field:
+        example: cursor
+        type: string
+      message:
+        example: Request is invalid
+        type: string
+      request_id:
+        example: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+    type: object
+  auditlog.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/auditlog.ErrorBody'
+    type: object
+  auditlog.EventResponse:
+    properties:
+      actor:
+        $ref: '#/definitions/auditlog.ActorResponse'
+      event:
+        example: project_credential.revoked
+        type: string
+      id:
+        example: evt_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+      metadata:
+        additionalProperties: {}
+        description: Metadata is per-event detail, allowlisted per event type at write
+          time.
+        type: object
+      occurred_at:
+        example: "2026-08-10T14:03:11Z"
+        type: string
+      outcome:
+        description: Outcome is "success" or "failure".
+        enum:
+        - success
+        - failure
+        example: success
+        type: string
+      reason_code:
+        description: |-
+          ReasonCode is present only on a failure, and is drawn from the closed /v1
+          error vocabulary. It is never an upstream error message: the real cause
+          is in the log line for this request_id.
+        example: provider_unavailable
+        type: string
+      request_id:
+        example: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+      resource:
+        $ref: '#/definitions/auditlog.ResourceResponse'
+    type: object
+  auditlog.ListEventsResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/auditlog.EventResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/auditlog.PaginationInfo'
+    type: object
+  auditlog.PaginationInfo:
+    properties:
+      count:
+        description: |-
+          Count is the number of items IN THIS PAGE, never a total. A total would
+          mean a second COUNT(*) over an append-heavy table on every request, to
+          answer a question no client here needs.
+        example: 50
+        type: integer
+      limit:
+        description: Limit is the page size actually applied.
+        example: 50
+        type: integer
+      next_cursor:
+        description: |-
+          NextCursor is absent on the last page.
+
+          Its ABSENCE is the end-of-history signal, not an empty page: a client
+          loops while this is present, so a correct client makes exactly as many
+          requests as there are pages.
+        example: MTc1NDg0MTM5MTAwMDAwMDAwMC4z...
+        type: string
+    type: object
+  auditlog.ResourceResponse:
+    properties:
+      id:
+        example: key_9b2f4c1a-1111-4222-8333-444455556666
+        type: string
+      type:
+        example: project_credential
+        type: string
+    type: object
+  connection.AccessMode:
+    enum:
+    - unknown
+    - full
+    - read_only
+    - limited
+    type: string
+    x-enum-varnames:
+    - AccessModeUnknown
+    - AccessModeFull
+    - AccessModeReadOnly
+    - AccessModeLimited
+  connection.Check:
+    properties:
+      detail:
+        description: |-
+          Detail is a short human-readable explanation, safe to show an operator.
+          It never contains the client secret, the access token, or a provider
+          response body — a provider's error page can echo back anything.
+        example: authenticated as service account
+        type: string
+      name:
+        description: Name is one of the Check* constants.
+        example: client_authenticated
+        type: string
+      ok:
+        description: OK is whether this specific probe passed.
+        type: boolean
+    type: object
+  connection.ConnectionResponse:
+    properties:
+      access_mode:
+        description: |-
+          AccessMode is what the service account was proven able to do.
+          `full` is claimed ONLY when write capability was positively proven —
+          see connection.AccessMode. A client may enable mutation controls on
+          `full` and must not on `read_only` or `limited`.
+        enum:
+        - unknown
+        - full
+        - read_only
+        - limited
+        example: full
+        type: string
+      activated_at:
+        type: string
+      base_url:
+        example: https://kc.example.com
+        type: string
+      can_write:
+        description: |-
+          CanWrite is AccessMode's write verdict, precomputed so a client does not
+          re-implement the rule (and get `unknown` wrong in either direction).
+          It is the field a UI should gate mutation controls on.
+        example: true
+        type: boolean
+      client_id:
+        example: saas-backend-admin
+        type: string
+      created_at:
+        type: string
+      has_client_secret:
+        description: |-
+          HasClientSecret reports that a credential is stored. It is always true
+          today because the column is NOT NULL; it exists as a field so that
+          clients render "secret configured" from the API rather than assuming,
+          and so the shape already fits if a secret-less auth method (mTLS,
+          private_key_jwt) is ever added.
+        example: true
+        type: boolean
+      health:
+        enum:
+        - unknown
+        - healthy
+        - unhealthy
+        example: healthy
+        type: string
+      health_message:
+        type: string
+      id:
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+      last_verified_at:
+        type: string
+      name:
+        example: Production Keycloak
+        type: string
+      provider:
+        enum:
+        - keycloak
+        example: keycloak
+        type: string
+      realm:
+        example: saas
+        type: string
+      retired_at:
+        type: string
+      status:
+        enum:
+        - draft
+        - active
+        - retired
+        example: draft
+        type: string
+      updated_at:
+        type: string
+      verified:
+        description: |-
+          Verified is IsVerified evaluated at response time: healthy AND the probe
+          is still inside its validity window. Computed rather than stored, because
+          it is a fact about now, not about the row — a client that stored it would
+          be wrong an hour later.
+        example: true
+        type: boolean
+      workspace_id:
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        type: string
+    type: object
+  connection.CreateConnectionRequest:
+    properties:
+      base_url:
+        example: https://kc.example.com
+        type: string
+      client_id:
+        example: saas-backend-admin
+        type: string
+      client_secret:
+        description: |-
+          ClientSecret is write-only. It is sealed with AES-256-GCM before it
+          reaches the database and is never returned by any endpoint.
+        example: the-service-account-secret
+        type: string
+      name:
+        example: Production Keycloak
+        type: string
+      provider:
+        description: Provider is optional while only one exists; omitted means keycloak.
+        example: keycloak
+        type: string
+      realm:
+        example: saas
+        type: string
+    required:
+    - base_url
+    - client_id
+    - client_secret
+    - name
+    - realm
+    type: object
+  connection.ErrorBody:
+    properties:
+      code:
+        example: connection_not_verified
+        type: string
+      message:
+        example: Connection must pass verification before it can be activated
+        type: string
+      request_id:
+        example: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+    type: object
+  connection.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/connection.ErrorBody'
+    type: object
+  connection.ListConnectionsResponse:
+    properties:
+      connections:
+        items:
+          $ref: '#/definitions/connection.ConnectionResponse'
+        type: array
+      count:
+        example: 2
+        type: integer
+    type: object
+  connection.UpdateConnectionRequest:
+    properties:
+      base_url:
+        type: string
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      name:
+        type: string
+      provider:
+        type: string
+      realm:
+        type: string
+      status:
+        type: string
+    type: object
+  connection.VerifyReport:
+    properties:
+      access_mode:
+        allOf:
+        - $ref: '#/definitions/connection.AccessMode'
+        description: AccessMode is what the admin client turned out to be allowed
+          to do.
+        enum:
+        - unknown
+        - full
+        - read_only
+        - limited
+        example: full
+      checked_at:
+        description: CheckedAt is when the run completed.
+        type: string
+      checks:
+        description: |-
+          Checks are in execution order, and stop at the first failure that makes
+          later ones meaningless (no point listing users if the token failed).
+        items:
+          $ref: '#/definitions/connection.Check'
+        type: array
+      ok:
+        description: OK is the verdict that drives Health. See Verifier for what it
+          requires.
+        type: boolean
+      summary:
+        description: |-
+          Summary is a one-line verdict for logs and for the connection's
+          health_message.
+        example: provider reachable, realm found, client authenticated, full admin
+          access
+        type: string
+    type: object
+  connection.VerifyResponse:
+    properties:
+      connection:
+        $ref: '#/definitions/connection.ConnectionResponse'
+      report:
+        $ref: '#/definitions/connection.VerifyReport'
     type: object
   identity.AssignRolesRequestBody:
     properties:
@@ -205,6 +584,331 @@ definitions:
       username:
         type: string
     type: object
+  identityruntime.AssignRolesRequest:
+    properties:
+      roles:
+        example:
+        - support
+        items:
+          type: string
+        type: array
+    required:
+    - roles
+    type: object
+  identityruntime.CreateInvitationRequest:
+    properties:
+      email:
+        example: ada@example.com
+        type: string
+      expires_at:
+        description: ExpiresAt is optional, RFC 3339, and must be in the future.
+        example: "2026-12-31T23:59:59Z"
+        type: string
+      first_name:
+        example: Ada
+        type: string
+      invited_by:
+        description: InvitedBy defaults to the authenticated caller when omitted.
+        example: admin@example.com
+        type: string
+      last_name:
+        example: Lovelace
+        type: string
+      roles:
+        description: |-
+          Roles is REQUIRED and must contain at least one existing realm role name.
+          Unlike CreateUserRequest, where roles can be granted afterwards, an
+          invitation with no roles would invite someone to an account that can do
+          nothing.
+        example:
+        - support
+        items:
+          type: string
+        type: array
+    required:
+    - email
+    - roles
+    type: object
+  identityruntime.CreateRoleRequest:
+    properties:
+      description:
+        example: Can view and refund invoices
+        type: string
+      name:
+        example: billing-admin
+        type: string
+    required:
+    - name
+    type: object
+  identityruntime.CreateUserRequest:
+    properties:
+      email:
+        example: ada@example.com
+        type: string
+      first_name:
+        example: Ada
+        type: string
+      last_name:
+        example: Lovelace
+        type: string
+      roles:
+        description: 'Roles is optional: realm role names to grant at creation.'
+        example:
+        - support
+        items:
+          type: string
+        type: array
+      temporary_password:
+        description: |-
+          TemporaryPassword is REQUIRED and must be at least 8 characters. There is
+          no way to create a user without choosing a credential for them; the
+          alternative is an invitation, which needs working SMTP on the realm.
+
+          It is never echoed back, never logged, and never part of an audit event.
+        example: ch4nge-me-now
+        type: string
+    required:
+    - email
+    - temporary_password
+    type: object
+  identityruntime.ErrorBody:
+    properties:
+      code:
+        example: workspace_connection_missing
+        type: string
+      field:
+        description: |-
+          Field names the request field a validation failure is about.
+
+          `omitempty`, and that is the compatibility contract: an error that is not
+          about a field carries no key at all, so a client written before this
+          existed decodes every response exactly as it did. Adding a key is safe;
+          adding one that is sometimes an empty string is not, because it invites
+          `if err.Field == ""` to be read as "no field" in one place and "field is
+          blank" in another.
+
+          Set only for `invalid_request`. Never derived from client input.
+        example: temporary_password
+        type: string
+      message:
+        example: Workspace has no active connection
+        type: string
+      request_id:
+        example: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+    type: object
+  identityruntime.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/identityruntime.ErrorBody'
+    type: object
+  identityruntime.SetPasswordRequest:
+    properties:
+      password:
+        example: ch4nge-me-now
+        type: string
+      temporary:
+        description: |-
+          Temporary forces a change on next login. Defaults to false, so an
+          omitted field sets a permanent password — the caller must opt in to
+          the friction rather than out of it.
+        example: true
+        type: boolean
+    required:
+    - password
+    type: object
+  identityruntime.UpdateRoleRequest:
+    properties:
+      description:
+        type: string
+    type: object
+  identityruntime.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      enabled:
+        type: boolean
+      first_name:
+        type: string
+      last_name:
+        type: string
+    type: object
+  project.CreateCredentialRequest:
+    properties:
+      expires_at:
+        description: ExpiresAt is optional. When set it must be in the future.
+        type: string
+      label:
+        description: Label is required. An unlabelled key is one nobody dares revoke.
+        example: billing worker (staging)
+        type: string
+      scopes:
+        description: |-
+          Scopes must be non-empty and drawn from the supported vocabulary. There
+          is no default and nothing is implied: a credential's power is always an
+          explicit choice.
+        example:
+        - users:read
+        items:
+          type: string
+        type: array
+    required:
+    - label
+    - scopes
+    type: object
+  project.CreateCredentialResponse:
+    properties:
+      credential:
+        $ref: '#/definitions/project.CredentialResponse'
+      secret:
+        description: Secret is the full token, e.g. lw_sk_<lookup>_<secret>. Shown
+          once.
+        example: lw_sk_REDACTED_REDACTED
+        type: string
+    type: object
+  project.CreateProjectRequest:
+    properties:
+      name:
+        example: Billing worker
+        type: string
+    required:
+    - name
+    type: object
+  project.CredentialResponse:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      expires_at:
+        type: string
+      id:
+        example: key_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        type: string
+      key_prefix:
+        description: |-
+          KeyPrefix is the lookup segment of the token, e.g. "k3mzr7q2xwab5f9d".
+          Shown so an operator can match a key in a log line to a row here.
+        example: k3mzr7q2xwab5f9d
+        type: string
+      label:
+        example: billing worker (staging)
+        type: string
+      last_used_at:
+        type: string
+      project_id:
+        example: prj_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+      revoked_at:
+        type: string
+      revoked_by:
+        type: string
+      scopes:
+        example:
+        - users:read
+        - users:write
+        items:
+          type: string
+        type: array
+      status:
+        description: |-
+          Status is the credential's effective state, computed at response time:
+          active, expired or revoked. Computed rather than stored because expiry is
+          a fact about now, not about the row.
+        enum:
+        - active
+        - expired
+        - revoked
+        example: active
+        type: string
+    type: object
+  project.ErrorBody:
+    properties:
+      code:
+        example: project_not_found
+        type: string
+      message:
+        example: Project not found
+        type: string
+      request_id:
+        example: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+    type: object
+  project.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/project.ErrorBody'
+    type: object
+  project.ListCredentialsResponse:
+    properties:
+      count:
+        example: 2
+        type: integer
+      credentials:
+        items:
+          $ref: '#/definitions/project.CredentialResponse'
+        type: array
+    type: object
+  project.ListProjectsResponse:
+    properties:
+      count:
+        example: 2
+        type: integer
+      projects:
+        items:
+          $ref: '#/definitions/project.ProjectResponse'
+        type: array
+    type: object
+  project.ProjectResponse:
+    properties:
+      active_credentials:
+        description: |-
+          ActiveCredentials is how many credentials can currently authenticate.
+          Included in the listing so an operator can see at a glance which projects
+          hold live keys without opening each one.
+        example: 2
+        type: integer
+      archived_at:
+        type: string
+      created_at:
+        type: string
+      id:
+        example: prj_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+      name:
+        example: Billing worker
+        type: string
+      status:
+        enum:
+        - active
+        - archived
+        example: active
+        type: string
+      updated_at:
+        type: string
+      workspace_id:
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        type: string
+    type: object
+  project.ScopesResponse:
+    properties:
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  project.UpdateProjectRequest:
+    properties:
+      name:
+        example: Billing worker EU
+        type: string
+      status:
+        type: string
+      workspace_id:
+        type: string
+    type: object
   server.auditEventDTO:
     properties:
       action:
@@ -236,6 +940,16 @@ definitions:
           $ref: '#/definitions/server.auditEventDTO'
         type: array
     type: object
+  server.readinessReport:
+    properties:
+      checks:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        example: ready
+        type: string
+    type: object
   user.UserResponse:
     properties:
       created_at:
@@ -251,6 +965,89 @@ definitions:
       username:
         type: string
     type: object
+  workspace.CreateWorkspaceRequest:
+    properties:
+      name:
+        description: Name is required and must be non-blank after trimming.
+        example: Production
+        type: string
+      slug:
+        description: |-
+          Slug is optional. When omitted it is derived from Name; when present it
+          is only trimmed and lowercased, never slugified — an unusable slug is
+          reported rather than silently rewritten.
+        example: production
+        type: string
+    required:
+    - name
+    type: object
+  workspace.ErrorBody:
+    properties:
+      code:
+        example: workspace_not_found
+        type: string
+      message:
+        example: Workspace not found
+        type: string
+      request_id:
+        example: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+    type: object
+  workspace.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/workspace.ErrorBody'
+    type: object
+  workspace.ListWorkspacesResponse:
+    properties:
+      count:
+        example: 2
+        type: integer
+      workspaces:
+        items:
+          $ref: '#/definitions/workspace.WorkspaceResponse'
+        type: array
+    type: object
+  workspace.UpdateWorkspaceRequest:
+    properties:
+      name:
+        example: Production EU
+        type: string
+      slug:
+        type: string
+      status:
+        type: string
+    type: object
+  workspace.WorkspaceResponse:
+    properties:
+      archived_at:
+        description: |-
+          ArchivedAt is null for active workspaces and set for archived ones. The
+          database enforces that this and Status can never disagree.
+        type: string
+      created_at:
+        type: string
+      id:
+        description: |-
+          ID is always the prefixed form, `ws_<uuid>`. The bare UUID is never
+          exposed.
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        type: string
+      name:
+        example: Production
+        type: string
+      slug:
+        example: production
+        type: string
+      status:
+        enum:
+        - active
+        - archived
+        example: active
+        type: string
+      updated_at:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -258,7 +1055,7 @@ info:
     SaaS backend with Keycloak-issued JWT auth.
     All protected endpoints require a Bearer token obtained from Keycloak.
   title: Lightweight SaaS Backend API
-  version: "1.0"
+  version: 0.4.0
 paths:
   /admin/audit-events:
     get:
@@ -1516,8 +2313,24 @@ paths:
       - sessions
   /health:
     get:
-      description: Returns 200 if the process is up. No auth required, no dependency
-        checks.
+      description: Equivalent to /health/live. Kept for existing deployments and monitors.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe (legacy path)
+      tags:
+      - operations
+  /health/live:
+    get:
+      description: |-
+        Returns 200 while the process is running. No auth, no dependency checks, no I/O.
+        A failure here means the process is wedged and should be restarted.
       produces:
       - application/json
       responses:
@@ -1528,6 +2341,27 @@ paths:
               type: string
             type: object
       summary: Liveness probe
+      tags:
+      - operations
+  /health/ready:
+    get:
+      description: |-
+        Returns 200 when this instance can serve traffic, 503 otherwise.
+        Checks only GLOBAL dependencies: the database, and whether a shutdown has begun.
+        A workspace whose Keycloak is down does NOT make the instance unready —
+        that request answers provider_unavailable and every other workspace keeps working.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/server.readinessReport'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/server.readinessReport'
+      summary: Readiness probe
       tags:
       - operations
   /me:
@@ -1560,9 +2394,2929 @@ paths:
       summary: Get authenticated user
       tags:
       - users
+  /v1/project-scopes:
+    get:
+      description: |-
+        Advertises the scope vocabulary so a console does not hard-code
+        it and drift from the server. Adding a scope is a migration, so
+        this list changes rarely.
+
+        Mounted OUTSIDE the workspace path on purpose: the vocabulary is
+        a property of the installation, not of a workspace, and putting
+        it under `/projects/scopes` would also collide with the
+        `/projects/{project_id}` route in the router's tree.
+
+        **Operator only.**
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.ScopesResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List the supported credential scopes
+      tags:
+      - projects
+  /v1/workspaces:
+    get:
+      description: |-
+        Returns workspaces ordered by name, then id. By default only
+        active workspaces are returned — archived ones are operational
+        history rather than part of the working set. Requires the
+        caller's token to carry the realm `admin` role.
+      parameters:
+      - default: active
+        description: which workspaces to return
+        enum:
+        - active
+        - archived
+        - all
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspace.ListWorkspacesResponse'
+        "400":
+          description: invalid_status_filter
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List workspaces
+      tags:
+      - workspaces
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates an active workspace. `slug` is optional: when omitted
+        it is derived from `name`. When supplied it is trimmed and
+        lowercased but never rewritten — an unusable slug is reported
+        rather than silently changed. Slugs are globally unique and are
+        never released, including by archiving.
+      parameters:
+      - description: workspace to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/workspace.CreateWorkspaceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/workspace.WorkspaceResponse'
+        "400":
+          description: workspace_name_required, workspace_slug_invalid, workspace_slug_reserved,
+            invalid_request
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: workspace_slug_taken
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a workspace
+      tags:
+      - workspaces
+  /v1/workspaces/{workspace_id}:
+    get:
+      description: |-
+        Returns one workspace by public id. Archived workspaces remain
+        individually readable. Accepts `ws_<uuid>`; a bare UUID is also
+        accepted as a development convenience.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspace.WorkspaceResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a workspace
+      tags:
+      - workspaces
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Renames a workspace. `name` is the only mutable field: `slug`
+        is immutable, and `status` changes go through the archive
+        operation. Sending either is rejected rather than ignored, so a
+        client never believes a change took effect when it did not.
+        Archived workspaces cannot be modified.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/workspace.UpdateWorkspaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspace.WorkspaceResponse'
+        "400":
+          description: invalid_workspace_id, workspace_name_required, invalid_request
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "409":
+          description: workspace_archived
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a workspace
+      tags:
+      - workspaces
+  /v1/workspaces/{workspace_id}/archive:
+    post:
+      description: |-
+        Moves a workspace to the archived state and stamps
+        `archived_at`. Idempotent: archiving an already-archived
+        workspace succeeds and returns it unchanged, so a retried
+        request is safe. Nothing is deleted, the slug is not released,
+        and there is no reactivation path.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/workspace.WorkspaceResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/workspace.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Archive a workspace
+      tags:
+      - workspaces
+  /v1/workspaces/{workspace_id}/audit:
+    get:
+      description: |-
+        Returns the durable audit trail for this workspace, newest first.
+
+        **Required scope (project credentials):** `audit:read`.
+        Operators are authorized by the realm `admin` role instead.
+
+        The trail records ATTEMPTS TO CHANGE STATE by an identified actor —
+        who did what, to which resource, whether it worked, and on which
+        request. It is not a request log: reads are absent, and so is
+        traffic that never got past authentication.
+
+        **Pagination is cursor-based.** Pass the `next_cursor` from the
+        previous page; its ABSENCE means there is no more history. Offset
+        pagination is not offered: this table only ever grows at the head,
+        so an offset shifts under a client between pages.
+
+        **This endpoint never returns secret material.** No password, no
+        credential secret or hash, no connection secret, no provider token,
+        and no request body — regardless of who is asking.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        type: string
+      - description: exact event type, e.g. user.created
+        in: query
+        name: event
+        type: string
+      - description: operator or project
+        enum:
+        - operator
+        - project
+        in: query
+        name: actor_type
+        type: string
+      - description: success or failure
+        enum:
+        - success
+        - failure
+        in: query
+        name: outcome
+        type: string
+      - description: inclusive lower bound, RFC 3339
+        example: "2026-08-01T00:00:00Z"
+        in: query
+        name: from
+        type: string
+      - description: inclusive upper bound, RFC 3339
+        example: "2026-08-31T23:59:59Z"
+        in: query
+        name: to
+        type: string
+      - description: opaque cursor from the previous page
+        in: query
+        name: cursor
+        type: string
+      - description: page size, 1-200 (default 50)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auditlog.ListEventsResponse'
+        "400":
+          description: invalid_request, invalid_workspace_id
+          schema:
+            $ref: '#/definitions/auditlog.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/auditlog.ErrorResponse'
+        "403":
+          description: forbidden, workspace_mismatch, insufficient_scope
+          schema:
+            $ref: '#/definitions/auditlog.ErrorResponse'
+        "503":
+          description: audit_unavailable
+          schema:
+            $ref: '#/definitions/auditlog.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List a workspace's audit history
+      tags:
+      - audit
+  /v1/workspaces/{workspace_id}/connections:
+    get:
+      description: |-
+        Returns the workspace's connections ordered by name, then id.
+        Unlike the workspace listing, the default here is **all**
+        statuses: the operator workflow is draft → verify → activate →
+        the previous one retires, and hiding two thirds of that would
+        make the endpoint unusable. Client secrets are never returned.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - default: all
+        description: which connections to return
+        enum:
+        - draft
+        - active
+        - retired
+        - all
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/connection.ListConnectionsResponse'
+        "400":
+          description: invalid_workspace_id, invalid_status_filter
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List a workspace's connections
+      tags:
+      - connections
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates a connection in **draft** state. The client secret is
+        sealed with AES-256-GCM before it reaches the database and is
+        never returned by any endpoint. A draft does nothing until it
+        has been verified and activated.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/connection.CreateConnectionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/connection.ConnectionResponse'
+        "400":
+          description: connection_name_required, connection_base_url_invalid, connection_realm_required,
+            connection_client_id_required, connection_client_secret_required, connection_provider_unsupported,
+            invalid_workspace_id, invalid_request
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "409":
+          description: workspace_archived
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a connection
+      tags:
+      - connections
+  /v1/workspaces/{workspace_id}/connections/{connection_id}:
+    delete:
+      description: |-
+        Permanently removes a **draft** or **retired** connection and
+        its sealed credential. An active connection cannot be deleted:
+        retire it first, so taking a workspace's provider out of
+        service is a visible, separate step.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection id
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: connection_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: deleted
+        "400":
+          description: invalid_workspace_id, invalid_connection_id
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found, connection_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "409":
+          description: connection_active_cannot_delete
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a connection
+      tags:
+      - connections
+    get:
+      description: Returns one connection. The client secret is never included.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection id
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: connection_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/connection.ConnectionResponse'
+        "400":
+          description: invalid_workspace_id, invalid_connection_id
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found, connection_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a connection
+      tags:
+      - connections
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Edits a **draft** connection's configuration. Changing
+        `base_url`, `realm`, `client_id` or `client_secret` resets the
+        verification — the stored verdict referred to coordinates that
+        no longer apply, and keeping it would let the connection be
+        activated on the strength of a probe against a different
+        provider. `status` and `provider` are rejected rather than
+        ignored: state changes go through activate and retire.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection id
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: connection_id
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/connection.UpdateConnectionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/connection.ConnectionResponse'
+        "400":
+          description: invalid_connection_id, connection_name_required, connection_base_url_invalid,
+            invalid_request
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found, connection_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "409":
+          description: connection_not_draft, connection_retired
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a draft connection
+      tags:
+      - connections
+  /v1/workspaces/{workspace_id}/connections/{connection_id}/activate:
+    post:
+      description: |-
+        Promotes a verified draft to **active** and retires the
+        workspace's previous active connection in the same transaction.
+        At most one connection per workspace is active, enforced by a
+        partial unique index rather than by application code.
+
+        Requires a verification that passed within the last hour.
+        Unlike archive, this is deliberately **not** idempotent: a
+        repeat call returns `connection_already_active`, because a
+        caller retrying may believe they are switching away from a
+        different connection.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection id
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: connection_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/connection.ConnectionResponse'
+        "400":
+          description: invalid_workspace_id, invalid_connection_id
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found, connection_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "409":
+          description: connection_not_verified, connection_verification_expired, connection_already_active,
+            connection_retired, workspace_archived, workspace_has_active_connection
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Activate a connection
+      tags:
+      - connections
+  /v1/workspaces/{workspace_id}/connections/{connection_id}/retire:
+    post:
+      description: |-
+        Moves a connection to **retired**, its terminal state. Works on
+        a draft or an active connection; retiring an active one leaves
+        the workspace with no active connection. There is no
+        reactivation path — create a new connection instead. Retiring an
+        already-retired connection is a conflict, not a no-op.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection id
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: connection_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/connection.ConnectionResponse'
+        "400":
+          description: invalid_workspace_id, invalid_connection_id
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found, connection_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "409":
+          description: connection_retired
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Retire a connection
+      tags:
+      - connections
+  /v1/workspaces/{workspace_id}/connections/{connection_id}/verify:
+    post:
+      description: |-
+        Probes the provider and records the verdict. The probe is
+        strictly read-only: it reaches the provider, confirms the realm
+        exists, authenticates the admin client, then reads the realm
+        settings and lists one user. It creates no test user and
+        modifies nothing.
+
+        The first three checks decide `health`. The two admin reads
+        decide `access_mode`: a service account that authenticates but
+        cannot read is `healthy` + `limited` — correctly configured and
+        under-privileged, which is a different fix from a wrong URL.
+
+        A successful verification authorizes activation for one hour.
+      parameters:
+      - description: workspace id
+        example: ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: connection id
+        example: conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: connection_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: the probe ran; check report.ok for the verdict
+          schema:
+            $ref: '#/definitions/connection.VerifyResponse'
+        "400":
+          description: invalid_workspace_id, invalid_connection_id
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "401":
+          description: missing/invalid token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: token lacks admin role
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: workspace_not_found, connection_not_found
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/connection.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verify a connection
+      tags:
+      - connections
+  /v1/workspaces/{workspace_id}/invitations:
+    get:
+      description: |-
+        Invitations are DERIVED from user state — Keycloak has no
+        invitation resource. A user with pending required actions or
+        invitation attributes appears here; once they complete those
+        actions they stop appearing, without anything being deleted.
+
+        `status` is computed: pending, accepted, expired or revoked.
+
+        **Required scope (project credentials):** `invitations:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListInvitationsResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, workspace_connection_missing, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List a workspace's pending invitations
+      tags:
+      - workspace-identity
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Provisions a user in invited-but-incomplete state, assigns the
+        requested realm roles, and dispatches Keycloak's action email.
+
+        REQUIRES SMTP configured on the workspace's realm. Without it
+        the email dispatch fails, and the half-provisioned user is
+        removed so the same address can be retried — you get an error,
+        not a silent half-invitation. Installations without SMTP should
+        use POST .../users instead, which sets a temporary password and
+        sends nothing.
+
+        **Required scope (project credentials):** `invitations:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: invitation to send
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.CreateInvitationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/identity.InvitationResponse'
+        "400":
+          description: invalid_workspace_id, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, conflict, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable (includes SMTP not configured on the realm)
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Invite a user to a workspace's realm
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/invitations/{invitation_id}:
+    delete:
+      description: |-
+        An invitation IS a user, so this deletes the user. Self-deletion
+        is refused; the last-admin guard does NOT apply here, because an
+        invited user cannot yet hold admin. To delete a user who has
+        accepted, use DELETE .../users/{user_id}, which is guarded.
+
+        **Required scope (project credentials):** `invitations:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: the invited user's Keycloak sub UUID
+        in: path
+        name: invitation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: caller_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, invitation_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Revoke a workspace invitation
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/invitations/{invitation_id}/resend:
+    post:
+      description: |-
+        Only the still-pending actions are re-dispatched, so a user who
+        already verified their email is not asked to do it again.
+
+        An ACCEPTED invitation (nothing left to do) and a REVOKED one
+        (user disabled) both return `conflict` — the first has nothing
+        to resend, the second needs the user re-enabled first.
+
+        **Required scope (project credentials):** `invitations:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: the invited user's Keycloak sub UUID
+        in: path
+        name: invitation_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.InvitationResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, invitation_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, conflict, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable (includes SMTP not configured on the realm)
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Re-send a workspace invitation's action email
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/projects:
+    get:
+      description: |-
+        Returns every project in the workspace, active and archived,
+        with a count of the credentials that can currently authenticate.
+        Archived projects are included because this listing backs a
+        management screen: hiding them would leave no way to confirm an
+        archive happened.
+
+        **Operator only.** No project credential can reach this route,
+        whatever scopes it holds.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.ListProjectsResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List a workspace's projects
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates an active project bound PERMANENTLY to this workspace.
+        The binding cannot be changed: it is the authorization boundary
+        every credential of this project is confined to. If another
+        workspace needs API access, create a project there.
+
+        Names are unique per workspace, compared case-insensitively.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/project.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/project.ProjectResponse'
+        "400":
+          description: project_name_required, invalid_workspace_id, invalid_request
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "409":
+          description: workspace_archived, project_name_taken
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a project
+      tags:
+      - projects
+  /v1/workspaces/{workspace_id}/projects/{project_id}:
+    get:
+      description: |-
+        A project belonging to a different workspace reads as not found,
+        so an id cannot be used to confirm another workspace's contents.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project id
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        in: path
+        name: project_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.ProjectResponse'
+        "400":
+          description: invalid_workspace_id, invalid_project_id
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found, project_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a project
+      tags:
+      - projects
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Name is the only mutable field. `workspace_id` is declared in
+        the body solely so this endpoint can REFUSE it: moving a project
+        between workspaces would silently repoint every live credential
+        at a different realm, which is the one thing the authorization
+        model must never allow.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project id
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        in: path
+        name: project_id
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/project.UpdateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.ProjectResponse'
+        "400":
+          description: project_name_required, invalid_request
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found, project_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "409":
+          description: project_archived, project_name_taken
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Rename a project
+      tags:
+      - projects
+  /v1/workspaces/{workspace_id}/projects/{project_id}/archive:
+    post:
+      description: |-
+        Freezes the project. EVERY credential it holds stops
+        authenticating immediately — authentication reads the project's
+        status in the same lookup as the credential, so this is one
+        atomic kill switch rather than a loop over keys that could
+        half-finish.
+
+        Idempotent: archiving an already-archived project succeeds.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project id
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        in: path
+        name: project_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.ProjectResponse'
+        "400":
+          description: invalid_workspace_id, invalid_project_id
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found, project_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Archive a project
+      tags:
+      - projects
+  /v1/workspaces/{workspace_id}/projects/{project_id}/credentials:
+    get:
+      description: |-
+        Returns credential METADATA. The secret is never included, and
+        no endpoint can return it: only a SHA-256 digest is stored, so
+        the plaintext does not exist anywhere in this system after the
+        create call returned it.
+
+        Revoked credentials are included: the list is the trail an
+        operator reads when working out which key a deployment still
+        holds.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project id
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        in: path
+        name: project_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.ListCredentialsResponse'
+        "400":
+          description: invalid_workspace_id, invalid_project_id
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found, project_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List a project's credentials
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Mints a machine credential and returns the secret **once**.
+        There is no endpoint that can show it again, and adding one
+        would be impossible without changing what is stored: only a
+        SHA-256 digest of the secret is persisted.
+
+        Scopes are explicit and non-empty. Nothing is granted by
+        default, and an empty list is rejected rather than treated as
+        "no permissions" — a credential that authenticates and can do
+        nothing is a configuration mistake worth reporting at creation.
+
+        A project may hold at most 10 active credentials. Rotation is
+        create-new, deploy, revoke-old.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project id
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        in: path
+        name: project_id
+        required: true
+        type: string
+      - description: credential to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/project.CreateCredentialRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/project.CreateCredentialResponse'
+        "400":
+          description: credential_label_required, invalid_scope, invalid_request
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found, project_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "409":
+          description: project_archived, credential_limit_reached
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a project credential
+      tags:
+      - projects
+  /v1/workspaces/{workspace_id}/projects/{project_id}/credentials/{credential_id}/revoke:
+    post:
+      description: |-
+        Takes effect immediately: authentication reads the credential
+        row on every request and there is no cache to invalidate. A
+        request already in flight completes — it was authorized when it
+        started — but the next one fails.
+
+        Revoking an already-revoked credential is a conflict rather than
+        a silent success, so an operator learns that someone else got
+        there first.
+
+        **Operator only.**
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: project id
+        example: prj_7c9e6679-7425-40de-944b-e07fc1f90ae7
+        in: path
+        name: project_id
+        required: true
+        type: string
+      - description: credential id
+        example: key_9b2f4c1a-1111-4222-8333-444455556666
+        in: path
+        name: credential_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/project.CredentialResponse'
+        "400":
+          description: invalid_project_id, invalid_credential_id
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "403":
+          description: forbidden, operator_only
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "404":
+          description: workspace_not_found, project_not_found, credential_not_found
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "409":
+          description: credential_already_revoked
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/project.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke a project credential
+      tags:
+      - projects
+  /v1/workspaces/{workspace_id}/roles:
+    get:
+      description: |-
+        Returns the realm roles from the Keycloak realm that the
+        workspace's ACTIVE connection points at. Roles Keycloak manages
+        itself are returned with `builtin: true`.
+
+        **Required scope (project credentials):** `roles:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListRolesResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, workspace_connection_missing, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List a workspace's realm roles
+      tags:
+      - workspace-identity
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates a realm role in the Keycloak realm that the workspace's
+        ACTIVE connection points at. The role appears in that realm and
+        in no other.
+
+        Names are trimmed and lowercased. Names the platform or Keycloak
+        manages (`admin`, `user`, `offline_access`, `uma_authorization`,
+        `default-roles-*`) are refused with `role_reserved`.
+
+        **Required scope (project credentials):** `roles:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: role to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/identity.RoleResponse'
+        "400":
+          description: invalid_workspace_id, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, role_already_exists,
+            role_reserved, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Create a realm role in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/roles/{role_name}:
+    delete:
+      description: |-
+        Protected roles return `role_reserved`.
+
+        **Required scope (project credentials):** `roles:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: realm role name
+        example: billing-admin
+        in: path
+        name: role_name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_role_name
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, role_reserved, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Delete a realm role in a workspace
+      tags:
+      - workspace-identity
+    get:
+      description: |-
+        **Required scope (project credentials):** `roles:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: realm role name
+        example: billing-admin
+        in: path
+        name: role_name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.RoleResponse'
+        "400":
+          description: invalid_workspace_id, invalid_role_name
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Get a realm role in a workspace
+      tags:
+      - workspace-identity
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        `description` is the only mutable field. Renaming is out of
+        scope: it would require rewriting every role-mapping that
+        references the old name. Protected roles return `role_reserved`.
+
+        **Required scope (project credentials):** `roles:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: realm role name
+        example: billing-admin
+        in: path
+        name: role_name
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.RoleResponse'
+        "400":
+          description: invalid_workspace_id, invalid_role_name, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, role_reserved, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Update a realm role's description in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/roles/{role_name}/users:
+    get:
+      description: |-
+        Pages through the full membership rather than returning
+        Keycloak's default first 100 — the last-admin guard depends on
+        seeing the complete set.
+
+        **Required scope (project credentials):** `roles:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: realm role name
+        example: billing-admin
+        in: path
+        name: role_name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListUsersResponse'
+        "400":
+          description: invalid_workspace_id, invalid_role_name
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List the users carrying a realm role in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/sessions:
+    get:
+      description: |-
+        Aggregates sessions client by client, so a realm with many
+        clients pays a per-client round trip. Realm-wide, not per-user —
+        for one user's sessions use the user-scoped route.
+
+        **Required scope (project credentials):** `sessions:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListSessionsResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, workspace_connection_missing, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List active sessions across a workspace's realm
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/sessions/{session_id}:
+    delete:
+      description: |-
+        **Required scope (project credentials):** `sessions:revoke`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: session UUID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_session_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, session_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Revoke a single session in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users:
+    get:
+      description: |-
+        Returns a page of users from the Keycloak realm that the
+        workspace's ACTIVE connection points at. The workspace id in the
+        path is the routing boundary: two workspaces connected to two
+        realms return two disjoint sets of users.
+
+        `first` and `max` in the response are the EFFECTIVE values —
+        what the server actually used after clamping `max` to [1, 100]
+        and `first` to >= 0. This differs from the legacy
+        `GET /admin/users`, which echoes the caller's raw input.
+
+        **Required scope (project credentials):** `users:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: substring match on username/email/firstName/lastName
+        in: query
+        name: search
+        type: string
+      - description: offset (default 0)
+        in: query
+        name: first
+        type: integer
+      - description: page size (default 20, max 100)
+        in: query
+        name: max
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListUsersResponse'
+        "400":
+          description: invalid_workspace_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, workspace_connection_missing, workspace_connection_unusable,
+            provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: provider_credentials_unavailable, internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List a workspace's users
+      tags:
+      - workspace-identity
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Provisions a user directly with a temporary password they must
+        change on first login. This is the existing direct-provisioning
+        flow, not a new one — the alternative is an invitation, which
+        sends an email and therefore requires SMTP configured on the
+        realm.
+
+        If setting the password or assigning roles fails after the user
+        was created, the half-provisioned user is removed so the same
+        email can be retried.
+
+        **Required scope (project credentials):** `users:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: user to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/identity.UserResponse'
+        "400":
+          description: invalid_workspace_id, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, workspace_connection_missing, connection_read_only,
+            conflict, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: provider_credentials_unavailable, internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Create a user in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users/{user_id}:
+    delete:
+      description: |-
+        Guarded against self-deletion and against removing the realm's
+        last enabled admin; both return `caller_forbidden`.
+
+        **Required scope (project credentials):** `users:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_user_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: caller_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Delete a user in a workspace
+      tags:
+      - workspace-identity
+    get:
+      description: |-
+        **Required scope (project credentials):** `users:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.UserResponse'
+        "400":
+          description: invalid_workspace_id, invalid_user_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, workspace_connection_missing, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Get a user in a workspace
+      tags:
+      - workspace-identity
+    patch:
+      consumes:
+      - application/json
+      description: |-
+        Partial update — omitted fields are preserved. Guarded against
+        self-disable and against disabling the realm's last enabled
+        admin; both return `caller_forbidden`.
+
+        **Required scope (project credentials):** `users:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.UserResponse'
+        "400":
+          description: invalid_workspace_id, invalid_user_id, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: caller_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Update a user in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users/{user_id}/password:
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Sets the password without sending email. With
+        `temporary: true` Keycloak forces a change on next login.
+        Minimum 8 characters here; the realm's own password policy
+        applies on top and may reject more.
+
+        The password is never echoed, never logged, and never part of
+        the audit event this emits.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: the new password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.SetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_user_id, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set a user's password directly in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users/{user_id}/reset-password:
+    post:
+      description: |-
+        Dispatches Keycloak's UPDATE_PASSWORD action email. This is the
+        EMAIL flow, and it requires SMTP configured on the workspace's
+        realm — an unconfigured realm surfaces as `provider_unavailable`.
+        To set a password directly instead, use PUT .../password.
+
+        The two are exposed as separate routes on purpose: they have
+        different prerequisites and different outcomes, and hiding that
+        behind one endpoint with a flag would make failures unreadable.
+
+        **Required scope (project credentials):** `users:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+        "400":
+          description: invalid_workspace_id, invalid_user_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Send a password-reset action email to a user in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users/{user_id}/roles:
+    get:
+      description: |-
+        **Required scope (project credentials):** `roles:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListRolesResponse'
+        "400":
+          description: invalid_workspace_id, invalid_user_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List a user's realm roles in a workspace
+      tags:
+      - workspace-identity
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Roles are resolved by name; a missing role short-circuits with
+        `role_not_found` before any partial assignment happens.
+
+        **Required scope (project credentials):** `roles:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: role names to grant
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/identityruntime.AssignRolesRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_user_id, invalid_request
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Grant realm roles to a user in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users/{user_id}/roles/{role_name}:
+    delete:
+      description: |-
+        Guarded against removing your own `admin` role and against
+        removing it from the realm's last enabled admin; both return
+        `caller_forbidden`.
+
+        **Required scope (project credentials):** `roles:write`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: realm role name
+        example: billing-admin
+        in: path
+        name: role_name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_user_id, invalid_role_name
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: caller_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found, role_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Revoke a realm role from a user in a workspace
+      tags:
+      - workspace-identity
+  /v1/workspaces/{workspace_id}/users/{user_id}/sessions:
+    delete:
+      description: |-
+        Deliberately NOT guarded against self-logout: an admin logging
+        themselves out of other browsers is a valid recovery action, and
+        the worst case is they invalidate their own token too.
+
+        **Required scope (project credentials):** `sessions:revoke`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: invalid_workspace_id, invalid_user_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, connection_read_only, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: Revoke all of a user's sessions in a workspace
+      tags:
+      - workspace-identity
+    get:
+      description: |-
+        **Required scope (project credentials):** `sessions:read`.
+        Operators are authorized by the realm `admin` role instead.
+      parameters:
+      - description: workspace id
+        example: ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301
+        in: path
+        name: workspace_id
+        required: true
+        type: string
+      - description: Keycloak sub UUID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/identity.ListSessionsResponse'
+        "400":
+          description: invalid_workspace_id, invalid_user_id
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "401":
+          description: credential_invalid
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "403":
+          description: forbidden, operator_only, workspace_mismatch, insufficient_scope,
+            role_privileged
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "404":
+          description: workspace_not_found, user_not_found
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "409":
+          description: workspace_archived, provider_forbidden
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "500":
+          description: internal_error
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+        "502":
+          description: provider_unavailable
+          schema:
+            $ref: '#/definitions/identityruntime.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ProjectKeyAuth: []
+      summary: List one user's sessions in a workspace
+      tags:
+      - workspace-identity
 securityDefinitions:
   BearerAuth:
-    description: Type "Bearer" followed by a Keycloak-issued access token.
+    description: OPERATOR authentication. Type "Bearer" followed by a Keycloak-issued
+      access token. The token must carry the realm `admin` role, which is re-checked
+      against the provider on every request.
+    in: header
+    name: Authorization
+    type: apiKey
+  ProjectKeyAuth:
+    description: PROJECT authentication (machine-to-machine). Type "Bearer" followed
+      by a project credential, e.g. `Bearer lw_sk_<lookup>_<secret>`. The credential
+      is bound to exactly one workspace and carries an explicit scope set; the scope
+      each operation requires is stated in its description. Control-plane operations
+      (workspaces, connections, projects) are operator-only and answer `operator_only`
+      to any credential. Swagger 2.0 cannot express per-operation scopes for an apiKey
+      scheme, so they are documented in prose rather than declared — see docs/PROJECTS.md.
     in: header
     name: Authorization
     type: apiKey

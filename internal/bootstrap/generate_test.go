@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/config"
 )
 
 // freshConfig returns a ProjectConfig matching validConfigJSON for direct
@@ -513,4 +515,124 @@ func mkdirs(t *testing.T, root string, dirs ...string) {
 			t.Fatalf("mkdir %s: %v", d, err)
 		}
 	}
+}
+
+// ─── The generator against the configuration contract ────────────────────────
+//
+// These three are one gate in three parts: a regeneration must produce a
+// COMPLETE configuration, and must not overwrite what the operator chose.
+//
+// The bug they pin shipped and was found by installing the product. writeEnv
+// emitted a hand-maintained list of 25 variables while the contract had grown
+// to 39, so `make regen` — step three of the documented quick start — rewrote
+// .env without SECRETS_KEYRING, ADMIN_CONSOLE_CLIENT_ID, CORS_ALLOWED_ORIGINS
+// and eleven others. Nothing failed. The installation booted, and the
+// connection API, the workspace identity runtime and the console login were
+// simply gone, which an operator discovers by trying to use the product.
+//
+// A comment saying "keep this in sync with contract.go" is what was there
+// before, in effect. This reads the contract instead.
+
+// TestGeneratedEnvExample_CoversTheWholeContract fails when a variable is
+// added to the contract and not to the generator.
+func TestGeneratedEnvExample_CoversTheWholeContract(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "config", "deploy/keycloak")
+	if err := GenerateAll(root, freshConfig(), freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+	got := envKeys(t, filepath.Join(root, ".env.example"))
+
+	for _, s := range config.Settings() {
+		if !got[s.Name] {
+			t.Errorf("the generator never writes %s, so `make regen` deletes it from a\n"+
+				"working .env. Add it to writeEnv in generate.go.\n"+
+				"  consumer=%s requirement=%s purpose=%s",
+				s.Name, s.Consumer, s.Requirement, s.Purpose)
+		}
+	}
+}
+
+// TestGeneratedEnvExample_DeclaresNothingUndeclared is the other direction: a
+// variable in .env.example that no code reads is a value an operator will set
+// and wonder why nothing happens.
+func TestGeneratedEnvExample_DeclaresNothingUndeclared(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "config", "deploy/keycloak")
+	if err := GenerateAll(root, freshConfig(), freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+	for name := range envKeys(t, filepath.Join(root, ".env.example")) {
+		if _, ok := config.SettingByName(name); !ok {
+			t.Errorf("the generator writes %s, which the configuration contract does not\n"+
+				"declare. Either add it to contract.go or stop emitting it.", name)
+		}
+	}
+}
+
+// TestGenerateEnv_PreservesOperatorOwnedValues pins the half of the fix that
+// the coverage test above cannot see: emitting a variable is not enough if
+// regeneration resets it to a default.
+//
+// Every value here is one project.json has no way to express, so a
+// regeneration has nothing to derive it from and must keep what it finds.
+func TestGenerateEnv_PreservesOperatorOwnedValues(t *testing.T) {
+	root := t.TempDir()
+	mkdirs(t, root, "config", "deploy/keycloak")
+
+	existing := map[string]string{
+		"SECRETS_KEYRING":           "1:aGVsbG8td29ybGQtdGhpcy1pcy0zMi1ieXRlcy0h",
+		"SECRETS_KEY_CURRENT":       "1",
+		"ADMIN_CONSOLE_CLIENT_ID":   "lightweight-console",
+		"CORS_ALLOWED_ORIGINS":      "https://console.example.com",
+		"POSTGRES_PASSWORD":         "a-real-password",
+		"RATE_LIMIT_CREDENTIAL_RPS": "200",
+		"AUDIT_RETENTION_DAYS":      "365",
+		"METRICS_TOKEN":             "a-real-scrape-token",
+		"API_HOST_PORT":             "9090",
+	}
+	var b strings.Builder
+	for k, v := range existing {
+		b.WriteString(k + "=" + v + "\n")
+	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte(b.String()), 0o600); err != nil {
+		t.Fatalf("seed .env: %v", err)
+	}
+
+	if err := GenerateAll(root, freshConfig(), freshSecrets()); err != nil {
+		t.Fatalf("GenerateAll: %v", err)
+	}
+
+	after := envValues(t, filepath.Join(root, ".env"))
+	for k, want := range existing {
+		if after[k] != want {
+			t.Errorf("regen changed operator-owned %s: %q -> %q", k, want, after[k])
+		}
+	}
+
+	// And the committed example must not have absorbed any of it.
+	example := envValues(t, filepath.Join(root, ".env.example"))
+	for k, leaked := range existing {
+		if example[k] == leaked {
+			t.Errorf(".env.example absorbed the installation's %s — it is a committed file", k)
+		}
+	}
+}
+
+func envValues(t *testing.T, path string) map[string]string {
+	t.Helper()
+	m := parseEnvFile(path)
+	if len(m) == 0 {
+		t.Fatalf("parsed no variables from %s", path)
+	}
+	return m
+}
+
+func envKeys(t *testing.T, path string) map[string]bool {
+	t.Helper()
+	out := map[string]bool{}
+	for k := range envValues(t, path) {
+		out[k] = true
+	}
+	return out
 }

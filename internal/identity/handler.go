@@ -85,7 +85,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 
 	out := make([]UserResponse, 0, len(users))
 	for _, u := range users {
-		out = append(out, toUserResponse(u))
+		out = append(out, NewUserResponse(u))
 	}
 	c.JSON(http.StatusOK, ListUsersResponse{
 		Users: out,
@@ -118,7 +118,7 @@ func (h *Handler) GetUser(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toUserResponse(*user))
+	c.JSON(http.StatusOK, NewUserResponse(*user))
 }
 
 // ─────────────── Roles ───────────────
@@ -147,7 +147,7 @@ func (h *Handler) ListRoles(c *gin.Context) {
 	}
 	out := make([]RoleResponse, 0, len(roles))
 	for _, r := range roles {
-		out = append(out, toRoleResponse(r))
+		out = append(out, NewRoleResponse(r))
 	}
 	c.JSON(http.StatusOK, ListRolesResponse{Roles: out, Count: len(out)})
 }
@@ -172,7 +172,7 @@ func (h *Handler) GetRole(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toRoleResponse(*r))
+	c.JSON(http.StatusOK, NewRoleResponse(*r))
 }
 
 // ListRoleUsers handles GET /admin/roles/:name/users.
@@ -197,7 +197,7 @@ func (h *Handler) ListRoleUsers(c *gin.Context) {
 	}
 	out := make([]UserResponse, 0, len(users))
 	for _, u := range users {
-		out = append(out, toUserResponse(u))
+		out = append(out, NewUserResponse(u))
 	}
 	c.JSON(http.StatusOK, ListUsersResponse{Users: out, First: 0, Max: 0, Count: len(out)})
 }
@@ -224,7 +224,7 @@ func (h *Handler) ListUserRoles(c *gin.Context) {
 	}
 	out := make([]RoleResponse, 0, len(roles))
 	for _, r := range roles {
-		out = append(out, toRoleResponse(r))
+		out = append(out, NewRoleResponse(r))
 	}
 	c.JSON(http.StatusOK, ListRolesResponse{Roles: out, Count: len(out)})
 }
@@ -255,7 +255,7 @@ func (h *Handler) ListSessions(c *gin.Context) {
 	}
 	out := make([]SessionResponse, 0, len(sessions))
 	for _, s := range sessions {
-		out = append(out, toSessionResponse(s))
+		out = append(out, NewSessionResponse(s))
 	}
 	c.JSON(http.StatusOK, ListSessionsResponse{Sessions: out, Count: len(out)})
 }
@@ -282,7 +282,7 @@ func (h *Handler) ListUserSessions(c *gin.Context) {
 	}
 	out := make([]SessionResponse, 0, len(sessions))
 	for _, s := range sessions {
-		out = append(out, toSessionResponse(s))
+		out = append(out, NewSessionResponse(s))
 	}
 	c.JSON(http.StatusOK, ListSessionsResponse{Sessions: out, Count: len(out)})
 }
@@ -331,7 +331,7 @@ func (h *Handler) CreateRole(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, toRoleResponse(*role))
+	c.JSON(http.StatusCreated, NewRoleResponse(*role))
 }
 
 // CreateInvitation handles POST /admin/invitations and the alias POST
@@ -399,7 +399,7 @@ func (h *Handler) CreateInvitation(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, toInvitationResponse(*inv))
+	c.JSON(http.StatusCreated, NewInvitationResponse(*inv))
 }
 
 // ListInvitations handles GET /admin/invitations.
@@ -425,7 +425,7 @@ func (h *Handler) ListInvitations(c *gin.Context) {
 	}
 	out := make([]InvitationResponse, 0, len(invs))
 	for _, i := range invs {
-		out = append(out, toInvitationResponse(i))
+		out = append(out, NewInvitationResponse(i))
 	}
 	c.JSON(http.StatusOK, ListInvitationsResponse{Invitations: out, Count: len(out)})
 }
@@ -491,7 +491,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	// when no enabled change happened — cheap, and avoids matching on the
 	// optional-pointer to decide.
 	h.adminInvalidator.Invalidate(targetID)
-	c.JSON(http.StatusOK, toUserResponse(*user))
+	c.JSON(http.StatusOK, NewUserResponse(*user))
 }
 
 // UpdateRole handles PATCH /admin/roles/:name.
@@ -529,7 +529,7 @@ func (h *Handler) UpdateRole(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toRoleResponse(*role))
+	c.JSON(http.StatusOK, NewRoleResponse(*role))
 }
 
 // AssignRolesToUser handles POST /admin/users/:id/roles.
@@ -713,7 +713,7 @@ func (h *Handler) ResendInvitation(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toInvitationResponse(*inv))
+	c.JSON(http.StatusOK, NewInvitationResponse(*inv))
 }
 
 // ─── Stage 5.2D — DELETE handlers ────────────────────────────────────────

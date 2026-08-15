@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 )
@@ -64,3 +65,16 @@ func Record(ctx context.Context, e Event) {
 	}
 	(*def.Load()).Record(ctx, e)
 }
+
+// ErrNotRecorded is the sentinel a transactional writer returns when the
+// durable audit row could not be persisted.
+//
+// It exists so a caller can tell "the mutation failed" from "the mutation was
+// rolled back because its audit row could not be written", and the distinction
+// matters for exactly one reason: the second case must NOT be followed by an
+// attempt to record a failure event, because that would be a second write to
+// the store that just failed. See docs/AUDIT.md §7.
+//
+// It lives in this package rather than in each domain so one errors.Is check
+// works everywhere, and so a new domain cannot invent a fourth spelling of it.
+var ErrNotRecorded = errors.New("audit: the durable event could not be recorded")

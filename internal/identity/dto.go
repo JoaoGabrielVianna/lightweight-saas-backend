@@ -27,8 +27,12 @@ type ListUsersResponse struct {
 	Count int            `json:"count"` // length of users array, NOT total
 }
 
-// toUserResponse projects the provider-agnostic User onto the wire shape.
-func toUserResponse(u User) UserResponse {
+// NewUserResponse projects the provider-agnostic User onto the wire shape.
+//
+// Exported so the workspace-scoped identity surface renders users identically
+// to /admin/users. Two mappers would be two contracts, and they would drift the
+// first time a field is added to one of them.
+func NewUserResponse(u User) UserResponse {
 	return UserResponse{
 		ID:            u.ID,
 		Username:      u.Username,
@@ -57,7 +61,9 @@ type ListRolesResponse struct {
 	Count int            `json:"count"`
 }
 
-func toRoleResponse(r Role) RoleResponse {
+// NewRoleResponse projects a Role onto the wire shape. Exported for the same
+// reason as NewUserResponse: one wire contract, rendered in one place.
+func NewRoleResponse(r Role) RoleResponse {
 	return RoleResponse{
 		ID:          r.ID,
 		Name:        r.Name,
@@ -85,7 +91,10 @@ type ListSessionsResponse struct {
 	Count    int               `json:"count"`
 }
 
-func toSessionResponse(s Session) SessionResponse {
+// NewSessionResponse projects a Session onto the wire shape. Exported for the
+// same reason as NewUserResponse: one wire contract, rendered in one place, so
+// /admin/sessions and the workspace-scoped route cannot drift apart.
+func NewSessionResponse(s Session) SessionResponse {
 	return SessionResponse{
 		ID:         s.ID,
 		UserID:     s.UserID,
@@ -116,7 +125,9 @@ type ListInvitationsResponse struct {
 	Count       int                  `json:"count"`
 }
 
-func toInvitationResponse(i Invitation) InvitationResponse {
+// NewInvitationResponse projects an Invitation onto the wire shape. Exported
+// alongside the other mappers so both surfaces render invitations identically.
+func NewInvitationResponse(i Invitation) InvitationResponse {
 	return InvitationResponse{
 		ID:              i.ID,
 		Email:           i.Email,

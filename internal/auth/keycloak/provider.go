@@ -42,18 +42,6 @@ func NewProvider(ctx context.Context, cfg Config, opts JWKSOptions) (*Provider, 
 	}, nil
 }
 
-// newProviderWithKeyfunc is a test seam: skips network I/O by accepting an
-// already-constructed keyfunc.
-func newProviderWithKeyfunc(cfg Config, kf keyfunc.Keyfunc) *Provider {
-	return &Provider{
-		cfg:            cfg,
-		keyfunc:        kf,
-		issuer:         cfg.Issuer(),
-		clientID:       cfg.ClientID,
-		allowedClients: cfg.allowedClientSet(),
-	}
-}
-
 // allowedAlgs restricts accepted signing algorithms to asymmetric families.
 // Symmetric algorithms (HS*) are intentionally excluded: with HS* an attacker
 // who learns the verification key can mint tokens, and Keycloak realms always

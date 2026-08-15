@@ -1868,7 +1868,30 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Returns 200 if the process is up. No auth required, no dependency checks.",
+                "description": "Equivalent to /health/live. Kept for existing deployments and monitors.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "operations"
+                ],
+                "summary": "Liveness probe (legacy path)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health/live": {
+            "get": {
+                "description": "Returns 200 while the process is running. No auth, no dependency checks, no I/O.\nA failure here means the process is wedged and should be restarted.",
                 "produces": [
                     "application/json"
                 ],
@@ -1884,6 +1907,32 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/health/ready": {
+            "get": {
+                "description": "Returns 200 when this instance can serve traffic, 503 otherwise.\nChecks only GLOBAL dependencies: the database, and whether a shutdown has begun.\nA workspace whose Keycloak is down does NOT make the instance unready —\nthat request answers provider_unavailable and every other workspace keeps working.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "operations"
+                ],
+                "summary": "Readiness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/server.readinessReport"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/server.readinessReport"
                         }
                     }
                 }
@@ -1931,22 +1980,3979 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/v1/project-scopes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Advertises the scope vocabulary so a console does not hard-code\nit and drift from the server. Adding a scope is a migration, so\nthis list changes rarely.\n\nMounted OUTSIDE the workspace path on purpose: the vocabulary is\na property of the installation, not of a workspace, and putting\nit under ` + "`" + `/projects/scopes` + "`" + ` would also collide with the\n` + "`" + `/projects/{project_id}` + "`" + ` route in the router's tree.\n\n**Operator only.**",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List the supported credential scopes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.ScopesResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns workspaces ordered by name, then id. By default only\nactive workspaces are returned — archived ones are operational\nhistory rather than part of the working set. Requires the\ncaller's token to carry the realm ` + "`" + `admin` + "`" + ` role.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "List workspaces",
+                "parameters": [
+                    {
+                        "enum": [
+                            "active",
+                            "archived",
+                            "all"
+                        ],
+                        "type": "string",
+                        "default": "active",
+                        "description": "which workspaces to return",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ListWorkspacesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_status_filter",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an active workspace. ` + "`" + `slug` + "`" + ` is optional: when omitted\nit is derived from ` + "`" + `name` + "`" + `. When supplied it is trimmed and\nlowercased but never rewritten — an unusable slug is reported\nrather than silently changed. Slugs are globally unique and are\nnever released, including by archiving.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Create a workspace",
+                "parameters": [
+                    {
+                        "description": "workspace to create",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspace.CreateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.WorkspaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "workspace_name_required, workspace_slug_invalid, workspace_slug_reserved, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_slug_taken",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one workspace by public id. Archived workspaces remain\nindividually readable. Accepts ` + "`" + `ws_\u003cuuid\u003e` + "`" + `; a bare UUID is also\naccepted as a development convenience.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Get a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.WorkspaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renames a workspace. ` + "`" + `name` + "`" + ` is the only mutable field: ` + "`" + `slug` + "`" + `\nis immutable, and ` + "`" + `status` + "`" + ` changes go through the archive\noperation. Sending either is rejected rather than ignored, so a\nclient never believes a change took effect when it did not.\nArchived workspaces cannot be modified.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Update a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fields to change",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/workspace.UpdateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.WorkspaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, workspace_name_required, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Moves a workspace to the archived state and stamps\n` + "`" + `archived_at` + "`" + `. Idempotent: archiving an already-archived\nworkspace succeeds and returns it unchanged, so a retried\nrequest is safe. Nothing is deleted, the slug is not released,\nand there is no reactivation path.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Archive a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.WorkspaceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/workspace.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/audit": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Returns the durable audit trail for this workspace, newest first.\n\n**Required scope (project credentials):** ` + "`" + `audit:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.\n\nThe trail records ATTEMPTS TO CHANGE STATE by an identified actor —\nwho did what, to which resource, whether it worked, and on which\nrequest. It is not a request log: reads are absent, and so is\ntraffic that never got past authentication.\n\n**Pagination is cursor-based.** Pass the ` + "`" + `next_cursor` + "`" + ` from the\nprevious page; its ABSENCE means there is no more history. Offset\npagination is not offered: this table only ever grows at the head,\nso an offset shifts under a client between pages.\n\n**This endpoint never returns secret material.** No password, no\ncredential secret or hash, no connection secret, no provider token,\nand no request body — regardless of who is asking.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "audit"
+                ],
+                "summary": "List a workspace's audit history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path"
+                    },
+                    {
+                        "type": "string",
+                        "description": "exact event type, e.g. user.created",
+                        "name": "event",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "operator",
+                            "project"
+                        ],
+                        "type": "string",
+                        "description": "operator or project",
+                        "name": "actor_type",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "success",
+                            "failure"
+                        ],
+                        "type": "string",
+                        "description": "success or failure",
+                        "name": "outcome",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2026-08-01T00:00:00Z",
+                        "description": "inclusive lower bound, RFC 3339",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2026-08-31T23:59:59Z",
+                        "description": "inclusive upper bound, RFC 3339",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "opaque cursor from the previous page",
+                        "name": "cursor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size, 1-200 (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auditlog.ListEventsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_request, invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/auditlog.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/auditlog.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, workspace_mismatch, insufficient_scope",
+                        "schema": {
+                            "$ref": "#/definitions/auditlog.ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "audit_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/auditlog.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/connections": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the workspace's connections ordered by name, then id.\nUnlike the workspace listing, the default here is **all**\nstatuses: the operator workflow is draft → verify → activate →\nthe previous one retires, and hiding two thirds of that would\nmake the endpoint unusable. Client secrets are never returned.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "List a workspace's connections",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "draft",
+                            "active",
+                            "retired",
+                            "all"
+                        ],
+                        "type": "string",
+                        "default": "all",
+                        "description": "which connections to return",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ListConnectionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_status_filter",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a connection in **draft** state. The client secret is\nsealed with AES-256-GCM before it reaches the database and is\nnever returned by any endpoint. A draft does nothing until it\nhas been verified and activated.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Create a connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "connection to create",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/connection.CreateConnectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ConnectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "connection_name_required, connection_base_url_invalid, connection_realm_required, connection_client_id_required, connection_client_secret_required, connection_provider_unsupported, invalid_workspace_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/connections/{connection_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns one connection. The client secret is never included.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Get a connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "connection id",
+                        "name": "connection_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ConnectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_connection_id",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, connection_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Permanently removes a **draft** or **retired** connection and\nits sealed credential. An active connection cannot be deleted:\nretire it first, so taking a workspace's provider out of\nservice is a visible, separate step.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Delete a connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "connection id",
+                        "name": "connection_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "deleted"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_connection_id",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, connection_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "connection_active_cannot_delete",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Edits a **draft** connection's configuration. Changing\n` + "`" + `base_url` + "`" + `, ` + "`" + `realm` + "`" + `, ` + "`" + `client_id` + "`" + ` or ` + "`" + `client_secret` + "`" + ` resets the\nverification — the stored verdict referred to coordinates that\nno longer apply, and keeping it would let the connection be\nactivated on the strength of a probe against a different\nprovider. ` + "`" + `status` + "`" + ` and ` + "`" + `provider` + "`" + ` are rejected rather than\nignored: state changes go through activate and retire.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Update a draft connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "connection id",
+                        "name": "connection_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fields to change",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/connection.UpdateConnectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ConnectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_connection_id, connection_name_required, connection_base_url_invalid, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, connection_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "connection_not_draft, connection_retired",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/connections/{connection_id}/activate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Promotes a verified draft to **active** and retires the\nworkspace's previous active connection in the same transaction.\nAt most one connection per workspace is active, enforced by a\npartial unique index rather than by application code.\n\nRequires a verification that passed within the last hour.\nUnlike archive, this is deliberately **not** idempotent: a\nrepeat call returns ` + "`" + `connection_already_active` + "`" + `, because a\ncaller retrying may believe they are switching away from a\ndifferent connection.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Activate a connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "connection id",
+                        "name": "connection_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ConnectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_connection_id",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, connection_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "connection_not_verified, connection_verification_expired, connection_already_active, connection_retired, workspace_archived, workspace_has_active_connection",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/connections/{connection_id}/retire": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Moves a connection to **retired**, its terminal state. Works on\na draft or an active connection; retiring an active one leaves\nthe workspace with no active connection. There is no\nreactivation path — create a new connection instead. Retiring an\nalready-retired connection is a conflict, not a no-op.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Retire a connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "connection id",
+                        "name": "connection_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ConnectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_connection_id",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, connection_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "connection_retired",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/connections/{connection_id}/verify": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Probes the provider and records the verdict. The probe is\nstrictly read-only: it reaches the provider, confirms the realm\nexists, authenticates the admin client, then reads the realm\nsettings and lists one user. It creates no test user and\nmodifies nothing.\n\nThe first three checks decide ` + "`" + `health` + "`" + `. The two admin reads\ndecide ` + "`" + `access_mode` + "`" + `: a service account that authenticates but\ncannot read is ` + "`" + `healthy` + "`" + ` + ` + "`" + `limited` + "`" + ` — correctly configured and\nunder-privileged, which is a different fix from a wrong URL.\n\nA successful verification authorizes activation for one hour.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Verify a connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "connection id",
+                        "name": "connection_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "the probe ran; check report.ok for the verdict",
+                        "schema": {
+                            "$ref": "#/definitions/connection.VerifyResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_connection_id",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing/invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "token lacks admin role",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, connection_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/connection.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/invitations": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Invitations are DERIVED from user state — Keycloak has no\ninvitation resource. A user with pending required actions or\ninvitation attributes appears here; once they complete those\nactions they stop appearing, without anything being deleted.\n\n` + "`" + `status` + "`" + ` is computed: pending, accepted, expired or revoked.\n\n**Required scope (project credentials):** ` + "`" + `invitations:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List a workspace's pending invitations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListInvitationsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, workspace_connection_missing, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Provisions a user in invited-but-incomplete state, assigns the\nrequested realm roles, and dispatches Keycloak's action email.\n\nREQUIRES SMTP configured on the workspace's realm. Without it\nthe email dispatch fails, and the half-provisioned user is\nremoved so the same address can be retried — you get an error,\nnot a silent half-invitation. Installations without SMTP should\nuse POST .../users instead, which sets a temporary password and\nsends nothing.\n\n**Required scope (project credentials):** ` + "`" + `invitations:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Invite a user to a workspace's realm",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "invitation to send",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.CreateInvitationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/identity.InvitationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, conflict, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable (includes SMTP not configured on the realm)",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/invitations/{invitation_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "An invitation IS a user, so this deletes the user. Self-deletion\nis refused; the last-admin guard does NOT apply here, because an\ninvited user cannot yet hold admin. To delete a user who has\naccepted, use DELETE .../users/{user_id}, which is guarded.\n\n**Required scope (project credentials):** ` + "`" + `invitations:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Revoke a workspace invitation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "the invited user's Keycloak sub UUID",
+                        "name": "invitation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "caller_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, invitation_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/invitations/{invitation_id}/resend": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Only the still-pending actions are re-dispatched, so a user who\nalready verified their email is not asked to do it again.\n\nAn ACCEPTED invitation (nothing left to do) and a REVOKED one\n(user disabled) both return ` + "`" + `conflict` + "`" + ` — the first has nothing\nto resend, the second needs the user re-enabled first.\n\n**Required scope (project credentials):** ` + "`" + `invitations:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Re-send a workspace invitation's action email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "the invited user's Keycloak sub UUID",
+                        "name": "invitation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.InvitationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, invitation_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, conflict, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable (includes SMTP not configured on the realm)",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/projects": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns every project in the workspace, active and archived,\nwith a count of the credentials that can currently authenticate.\nArchived projects are included because this listing backs a\nmanagement screen: hiding them would leave no way to confirm an\narchive happened.\n\n**Operator only.** No project credential can reach this route,\nwhatever scopes it holds.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List a workspace's projects",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.ListProjectsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an active project bound PERMANENTLY to this workspace.\nThe binding cannot be changed: it is the authorization boundary\nevery credential of this project is confined to. If another\nworkspace needs API access, create a project there.\n\nNames are unique per workspace, compared case-insensitively.\n\n**Operator only.**",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Create a project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "project to create",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/project.CreateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/project.ProjectResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "project_name_required, invalid_workspace_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, project_name_taken",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/projects/{project_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "A project belonging to a different workspace reads as not found,\nso an id cannot be used to confirm another workspace's contents.\n\n**Operator only.**",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Get a project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "description": "project id",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.ProjectResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_project_id",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, project_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Name is the only mutable field. ` + "`" + `workspace_id` + "`" + ` is declared in\nthe body solely so this endpoint can REFUSE it: moving a project\nbetween workspaces would silently repoint every live credential\nat a different realm, which is the one thing the authorization\nmodel must never allow.\n\n**Operator only.**",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Rename a project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "description": "project id",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fields to change",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/project.UpdateProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.ProjectResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "project_name_required, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, project_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "project_archived, project_name_taken",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/projects/{project_id}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Freezes the project. EVERY credential it holds stops\nauthenticating immediately — authentication reads the project's\nstatus in the same lookup as the credential, so this is one\natomic kill switch rather than a loop over keys that could\nhalf-finish.\n\nIdempotent: archiving an already-archived project succeeds.\n\n**Operator only.**",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Archive a project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "description": "project id",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.ProjectResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_project_id",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, project_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/projects/{project_id}/credentials": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns credential METADATA. The secret is never included, and\nno endpoint can return it: only a SHA-256 digest is stored, so\nthe plaintext does not exist anywhere in this system after the\ncreate call returned it.\n\nRevoked credentials are included: the list is the trail an\noperator reads when working out which key a deployment still\nholds.\n\n**Operator only.**",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List a project's credentials",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "description": "project id",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.ListCredentialsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_project_id",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, project_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mints a machine credential and returns the secret **once**.\nThere is no endpoint that can show it again, and adding one\nwould be impossible without changing what is stored: only a\nSHA-256 digest of the secret is persisted.\n\nScopes are explicit and non-empty. Nothing is granted by\ndefault, and an empty list is rejected rather than treated as\n\"no permissions\" — a credential that authenticates and can do\nnothing is a configuration mistake worth reporting at creation.\n\nA project may hold at most 10 active credentials. Rotation is\ncreate-new, deploy, revoke-old.\n\n**Operator only.**",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Create a project credential",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "description": "project id",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "credential to create",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/project.CreateCredentialRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/project.CreateCredentialResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "credential_label_required, invalid_scope, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, project_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "project_archived, credential_limit_reached",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/projects/{project_id}/credentials/{credential_id}/revoke": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Takes effect immediately: authentication reads the credential\nrow on every request and there is no cache to invalidate. A\nrequest already in flight completes — it was authorized when it\nstarted — but the next one fails.\n\nRevoking an already-revoked credential is a conflict rather than\na silent success, so an operator learns that someone else got\nthere first.\n\n**Operator only.**",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Revoke a project credential",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        "description": "project id",
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "key_9b2f4c1a-1111-4222-8333-444455556666",
+                        "description": "credential id",
+                        "name": "credential_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/project.CredentialResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_project_id, invalid_credential_id",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, project_not_found, credential_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "credential_already_revoked",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/project.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/roles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Returns the realm roles from the Keycloak realm that the\nworkspace's ACTIVE connection points at. Roles Keycloak manages\nitself are returned with ` + "`" + `builtin: true` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `roles:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List a workspace's realm roles",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListRolesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, workspace_connection_missing, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Creates a realm role in the Keycloak realm that the workspace's\nACTIVE connection points at. The role appears in that realm and\nin no other.\n\nNames are trimmed and lowercased. Names the platform or Keycloak\nmanages (` + "`" + `admin` + "`" + `, ` + "`" + `user` + "`" + `, ` + "`" + `offline_access` + "`" + `, ` + "`" + `uma_authorization` + "`" + `,\n` + "`" + `default-roles-*` + "`" + `) are refused with ` + "`" + `role_reserved` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `roles:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Create a realm role in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "role to create",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.CreateRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/identity.RoleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, role_already_exists, role_reserved, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/roles/{role_name}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "**Required scope (project credentials):** ` + "`" + `roles:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Get a realm role in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "billing-admin",
+                        "description": "realm role name",
+                        "name": "role_name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.RoleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_role_name",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Protected roles return ` + "`" + `role_reserved` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `roles:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Delete a realm role in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "billing-admin",
+                        "description": "realm role name",
+                        "name": "role_name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_role_name",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, role_reserved, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "` + "`" + `description` + "`" + ` is the only mutable field. Renaming is out of\nscope: it would require rewriting every role-mapping that\nreferences the old name. Protected roles return ` + "`" + `role_reserved` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `roles:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Update a realm role's description in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "billing-admin",
+                        "description": "realm role name",
+                        "name": "role_name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fields to change",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.UpdateRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.RoleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_role_name, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, role_reserved, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/roles/{role_name}/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Pages through the full membership rather than returning\nKeycloak's default first 100 — the last-admin guard depends on\nseeing the complete set.\n\n**Required scope (project credentials):** ` + "`" + `roles:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List the users carrying a realm role in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "billing-admin",
+                        "description": "realm role name",
+                        "name": "role_name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListUsersResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_role_name",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Aggregates sessions client by client, so a realm with many\nclients pays a per-client round trip. Realm-wide, not per-user —\nfor one user's sessions use the user-scoped route.\n\n**Required scope (project credentials):** ` + "`" + `sessions:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List active sessions across a workspace's realm",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListSessionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, workspace_connection_missing, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/sessions/{session_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "**Required scope (project credentials):** ` + "`" + `sessions:revoke` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Revoke a single session in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "session UUID",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_session_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, session_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Returns a page of users from the Keycloak realm that the\nworkspace's ACTIVE connection points at. The workspace id in the\npath is the routing boundary: two workspaces connected to two\nrealms return two disjoint sets of users.\n\n` + "`" + `first` + "`" + ` and ` + "`" + `max` + "`" + ` in the response are the EFFECTIVE values —\nwhat the server actually used after clamping ` + "`" + `max` + "`" + ` to [1, 100]\nand ` + "`" + `first` + "`" + ` to \u003e= 0. This differs from the legacy\n` + "`" + `GET /admin/users` + "`" + `, which echoes the caller's raw input.\n\n**Required scope (project credentials):** ` + "`" + `users:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List a workspace's users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "substring match on username/email/firstName/lastName",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "offset (default 0)",
+                        "name": "first",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "page size (default 20, max 100)",
+                        "name": "max",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListUsersResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, workspace_connection_missing, workspace_connection_unusable, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "provider_credentials_unavailable, internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Provisions a user directly with a temporary password they must\nchange on first login. This is the existing direct-provisioning\nflow, not a new one — the alternative is an invitation, which\nsends an email and therefore requires SMTP configured on the\nrealm.\n\nIf setting the password or assigning roles fails after the user\nwas created, the half-provisioned user is removed so the same\nemail can be retried.\n\n**Required scope (project credentials):** ` + "`" + `users:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Create a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "user to create",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/identity.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, workspace_connection_missing, connection_read_only, conflict, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "provider_credentials_unavailable, internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users/{user_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "**Required scope (project credentials):** ` + "`" + `users:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Get a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, workspace_connection_missing, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Guarded against self-deletion and against removing the realm's\nlast enabled admin; both return ` + "`" + `caller_forbidden` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `users:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Delete a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "caller_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Partial update — omitted fields are preserved. Guarded against\nself-disable and against disabling the realm's last enabled\nadmin; both return ` + "`" + `caller_forbidden` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `users:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Update a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "fields to change",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.UpdateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.UserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "caller_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users/{user_id}/password": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets the password without sending email. With\n` + "`" + `temporary: true` + "`" + ` Keycloak forces a change on next login.\nMinimum 8 characters here; the realm's own password policy\napplies on top and may reject more.\n\nThe password is never echoed, never logged, and never part of\nthe audit event this emits.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Set a user's password directly in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "the new password",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.SetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users/{user_id}/reset-password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Dispatches Keycloak's UPDATE_PASSWORD action email. This is the\nEMAIL flow, and it requires SMTP configured on the workspace's\nrealm — an unconfigured realm surfaces as ` + "`" + `provider_unavailable` + "`" + `.\nTo set a password directly instead, use PUT .../password.\n\nThe two are exposed as separate routes on purpose: they have\ndifferent prerequisites and different outcomes, and hiding that\nbehind one endpoint with a flag would make failures unreadable.\n\n**Required scope (project credentials):** ` + "`" + `users:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Send a password-reset action email to a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users/{user_id}/roles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "**Required scope (project credentials):** ` + "`" + `roles:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List a user's realm roles in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListRolesResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Roles are resolved by name; a missing role short-circuits with\n` + "`" + `role_not_found` + "`" + ` before any partial assignment happens.\n\n**Required scope (project credentials):** ` + "`" + `roles:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Grant realm roles to a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "role names to grant",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.AssignRolesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id, invalid_request",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users/{user_id}/roles/{role_name}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Guarded against removing your own ` + "`" + `admin` + "`" + ` role and against\nremoving it from the realm's last enabled admin; both return\n` + "`" + `caller_forbidden` + "`" + `.\n\n**Required scope (project credentials):** ` + "`" + `roles:write` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Revoke a realm role from a user in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "billing-admin",
+                        "description": "realm role name",
+                        "name": "role_name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id, invalid_role_name",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "caller_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found, role_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/workspaces/{workspace_id}/users/{user_id}/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "**Required scope (project credentials):** ` + "`" + `sessions:read` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "List one user's sessions in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/identity.ListSessionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ProjectKeyAuth": []
+                    }
+                ],
+                "description": "Deliberately NOT guarded against self-logout: an admin logging\nthemselves out of other browsers is a valid recovery action, and\nthe worst case is they invalidate their own token too.\n\n**Required scope (project credentials):** ` + "`" + `sessions:revoke` + "`" + `.\nOperators are authorized by the realm ` + "`" + `admin` + "`" + ` role instead.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspace-identity"
+                ],
+                "summary": "Revoke all of a user's sessions in a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+                        "description": "workspace id",
+                        "name": "workspace_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keycloak sub UUID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "invalid_workspace_id, invalid_user_id",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "credential_invalid",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "forbidden, operator_only, workspace_mismatch, insufficient_scope, role_privileged",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "workspace_not_found, user_not_found",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "workspace_archived, connection_read_only, provider_forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "internal_error",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "provider_unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/identityruntime.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
         "audit.Actor": {
             "type": "object",
             "properties": {
+                "credential_id": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
-                "subject": {
+                "project_id": {
+                    "description": "Project fields. ProjectID and CredentialID are the public ` + "`" + `prj_` + "`" + ` and\n` + "`" + `key_` + "`" + ` ids: the credential id is what an operator revokes, so an audit\nline names the exact key to pull rather than the project that held it.",
                     "type": "string"
+                },
+                "subject": {
+                    "description": "Operator fields.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is \"operator\" or \"project\". Empty only for an unattributed event\n(no principal on the request), which is preserved as a visible gap\nrather than defaulted to a plausible value.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/audit.ActorType"
+                        }
+                    ]
                 },
                 "username": {
                     "type": "string"
                 }
             }
+        },
+        "audit.ActorType": {
+            "type": "string",
+            "enum": [
+                "operator",
+                "project"
+            ],
+            "x-enum-varnames": [
+                "ActorOperator",
+                "ActorProject"
+            ]
         },
         "audit.Target": {
             "type": "object",
@@ -1959,6 +5965,444 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "auditlog.ActorResponse": {
+            "type": "object",
+            "properties": {
+                "credential_id": {
+                    "type": "string",
+                    "example": "key_9b2f4c1a-1111-4222-8333-444455556666"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "ada@example.com"
+                },
+                "project_id": {
+                    "type": "string",
+                    "example": "prj_7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "subject": {
+                    "type": "string",
+                    "example": "9c1e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "operator",
+                        "project"
+                    ],
+                    "example": "operator"
+                }
+            }
+        },
+        "auditlog.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "invalid_request"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "cursor"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Request is invalid"
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                }
+            }
+        },
+        "auditlog.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/auditlog.ErrorBody"
+                }
+            }
+        },
+        "auditlog.EventResponse": {
+            "type": "object",
+            "properties": {
+                "actor": {
+                    "$ref": "#/definitions/auditlog.ActorResponse"
+                },
+                "event": {
+                    "type": "string",
+                    "example": "project_credential.revoked"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "evt_3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                },
+                "metadata": {
+                    "description": "Metadata is per-event detail, allowlisted per event type at write time.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "occurred_at": {
+                    "type": "string",
+                    "example": "2026-08-10T14:03:11Z"
+                },
+                "outcome": {
+                    "description": "Outcome is \"success\" or \"failure\".",
+                    "type": "string",
+                    "enum": [
+                        "success",
+                        "failure"
+                    ],
+                    "example": "success"
+                },
+                "reason_code": {
+                    "description": "ReasonCode is present only on a failure, and is drawn from the closed /v1\nerror vocabulary. It is never an upstream error message: the real cause\nis in the log line for this request_id.",
+                    "type": "string",
+                    "example": "provider_unavailable"
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                },
+                "resource": {
+                    "$ref": "#/definitions/auditlog.ResourceResponse"
+                }
+            }
+        },
+        "auditlog.ListEventsResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/auditlog.EventResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/auditlog.PaginationInfo"
+                }
+            }
+        },
+        "auditlog.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of items IN THIS PAGE, never a total. A total would\nmean a second COUNT(*) over an append-heavy table on every request, to\nanswer a question no client here needs.",
+                    "type": "integer",
+                    "example": 50
+                },
+                "limit": {
+                    "description": "Limit is the page size actually applied.",
+                    "type": "integer",
+                    "example": 50
+                },
+                "next_cursor": {
+                    "description": "NextCursor is absent on the last page.\n\nIts ABSENCE is the end-of-history signal, not an empty page: a client\nloops while this is present, so a correct client makes exactly as many\nrequests as there are pages.",
+                    "type": "string",
+                    "example": "MTc1NDg0MTM5MTAwMDAwMDAwMC4z..."
+                }
+            }
+        },
+        "auditlog.ResourceResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "key_9b2f4c1a-1111-4222-8333-444455556666"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "project_credential"
+                }
+            }
+        },
+        "connection.AccessMode": {
+            "type": "string",
+            "enum": [
+                "unknown",
+                "full",
+                "read_only",
+                "limited"
+            ],
+            "x-enum-varnames": [
+                "AccessModeUnknown",
+                "AccessModeFull",
+                "AccessModeReadOnly",
+                "AccessModeLimited"
+            ]
+        },
+        "connection.Check": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "description": "Detail is a short human-readable explanation, safe to show an operator.\nIt never contains the client secret, the access token, or a provider\nresponse body — a provider's error page can echo back anything.",
+                    "type": "string",
+                    "example": "authenticated as service account"
+                },
+                "name": {
+                    "description": "Name is one of the Check* constants.",
+                    "type": "string",
+                    "example": "client_authenticated"
+                },
+                "ok": {
+                    "description": "OK is whether this specific probe passed.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "connection.ConnectionResponse": {
+            "type": "object",
+            "properties": {
+                "access_mode": {
+                    "description": "AccessMode is what the service account was proven able to do.\n` + "`" + `full` + "`" + ` is claimed ONLY when write capability was positively proven —\nsee connection.AccessMode. A client may enable mutation controls on\n` + "`" + `full` + "`" + ` and must not on ` + "`" + `read_only` + "`" + ` or ` + "`" + `limited` + "`" + `.",
+                    "type": "string",
+                    "enum": [
+                        "unknown",
+                        "full",
+                        "read_only",
+                        "limited"
+                    ],
+                    "example": "full"
+                },
+                "activated_at": {
+                    "type": "string"
+                },
+                "base_url": {
+                    "type": "string",
+                    "example": "https://kc.example.com"
+                },
+                "can_write": {
+                    "description": "CanWrite is AccessMode's write verdict, precomputed so a client does not\nre-implement the rule (and get ` + "`" + `unknown` + "`" + ` wrong in either direction).\nIt is the field a UI should gate mutation controls on.",
+                    "type": "boolean",
+                    "example": true
+                },
+                "client_id": {
+                    "type": "string",
+                    "example": "saas-backend-admin"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "has_client_secret": {
+                    "description": "HasClientSecret reports that a credential is stored. It is always true\ntoday because the column is NOT NULL; it exists as a field so that\nclients render \"secret configured\" from the API rather than assuming,\nand so the shape already fits if a secret-less auth method (mTLS,\nprivate_key_jwt) is ever added.",
+                    "type": "boolean",
+                    "example": true
+                },
+                "health": {
+                    "type": "string",
+                    "enum": [
+                        "unknown",
+                        "healthy",
+                        "unhealthy"
+                    ],
+                    "example": "healthy"
+                },
+                "health_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "conn_3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                },
+                "last_verified_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production Keycloak"
+                },
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "keycloak"
+                    ],
+                    "example": "keycloak"
+                },
+                "realm": {
+                    "type": "string",
+                    "example": "saas"
+                },
+                "retired_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "active",
+                        "retired"
+                    ],
+                    "example": "draft"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "verified": {
+                    "description": "Verified is IsVerified evaluated at response time: healthy AND the probe\nis still inside its validity window. Computed rather than stored, because\nit is a fact about now, not about the row — a client that stored it would\nbe wrong an hour later.",
+                    "type": "boolean",
+                    "example": true
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d"
+                }
+            }
+        },
+        "connection.CreateConnectionRequest": {
+            "type": "object",
+            "required": [
+                "base_url",
+                "client_id",
+                "client_secret",
+                "name",
+                "realm"
+            ],
+            "properties": {
+                "base_url": {
+                    "type": "string",
+                    "example": "https://kc.example.com"
+                },
+                "client_id": {
+                    "type": "string",
+                    "example": "saas-backend-admin"
+                },
+                "client_secret": {
+                    "description": "ClientSecret is write-only. It is sealed with AES-256-GCM before it\nreaches the database and is never returned by any endpoint.",
+                    "type": "string",
+                    "example": "the-service-account-secret"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production Keycloak"
+                },
+                "provider": {
+                    "description": "Provider is optional while only one exists; omitted means keycloak.",
+                    "type": "string",
+                    "example": "keycloak"
+                },
+                "realm": {
+                    "type": "string",
+                    "example": "saas"
+                }
+            }
+        },
+        "connection.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "connection_not_verified"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Connection must pass verification before it can be activated"
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                }
+            }
+        },
+        "connection.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/connection.ErrorBody"
+                }
+            }
+        },
+        "connection.ListConnectionsResponse": {
+            "type": "object",
+            "properties": {
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/connection.ConnectionResponse"
+                    }
+                },
+                "count": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "connection.UpdateConnectionRequest": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "client_secret": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "realm": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "connection.VerifyReport": {
+            "type": "object",
+            "properties": {
+                "access_mode": {
+                    "description": "AccessMode is what the admin client turned out to be allowed to do.",
+                    "enum": [
+                        "unknown",
+                        "full",
+                        "read_only",
+                        "limited"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/connection.AccessMode"
+                        }
+                    ],
+                    "example": "full"
+                },
+                "checked_at": {
+                    "description": "CheckedAt is when the run completed.",
+                    "type": "string"
+                },
+                "checks": {
+                    "description": "Checks are in execution order, and stop at the first failure that makes\nlater ones meaningless (no point listing users if the token failed).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/connection.Check"
+                    }
+                },
+                "ok": {
+                    "description": "OK is the verdict that drives Health. See Verifier for what it requires.",
+                    "type": "boolean"
+                },
+                "summary": {
+                    "description": "Summary is a one-line verdict for logs and for the connection's\nhealth_message.",
+                    "type": "string",
+                    "example": "provider reachable, realm found, client authenticated, full admin access"
+                }
+            }
+        },
+        "connection.VerifyResponse": {
+            "type": "object",
+            "properties": {
+                "connection": {
+                    "$ref": "#/definitions/connection.ConnectionResponse"
+                },
+                "report": {
+                    "$ref": "#/definitions/connection.VerifyReport"
                 }
             }
         },
@@ -2242,6 +6686,424 @@ const docTemplate = `{
                 }
             }
         },
+        "identityruntime.AssignRolesRequest": {
+            "type": "object",
+            "required": [
+                "roles"
+            ],
+            "properties": {
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "support"
+                    ]
+                }
+            }
+        },
+        "identityruntime.CreateInvitationRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "roles"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "ada@example.com"
+                },
+                "expires_at": {
+                    "description": "ExpiresAt is optional, RFC 3339, and must be in the future.",
+                    "type": "string",
+                    "example": "2026-12-31T23:59:59Z"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Ada"
+                },
+                "invited_by": {
+                    "description": "InvitedBy defaults to the authenticated caller when omitted.",
+                    "type": "string",
+                    "example": "admin@example.com"
+                },
+                "last_name": {
+                    "type": "string",
+                    "example": "Lovelace"
+                },
+                "roles": {
+                    "description": "Roles is REQUIRED and must contain at least one existing realm role name.\nUnlike CreateUserRequest, where roles can be granted afterwards, an\ninvitation with no roles would invite someone to an account that can do\nnothing.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "support"
+                    ]
+                }
+            }
+        },
+        "identityruntime.CreateRoleRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Can view and refund invoices"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "billing-admin"
+                }
+            }
+        },
+        "identityruntime.CreateUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "temporary_password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "ada@example.com"
+                },
+                "first_name": {
+                    "type": "string",
+                    "example": "Ada"
+                },
+                "last_name": {
+                    "type": "string",
+                    "example": "Lovelace"
+                },
+                "roles": {
+                    "description": "Roles is optional: realm role names to grant at creation.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "support"
+                    ]
+                },
+                "temporary_password": {
+                    "description": "TemporaryPassword is REQUIRED and must be at least 8 characters. There is\nno way to create a user without choosing a credential for them; the\nalternative is an invitation, which needs working SMTP on the realm.\n\nIt is never echoed back, never logged, and never part of an audit event.",
+                    "type": "string",
+                    "example": "ch4nge-me-now"
+                }
+            }
+        },
+        "identityruntime.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "workspace_connection_missing"
+                },
+                "field": {
+                    "description": "Field names the request field a validation failure is about.\n\n` + "`" + `omitempty` + "`" + `, and that is the compatibility contract: an error that is not\nabout a field carries no key at all, so a client written before this\nexisted decodes every response exactly as it did. Adding a key is safe;\nadding one that is sometimes an empty string is not, because it invites\n` + "`" + `if err.Field == \"\"` + "`" + ` to be read as \"no field\" in one place and \"field is\nblank\" in another.\n\nSet only for ` + "`" + `invalid_request` + "`" + `. Never derived from client input.",
+                    "type": "string",
+                    "example": "temporary_password"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Workspace has no active connection"
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                }
+            }
+        },
+        "identityruntime.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/identityruntime.ErrorBody"
+                }
+            }
+        },
+        "identityruntime.SetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string",
+                    "example": "ch4nge-me-now"
+                },
+                "temporary": {
+                    "description": "Temporary forces a change on next login. Defaults to false, so an\nomitted field sets a permanent password — the caller must opt in to\nthe friction rather than out of it.",
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "identityruntime.UpdateRoleRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                }
+            }
+        },
+        "identityruntime.UpdateUserRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "email_verified": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "project.CreateCredentialRequest": {
+            "type": "object",
+            "required": [
+                "label",
+                "scopes"
+            ],
+            "properties": {
+                "expires_at": {
+                    "description": "ExpiresAt is optional. When set it must be in the future.",
+                    "type": "string"
+                },
+                "label": {
+                    "description": "Label is required. An unlabelled key is one nobody dares revoke.",
+                    "type": "string",
+                    "example": "billing worker (staging)"
+                },
+                "scopes": {
+                    "description": "Scopes must be non-empty and drawn from the supported vocabulary. There\nis no default and nothing is implied: a credential's power is always an\nexplicit choice.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "users:read"
+                    ]
+                }
+            }
+        },
+        "project.CreateCredentialResponse": {
+            "type": "object",
+            "properties": {
+                "credential": {
+                    "$ref": "#/definitions/project.CredentialResponse"
+                },
+                "secret": {
+                    "description": "Secret is the full token, e.g. lw_sk_\u003clookup\u003e_\u003csecret\u003e. Shown once.",
+                    "type": "string",
+                    "example": "lw_sk_REDACTED_REDACTED"
+                }
+            }
+        },
+        "project.CreateProjectRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Billing worker"
+                }
+            }
+        },
+        "project.CredentialResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "key_7c9e6679-7425-40de-944b-e07fc1f90ae7"
+                },
+                "key_prefix": {
+                    "description": "KeyPrefix is the lookup segment of the token, e.g. \"k3mzr7q2xwab5f9d\".\nShown so an operator can match a key in a log line to a row here.",
+                    "type": "string",
+                    "example": "k3mzr7q2xwab5f9d"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "billing worker (staging)"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string",
+                    "example": "prj_3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                },
+                "revoked_at": {
+                    "type": "string"
+                },
+                "revoked_by": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "users:read",
+                        "users:write"
+                    ]
+                },
+                "status": {
+                    "description": "Status is the credential's effective state, computed at response time:\nactive, expired or revoked. Computed rather than stored because expiry is\na fact about now, not about the row.",
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "expired",
+                        "revoked"
+                    ],
+                    "example": "active"
+                }
+            }
+        },
+        "project.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "project_not_found"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Project not found"
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                }
+            }
+        },
+        "project.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/project.ErrorBody"
+                }
+            }
+        },
+        "project.ListCredentialsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "credentials": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/project.CredentialResponse"
+                    }
+                }
+            }
+        },
+        "project.ListProjectsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "projects": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/project.ProjectResponse"
+                    }
+                }
+            }
+        },
+        "project.ProjectResponse": {
+            "type": "object",
+            "properties": {
+                "active_credentials": {
+                    "description": "ActiveCredentials is how many credentials can currently authenticate.\nIncluded in the listing so an operator can see at a glance which projects\nhold live keys without opening each one.",
+                    "type": "integer",
+                    "example": 2
+                },
+                "archived_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "prj_3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Billing worker"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "archived"
+                    ],
+                    "example": "active"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "example": "ws_5a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d"
+                }
+            }
+        },
+        "project.ScopesResponse": {
+            "type": "object",
+            "properties": {
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "project.UpdateProjectRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Billing worker EU"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
         "server.auditEventDTO": {
             "type": "object",
             "properties": {
@@ -2289,6 +7151,21 @@ const docTemplate = `{
                 }
             }
         },
+        "server.readinessReport": {
+            "type": "object",
+            "properties": {
+                "checks": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "string",
+                    "example": "ready"
+                }
+            }
+        },
         "user.UserResponse": {
             "type": "object",
             "properties": {
@@ -2311,11 +7188,126 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "workspace.CreateWorkspaceRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "description": "Name is required and must be non-blank after trimming.",
+                    "type": "string",
+                    "example": "Production"
+                },
+                "slug": {
+                    "description": "Slug is optional. When omitted it is derived from Name; when present it\nis only trimmed and lowercased, never slugified — an unusable slug is\nreported rather than silently rewritten.",
+                    "type": "string",
+                    "example": "production"
+                }
+            }
+        },
+        "workspace.ErrorBody": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "workspace_not_found"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Workspace not found"
+                },
+                "request_id": {
+                    "type": "string",
+                    "example": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                }
+            }
+        },
+        "workspace.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/workspace.ErrorBody"
+                }
+            }
+        },
+        "workspace.ListWorkspacesResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "workspaces": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workspace.WorkspaceResponse"
+                    }
+                }
+            }
+        },
+        "workspace.UpdateWorkspaceRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Production EU"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "workspace.WorkspaceResponse": {
+            "type": "object",
+            "properties": {
+                "archived_at": {
+                    "description": "ArchivedAt is null for active workspaces and set for archived ones. The\ndatabase enforces that this and Status can never disagree.",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is always the prefixed form, ` + "`" + `ws_\u003cuuid\u003e` + "`" + `. The bare UUID is never\nexposed.",
+                    "type": "string",
+                    "example": "ws_3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Production"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "production"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "archived"
+                    ],
+                    "example": "active"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Type \"Bearer\" followed by a Keycloak-issued access token.",
+            "description": "OPERATOR authentication. Type \"Bearer\" followed by a Keycloak-issued access token. The token must carry the realm ` + "`" + `admin` + "`" + ` role, which is re-checked against the provider on every request.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        },
+        "ProjectKeyAuth": {
+            "description": "PROJECT authentication (machine-to-machine). Type \"Bearer\" followed by a project credential, e.g. ` + "`" + `Bearer lw_sk_\u003clookup\u003e_\u003csecret\u003e` + "`" + `. The credential is bound to exactly one workspace and carries an explicit scope set; the scope each operation requires is stated in its description. Control-plane operations (workspaces, connections, projects) are operator-only and answer ` + "`" + `operator_only` + "`" + ` to any credential. Swagger 2.0 cannot express per-operation scopes for an apiKey scheme, so they are documented in prose rather than declared — see docs/PROJECTS.md.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -2325,7 +7317,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "0.4.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
 	Schemes:          []string{},

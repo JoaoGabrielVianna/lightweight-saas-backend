@@ -189,7 +189,7 @@ func (c *AdminClient) doCreateOnce(ctx context.Context, relPath string, body any
 	case resp.StatusCode == http.StatusNotFound:
 		return "", identity.ErrNotFound
 	case resp.StatusCode == http.StatusForbidden:
-		return "", identity.ErrForbidden
+		return "", identity.ErrProviderForbidden
 	case resp.StatusCode >= 500:
 		return "", fmt.Errorf("%w: upstream HTTP %d", identity.ErrAdminAPIUnavailable, resp.StatusCode)
 	default:
@@ -244,7 +244,7 @@ func (c *AdminClient) doTextOnce(ctx context.Context, method, relPath string, va
 	case resp.StatusCode == http.StatusNotFound:
 		return identity.ErrNotFound
 	case resp.StatusCode == http.StatusForbidden:
-		return identity.ErrForbidden
+		return identity.ErrProviderForbidden
 	case resp.StatusCode >= 500:
 		return fmt.Errorf("%w: upstream HTTP %d", identity.ErrAdminAPIUnavailable, resp.StatusCode)
 	case resp.StatusCode >= 400:
@@ -309,7 +309,7 @@ func (c *AdminClient) doOnce(ctx context.Context, method, relPath string, query 
 	case resp.StatusCode == http.StatusNotFound:
 		return identity.ErrNotFound
 	case resp.StatusCode == http.StatusForbidden:
-		return identity.ErrForbidden
+		return identity.ErrProviderForbidden
 	case resp.StatusCode == http.StatusBadRequest:
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("%w: %s", identity.ErrBadRequest, raw)

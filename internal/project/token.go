@@ -1,0 +1,184 @@
+package project
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base32"
+	"strings"
+
+	"github.com/JoaoGabrielVianna/lightweight-saas-backend/internal/auth"
+)
+
+// The credential token format.
+//
+//	lw_sk_<lookup>_<secret>
+//	       └ 16      └ 52      = 75 characters
+//
+// `lw_sk_` is a fixed, greppable prefix: it is what secret scanners match on,
+// what makes a leaked value recognisable in a log or a support ticket, and what
+// the authentication middleware discriminates on without ever attempting to
+// parse the value as a JWT.
+//
+// `lookup` is 10 bytes of CSPRNG (80 bits) and is stored IN CLEAR as
+// project_credentials.key_prefix, behind a unique index. It is not a secret: it
+// exists so authentication is a single indexed row fetch instead of a scan over
+// hashes. 80 bits is far more than collision-avoidance needs; the size is set
+// by wanting a value that is unguessable enough not to be a useful enumeration
+// target on its own.
+//
+// `secret` is 32 bytes of CSPRNG — 256 bits — and is never stored. Only
+// SHA-256 of its encoded form is.
+//
+// # Why base32, lowercase, unpadded
+//
+// The separator is `_`, and base64url's alphabet contains `_`, which would make
+// splitting the token ambiguous. Base32's alphabet is `a-z2-7`: no separator
+// collision, no case ambiguity when a value is retyped from a screenshot, no
+// shell quoting, and the whole token survives a double-click as one word.
+const (
+	tokenPrefix = auth.ProjectTokenPrefix // "lw_sk_"
+
+	lookupBytes = 10
+	secretBytes = 32
+
+	lookupLen = 16 // base32(10 bytes), unpadded
+	secretLen = 52 // base32(32 bytes), unpadded
+)
+
+// tokenEncoding is RFC 4648 base32 with a lowercase alphabet and no padding.
+var tokenEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
+
+// MintedCredential is a freshly generated credential: the parts to persist, and
+// the one-time plaintext to hand back.
+//
+// Token is the ONLY place the plaintext ever exists in this system. It is
+// returned to the operator once, in the create response, and is not stored, not
+// logged, and not recoverable.
+type MintedCredential struct {
+	// KeyPrefix is the lookup segment, stored in clear.
+	KeyPrefix string
+	// KeyHash is SHA-256 of the secret segment.
+	KeyHash []byte
+	// Token is the full `lw_sk_..._...` value. One-time.
+	Token string
+}
+
+// MintCredential generates a new credential.
+//
+// crypto/rand is the only source, and a read failure is returned rather than
+// degraded: a predictable credential is a security property, not a cosmetic one.
+// Same reasoning as publicid.New.
+func MintCredential() (*MintedCredential, error) {
+	lookupRaw := make([]byte, lookupBytes)
+	if _, err := rand.Read(lookupRaw); err != nil {
+		return nil, err
+	}
+	secretRaw := make([]byte, secretBytes)
+	if _, err := rand.Read(secretRaw); err != nil {
+		return nil, err
+	}
+
+	lookup := tokenEncoding.EncodeToString(lookupRaw)
+	secret := tokenEncoding.EncodeToString(secretRaw)
+
+	return &MintedCredential{
+		KeyPrefix: lookup,
+		KeyHash:   hashSecret(secret),
+		Token:     tokenPrefix + lookup + "_" + secret,
+	}, nil
+}
+
+// parsedToken is a syntactically valid credential token, split into its parts.
+type parsedToken struct {
+	lookup string
+	secret string
+}
+
+// parseToken validates the shape locally, before any database work.
+//
+// Everything checkable without I/O is checked here — prefix, segment count,
+// exact lengths, alphabet — so a malformed or padded-out value is rejected
+// without costing a query. That is both a performance property and a
+// denial-of-service one: an attacker cannot turn arbitrary garbage into
+// database load.
+//
+// It deliberately reports only ok/not-ok. There is no "which part was wrong",
+// because nothing above this ever tells a caller more than "invalid".
+func parseToken(raw string) (parsedToken, bool) {
+	if !strings.HasPrefix(raw, tokenPrefix) {
+		return parsedToken{}, false
+	}
+	body := raw[len(tokenPrefix):]
+
+	lookup, secret, found := strings.Cut(body, "_")
+	if !found {
+		return parsedToken{}, false
+	}
+	if len(lookup) != lookupLen || len(secret) != secretLen {
+		return parsedToken{}, false
+	}
+	if !isBase32Lower(lookup) || !isBase32Lower(secret) {
+		return parsedToken{}, false
+	}
+	return parsedToken{lookup: lookup, secret: secret}, true
+}
+
+// isBase32Lower reports whether s uses only the lowercase base32 alphabet.
+func isBase32Lower(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z':
+		case c >= '2' && c <= '7':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// hashSecret is the stored form of a credential secret.
+//
+// SHA-256, not bcrypt or Argon2, and that is an analysis rather than a
+// shortcut. Memory-hard password hashes exist to make guessing low-entropy
+// human-chosen input expensive. This input is 256 bits of CSPRNG output
+// generated by this service: there is no search space to slow down, so a
+// memory-hard hash would add tens of milliseconds and megabytes to the
+// authentication path of a machine-to-machine API — a self-inflicted denial of
+// service — in exchange for nothing.
+//
+// No pepper either. An HMAC keyed by SECRETS_MASTER_KEY was considered and
+// rejected for this slice: it only helps if the entropy assumption above is
+// wrong, and in exchange it would make every credential in the system stop
+// working the day that key is rotated. project_credentials.key_hash_alg exists
+// so revisiting this is a migration rather than a redesign.
+func hashSecret(secret string) []byte {
+	sum := sha256.Sum256([]byte(secret))
+	return sum[:]
+}
+
+// dummyHash is compared against when no credential matched the lookup.
+//
+// Without it, an unknown prefix would return before any hashing and a known
+// prefix with a wrong secret would return after it, making response time a
+// reliable oracle for "this prefix exists". The comparison below is performed
+// unconditionally so both paths do the same work.
+var dummyHash = sha256.Sum256([]byte("lightweight/project-credential/absent"))
+
+// secretMatches performs the constant-time comparison.
+//
+// subtle.ConstantTimeCompare, not bytes.Equal: bytes.Equal short-circuits on
+// the first differing byte, which leaks a prefix-matching oracle over repeated
+// attempts.
+func secretMatches(secret string, storedHash []byte) bool {
+	computed := hashSecret(secret)
+	return subtle.ConstantTimeCompare(computed, storedHash) == 1
+}
+
+// compareAgainstDummy burns the same work as a real comparison for a lookup
+// that matched nothing.
+func compareAgainstDummy(secret string) {
+	computed := hashSecret(secret)
+	_ = subtle.ConstantTimeCompare(computed, dummyHash[:])
+}

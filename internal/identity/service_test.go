@@ -55,6 +55,9 @@ func (f *fakeProvider) ListUsersByRole(_ context.Context, name string) ([]User, 
 	// When tests stage a specific admin set via mutationCalls.adminsForLastCheck,
 	// honor it for the "admin" role lookup so the last-admin guard can be
 	// exercised in isolation.
+	if name == adminRoleName && f.mutationCalls.adminRoleLookupErr != nil {
+		return nil, f.mutationCalls.adminRoleLookupErr
+	}
 	if name == adminRoleName && f.mutationCalls.adminsForLastCheck != nil {
 		return f.mutationCalls.adminsForLastCheck, nil
 	}
@@ -79,10 +82,27 @@ func (f *fakeProvider) ListInvitations(_ context.Context) ([]Invitation, error) 
 type createCalls struct {
 	createRoleReq          *CreateRoleRequest
 	createInvitationReq    *CreateInvitationRequest
+	createUserReq          *CreateUserRequest
 	createRoleErr          error
 	createInvitationErr    error
+	createUserErr          error
 	createRoleReturn       *Role
 	createInvitationReturn *Invitation
+	createUserReturn       *User
+}
+
+// CreateUser records what reached the provider so the service's validation and
+// normalization can be asserted on the ACTUAL forwarded request rather than on
+// whatever the caller passed in.
+func (f *fakeProvider) CreateUser(_ context.Context, req CreateUserRequest) (*User, error) {
+	f.createCalls.createUserReq = &req
+	if f.createCalls.createUserErr != nil {
+		return nil, f.createCalls.createUserErr
+	}
+	if f.createCalls.createUserReturn != nil {
+		return f.createCalls.createUserReturn, nil
+	}
+	return &User{ID: "11111111-1111-4111-8111-111111111111", Email: req.Email, Username: req.Email, Enabled: true}, nil
 }
 
 func (f *fakeProvider) CreateRole(_ context.Context, req CreateRoleRequest) (*Role, error) {
@@ -142,6 +162,10 @@ type mutationCalls struct {
 	// Optional injected admin set for assertNotLastAdmin checks. When nil,
 	// ListUsersByRole("admin") returns whatever `users` holds.
 	adminsForLastCheck []User
+
+	// adminRoleLookupErr forces ListUsersByRole("admin") to fail, so the
+	// last-admin guard's two error paths can be told apart.
+	adminRoleLookupErr error
 }
 
 func (f *fakeProvider) UpdateUser(_ context.Context, id string, req UpdateUserRequest) (*User, error) {
@@ -955,5 +979,194 @@ func TestDeleteInvitation_DoesNotConsultLastAdminCheck(t *testing.T) {
 	}
 	if fp.mutationCalls.deleteUserID != otherUUID {
 		t.Errorf("provider received %q", fp.mutationCalls.deleteUserID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// The last-admin guard in realms this product did not create
+// ---------------------------------------------------------------------------
+
+// TestAssertNotLastAdmin_RealmWithoutAnAdminRoleAllowsTheOperation is the
+// regression test for a bug the workspace-scoped API surfaced.
+//
+// `admin` is a LIGHTWEIGHT bootstrap convention, not something every Keycloak
+// realm has. The guard used to treat ANY failure from ListUsersByRole("admin")
+// as "cannot enumerate, fail safe" — including Keycloak's 404 for a role that
+// does not exist. In a connected realm without that role, DeleteUser and
+// disable-user therefore failed unconditionally, and the caller saw a bare 404
+// pointing at the user they asked about rather than at a role they never
+// mentioned.
+//
+// Invisible on /admin/*, whose realm always has the role. It only became
+// reachable once a workspace could point at a realm this product did not
+// provision — and it was found by the live multi-realm suite, not by review.
+func TestAssertNotLastAdmin_RealmWithoutAnAdminRoleAllowsTheOperation(t *testing.T) {
+	const target = "11111111-1111-4111-8111-111111111111"
+
+	t.Run("delete", func(t *testing.T) {
+		fp := &fakeProvider{}
+		fp.mutationCalls.adminRoleLookupErr = ErrNotFound
+
+		if err := NewService(fp).DeleteUser(context.Background(), "caller", target); err != nil {
+			t.Errorf("DeleteUser in a realm with no admin role: %v, want success", err)
+		}
+		if fp.mutationCalls.deleteUserID != target {
+			t.Error("the delete never reached the provider")
+		}
+	})
+
+	t.Run("disable", func(t *testing.T) {
+		fp := &fakeProvider{}
+		fp.mutationCalls.adminRoleLookupErr = ErrNotFound
+
+		disabled := false
+		if _, err := NewService(fp).UpdateUser(context.Background(), "caller", target,
+			UpdateUserRequest{Enabled: &disabled}); err != nil {
+			t.Errorf("disable in a realm with no admin role: %v, want success", err)
+		}
+	})
+}
+
+// TestAssertNotLastAdmin_StillFailsSafeOnARealEnumerationFailure is the other
+// half: only a definitive "that role does not exist" is treated as permission
+// to proceed. An upstream outage must still refuse, because the guard cannot
+// tell whether the target is the last admin and wiping them is unrecoverable.
+func TestAssertNotLastAdmin_StillFailsSafeOnARealEnumerationFailure(t *testing.T) {
+	const target = "11111111-1111-4111-8111-111111111111"
+
+	fp := &fakeProvider{}
+	fp.mutationCalls.adminRoleLookupErr = ErrAdminAPIUnavailable
+
+	err := NewService(fp).DeleteUser(context.Background(), "caller", target)
+	if !errors.Is(err, ErrAdminAPIUnavailable) {
+		t.Errorf("err = %v, want the upstream failure to propagate", err)
+	}
+	if fp.mutationCalls.deleteUserID != "" {
+		t.Error("the delete reached the provider despite an unresolved last-admin check")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CreateUser
+// ---------------------------------------------------------------------------
+
+// The direct-provisioning path shipped with NO test coverage at all: it lived
+// on the concrete Keycloak provider, was called straight from an HTTP handler,
+// and its validation was three inline `if` statements in that handler. Slice 5
+// moved the rules to the service so both surfaces enforce them identically.
+// These are the first tests it has ever had.
+
+func TestServiceCreateUser_NormalizesAndForwards(t *testing.T) {
+	fp := &fakeProvider{}
+
+	user, err := NewService(fp).CreateUser(context.Background(), CreateUserRequest{
+		Email:             "  Ada@Example.COM ",
+		FirstName:         "  Ada  ",
+		LastName:          " Lovelace ",
+		TemporaryPassword: "temporary-1234",
+		Roles:             []string{" Support ", "BILLING"},
+	})
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if user == nil {
+		t.Fatal("CreateUser returned no user")
+	}
+
+	got := fp.createCalls.createUserReq
+	if got == nil {
+		t.Fatal("the request never reached the provider")
+	}
+	if got.Email != "ada@example.com" {
+		t.Errorf("email = %q, want it trimmed and lowercased", got.Email)
+	}
+	if got.FirstName != "Ada" || got.LastName != "Lovelace" {
+		t.Errorf("names = %q/%q, want them trimmed", got.FirstName, got.LastName)
+	}
+	if len(got.Roles) != 2 || got.Roles[0] != "support" || got.Roles[1] != "billing" {
+		t.Errorf("roles = %v, want them trimmed and lowercased", got.Roles)
+	}
+	// The password is forwarded VERBATIM: whitespace can be part of a
+	// credential, and silently altering one produces a login failure that
+	// looks like the user's fault.
+	if got.TemporaryPassword != "temporary-1234" {
+		t.Errorf("password = %q, want it forwarded unmodified", got.TemporaryPassword)
+	}
+}
+
+func TestServiceCreateUser_Rejections(t *testing.T) {
+	cases := []struct {
+		name string
+		req  CreateUserRequest
+	}{
+		{"no email", CreateUserRequest{TemporaryPassword: "temporary-1234"}},
+		{"blank email", CreateUserRequest{Email: "   ", TemporaryPassword: "temporary-1234"}},
+		{"malformed email", CreateUserRequest{Email: "not-an-email", TemporaryPassword: "temporary-1234"}},
+		{"no password", CreateUserRequest{Email: "a@b.co"}},
+		{"password too short", CreateUserRequest{Email: "a@b.co", TemporaryPassword: "short"}},
+		{"empty role in the list", CreateUserRequest{
+			Email: "a@b.co", TemporaryPassword: "temporary-1234", Roles: []string{"support", "  "},
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fp := &fakeProvider{}
+			_, err := NewService(fp).CreateUser(context.Background(), tc.req)
+			if !errors.Is(err, ErrBadRequest) {
+				t.Errorf("err = %v, want ErrBadRequest", err)
+			}
+			if fp.createCalls.createUserReq != nil {
+				t.Error("an invalid request reached the provider")
+			}
+		})
+	}
+}
+
+// TestServiceCreateUser_RolesAreOptional — unlike an invitation, a user created
+// with a password may start with no explicit roles. Refusing that would block
+// the ordinary "add the person, decide access later" flow.
+func TestServiceCreateUser_RolesAreOptional(t *testing.T) {
+	fp := &fakeProvider{}
+
+	if _, err := NewService(fp).CreateUser(context.Background(), CreateUserRequest{
+		Email:             "a@b.co",
+		TemporaryPassword: "temporary-1234",
+	}); err != nil {
+		t.Fatalf("CreateUser with no roles: %v", err)
+	}
+	if got := fp.createCalls.createUserReq; got == nil || len(got.Roles) != 0 {
+		t.Errorf("roles = %v, want empty", got.Roles)
+	}
+}
+
+// TestClampListUsersQuery states the shared pagination rule directly. Both
+// surfaces call it, for different reasons, so it earns its own test rather than
+// only being observed through a handler.
+func TestClampListUsersQuery(t *testing.T) {
+	cases := []struct {
+		name      string
+		in        ListUsersQuery
+		wantFirst int
+		wantMax   int
+	}{
+		{"defaults", ListUsersQuery{}, 0, 20},
+		{"negative offset", ListUsersQuery{First: -5}, 0, 20},
+		{"oversized page", ListUsersQuery{Max: 9999}, 0, 100},
+		{"negative page", ListUsersQuery{Max: -1}, 0, 20},
+		{"within bounds is untouched", ListUsersQuery{First: 40, Max: 25}, 40, 25},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ClampListUsersQuery(tc.in)
+			if got.First != tc.wantFirst || got.Max != tc.wantMax {
+				t.Errorf("first/max = %d/%d, want %d/%d", got.First, got.Max, tc.wantFirst, tc.wantMax)
+			}
+			// Idempotent: /v1 clamps, then the service clamps the result again.
+			if again := ClampListUsersQuery(got); again != got {
+				t.Errorf("clamping twice changed the answer: %+v then %+v", got, again)
+			}
+		})
 	}
 }

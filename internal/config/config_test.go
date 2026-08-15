@@ -20,6 +20,7 @@ import (
 var keycloakEnvKeys = []string{
 	"PORT",
 	"DB_URL",
+	"DB_MIGRATE_ON_BOOT",
 	"GIN_LOG_ENABLED",
 	"GIN_ACCESS_LOG_ENABLED",
 	"KEYCLOAK_URL",
@@ -105,37 +106,106 @@ func TestGetEnv(t *testing.T) {
 	})
 }
 
-func TestParseBool(t *testing.T) {
-	truthy := []string{"true", "1", "yes", "on"}
-	falsy := []string{"false", "0", "no", "off", "", "True", "TRUE", "YES", "garbage"}
-	for _, v := range truthy {
-		if !parseBool(v) {
-			t.Errorf("parseBool(%q) = false, want true", v)
+// The strict parsers replaced tolerant ones in Slice 9.
+//
+// The contract they implement is exactly two rules, and the second is the
+// change: an ABSENT value takes the default silently, and a PRESENT value that
+// cannot be parsed is recorded as a problem and fails the boot. The old
+// behaviour — default for both — meant `RATE_LIMIT_CREDENTIAL_RPS=2O` ran as 20
+// and said nothing.
+
+func TestParseBoolStrict(t *testing.T) {
+	t.Run("absent takes the fallback and reports nothing", func(t *testing.T) {
+		var bad []string
+		if got := parseBoolStrict("X", "", true, &bad); !got {
+			t.Error("empty value did not take the fallback")
+		}
+		if len(bad) != 0 {
+			t.Errorf("absent value reported a problem: %v", bad)
+		}
+	})
+
+	for _, v := range []string{"true", "1", "yes", "on", "TRUE", "True", " true "} {
+		var bad []string
+		if !parseBoolStrict("X", v, false, &bad) || len(bad) != 0 {
+			t.Errorf("parseBoolStrict(%q) did not read as true (problems %v)", v, bad)
 		}
 	}
-	for _, v := range falsy {
-		if parseBool(v) {
-			t.Errorf("parseBool(%q) = true, want false (case-sensitive contract)", v)
+	for _, v := range []string{"false", "0", "no", "off", "FALSE", " off "} {
+		var bad []string
+		if parseBoolStrict("X", v, true, &bad) || len(bad) != 0 {
+			t.Errorf("parseBoolStrict(%q) did not read as false (problems %v)", v, bad)
+		}
+	}
+
+	t.Run("garbage is a reported problem, not a silent false", func(t *testing.T) {
+		var bad []string
+		parseBoolStrict("GIN_LOG_ENABLED", "garbage", true, &bad)
+		if len(bad) != 1 {
+			t.Fatalf("problems = %v, want exactly one", bad)
+		}
+		if !strings.Contains(bad[0], "GIN_LOG_ENABLED") {
+			t.Errorf("problem %q does not name the variable", bad[0])
+		}
+	})
+}
+
+func TestParseIntStrict(t *testing.T) {
+	cases := []struct {
+		raw      string
+		want     int
+		problems int
+	}{
+		{raw: "", want: 7, problems: 0},
+		{raw: " 42 ", want: 42, problems: 0},
+		{raw: "0", want: 0, problems: 0},
+		{raw: "-3", want: -3, problems: 0},
+		{raw: "abc", want: 7, problems: 1},
+		{raw: "12abc", want: 7, problems: 1},
+		{raw: "30s", want: 7, problems: 1},
+	}
+	for _, tc := range cases {
+		var bad []string
+		got := parseIntStrict("N", tc.raw, 7, &bad)
+		if got != tc.want || len(bad) != tc.problems {
+			t.Errorf("parseIntStrict(%q) = %d with %d problems, want %d with %d",
+				tc.raw, got, len(bad), tc.want, tc.problems)
 		}
 	}
 }
 
-func TestParseIntDefault(t *testing.T) {
+func TestParseFloatStrict(t *testing.T) {
 	cases := []struct {
-		in, want, fallback int
-		raw                string
+		raw      string
+		want     float64
+		problems int
 	}{
-		{raw: "", want: 7, fallback: 7},
-		{raw: " 42 ", want: 42, fallback: 7},
-		{raw: "0", want: 0, fallback: 7},
-		{raw: "-3", want: -3, fallback: 7},
-		{raw: "abc", want: 7, fallback: 7},
-		{raw: "12abc", want: 7, fallback: 7},
+		{raw: "", want: 0, problems: 0},
+		{raw: "20", want: 20, problems: 0},
+		{raw: " 12.5 ", want: 12.5, problems: 0},
+		// The typo that motivated this: letter O for zero.
+		{raw: "2O", want: 0, problems: 1},
+		{raw: "twenty", want: 0, problems: 1},
 	}
 	for _, tc := range cases {
-		if got := parseIntDefault(tc.raw, tc.fallback); got != tc.want {
-			t.Errorf("parseIntDefault(%q, %d) = %d, want %d", tc.raw, tc.fallback, got, tc.want)
+		var bad []string
+		got := parseFloatStrict("R", tc.raw, 0, &bad)
+		if got != tc.want || len(bad) != tc.problems {
+			t.Errorf("parseFloatStrict(%q) = %v with %d problems, want %v with %d",
+				tc.raw, got, len(bad), tc.want, tc.problems)
 		}
+	}
+}
+
+func TestParseStrict_NeverEchoesTheValueForALongInput(t *testing.T) {
+	var bad []string
+	parseIntStrict("N", strings.Repeat("x", 500), 1, &bad)
+	if len(bad) != 1 {
+		t.Fatalf("problems = %v", bad)
+	}
+	if len(bad[0]) > 200 {
+		t.Errorf("problem message is %d characters; a malformed value must not be able to "+
+			"bloat a log line", len(bad[0]))
 	}
 }
 
@@ -242,6 +312,12 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if !cfg.GinAccessLogEnabled {
 		t.Error("GinAccessLogEnabled default should be true")
 	}
+	// Default true keeps the behaviour the pre-migration AutoMigrate-on-connect
+	// had: an operator who upgrades and changes nothing still gets a migrated
+	// schema at boot.
+	if !cfg.DBMigrateOnBoot {
+		t.Error("DBMigrateOnBoot default should be true")
+	}
 	if cfg.DevPlaygroundEnabled {
 		t.Error("DevPlaygroundEnabled default should be false")
 	}
@@ -294,6 +370,7 @@ func TestLoadConfig_OverridesAndParses(t *testing.T) {
 
 	withMinimalRequiredEnv(t)
 	os.Setenv("PORT", "9000")
+	os.Setenv("DB_MIGRATE_ON_BOOT", "false")
 	os.Setenv("GIN_LOG_ENABLED", "false")
 	os.Setenv("GIN_ACCESS_LOG_ENABLED", "no")
 	os.Setenv("KEYCLOAK_ALLOWED_CLIENT_IDS", "a, b ,, c")
@@ -318,6 +395,10 @@ func TestLoadConfig_OverridesAndParses(t *testing.T) {
 
 	if cfg.Port != "9000" {
 		t.Errorf("Port = %q, want 9000", cfg.Port)
+	}
+	if cfg.DBMigrateOnBoot {
+		t.Error("DBMigrateOnBoot should parse false — an operator who opts out " +
+			"of boot migrations must actually get that")
 	}
 	if cfg.GinLogEnabled {
 		t.Error("GinLogEnabled should parse false")

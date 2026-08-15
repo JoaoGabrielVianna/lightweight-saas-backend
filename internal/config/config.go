@@ -64,6 +64,17 @@ type Config struct {
 	GinLogEnabled       bool
 	GinAccessLogEnabled bool
 
+	// DBMigrateOnBoot controls whether the API applies pending SQL migrations
+	// during startup. Default true, which is the behaviour the previous
+	// AutoMigrate-on-connect had.
+	//
+	// Set DB_MIGRATE_ON_BOOT=false when migrations are applied by a separate
+	// deploy step (init container, release job) — typically because several API
+	// replicas start at once and you want exactly one of them touching the
+	// schema, or because the runtime database role is not allowed to DDL. With
+	// it off, the schema must already be current: nothing checks at boot.
+	DBMigrateOnBoot bool
+
 	// Keycloak / OIDC provider configuration.
 	// KeycloakJWKSURL is optional — derived from URL+Realm when empty.
 	// KeycloakClientSecret is optional (reserved for future Admin API calls).
@@ -123,10 +134,104 @@ type Config struct {
 	// seconds is honored verbatim.
 	AdminLiveCheckTTLSeconds int
 
+	// SecretsMasterKey is the LEGACY single-key form: a base64-encoded 32-byte
+	// AES key sealing provider credentials at rest (internal/secrets).
+	//
+	// Still honoured, and normalised to keyring version 1 — the version every
+	// existing row carries. New installations should use SecretsKeyringSpec
+	// instead; setting both is refused. See secrets.go for the whole contract.
+	//
+	// OPTIONAL, and its absence is a feature: with no key configured at all the
+	// connection domain is not wired and /v1/workspaces/*/connections is not
+	// mounted. An installation that never stores a provider credential
+	// therefore needs no key, and an existing deployment upgrades without one.
+	// Storing a credential without a key is not offered as an option.
+	//
+	// Read through Keyring(), never directly: this field is the environment's
+	// spelling, not the model the runtime uses.
+	//
+	// Generate one with: openssl rand -base64 32
+	SecretsMasterKey string
+
+	// SecretsKeyringSpec is the versioned keyring: `1:<base64>,2:<base64>`.
+	//
+	// Every version listed can DECRYPT; exactly one — SecretsKeyCurrent —
+	// encrypts. This is what makes a master key rotatable without re-entering
+	// every stored credential by hand.
+	//
+	// Read through Keyring().
+	SecretsKeyringSpec string
+
+	// SecretsKeyCurrent nominates the version new secrets are sealed under.
+	//
+	// A string rather than an int because "unset" and "0" must not be the same
+	// value: unset is legitimate when exactly one key is configured, and 0 is a
+	// version that cannot exist. Parsed by Keyring().
+	SecretsKeyCurrent string
+
 	// CORSAllowedOrigins is a comma-separated list of origins allowed to make
 	// cross-origin requests (e.g. "https://backoffice.example.com,http://localhost:5174").
 	// When empty, CORS is disabled (requests from other origins are rejected by the browser).
 	CORSAllowedOrigins []string
+
+	// RateLimitEdgeRPS is the per-IP allowance at the /v1 edge, in requests per
+	// second. It meters unauthenticated traffic and operator traffic; a project
+	// credential's token is released once it authenticates, so this is NOT the
+	// ceiling a machine consumer sees.
+	//
+	// 0 (unset) means the built-in default. So does a negative value: this is a
+	// tuning knob, never an off switch, and a typo must not silently remove the
+	// anti-flood protection.
+	RateLimitEdgeRPS float64
+
+	// RateLimitCredentialRPS is the per-credential allowance in requests per
+	// second — the number a machine consumer can actually reach, and the number
+	// published as the machine contract. 0 or negative means the default.
+	//
+	// Raise it for an installation whose backends do more than routine identity
+	// work. It is per credential and per process, so two credentials get two
+	// buckets and two replicas get two of each ([TD-027]).
+	//
+	// [TD-027]: docs/TECH_DEBT.md#td-027
+	RateLimitCredentialRPS float64
+
+	// ShutdownTimeoutSeconds bounds how long in-flight requests may finish
+	// after a SIGTERM before the process exits regardless.
+	//
+	// It is a ceiling, not a delay: an idle process exits immediately. The
+	// value only matters when a request is still running, and it must be
+	// shorter than whatever will SIGKILL the process — Docker's default stop
+	// grace is 10s, Kubernetes' is 30 — or the drain is decided by the
+	// platform instead of here, with the log line cut off mid-sentence.
+	ShutdownTimeoutSeconds int
+
+	// AuditRetentionDays is how long durable audit history is kept.
+	//
+	// There is deliberately no value meaning "keep forever". An audit table
+	// that only grows is a disk-exhaustion outage scheduled for whenever the
+	// installation gets busy, and an operator who genuinely wants indefinite
+	// history needs an export, not an unbounded table. If that requirement
+	// arrives it should be an explicit sentinel someone had to type, not
+	// something 0 or -1 quietly happens to mean.
+	AuditRetentionDays int
+
+	// MetricsEnabled exposes /metrics. Off by default: an installation that has
+	// not decided how to protect operational data should expose none of it.
+	MetricsEnabled bool
+
+	// MetricsToken is the bearer token a scraper must present. Empty serves
+	// /metrics to loopback clients only, which is the single-VPS case.
+	MetricsToken string
+
+	// malformed collects values that were PRESENT and unparseable, recorded
+	// during LoadConfig because only the loader still has the raw string.
+	//
+	// They are not applied. An unparseable value falls back to the default for
+	// the field so the rest of loading can proceed and report every problem at
+	// once, and then Validate refuses the boot. Silently accepting the fallback
+	// — which is what the tolerant parsers used to do — leaves an installation
+	// configured differently from what its operator believes.
+	malformed []string
 }
 
 // AdminConsoleClientID returns the Keycloak client ID used by the admin
@@ -166,6 +271,9 @@ func (c *Config) AdminLiveCheckTTL() time.Duration {
 // Environment Variables:
 //   - PORT: Server port (default: "8080")
 //   - DB_URL: Database connection string (required for production)
+//   - DB_MIGRATE_ON_BOOT: Apply pending SQL migrations at startup (default: "true")
+//   - SECRETS_MASTER_KEY: base64 32-byte key sealing provider credentials
+//     (optional; without it the connection API is not mounted)
 //   - JWT_SECRET: Secret for JWT signing (required for auth)
 //   - GIN_LOG_ENABLED: Enable/disable Gin engine logs (default: "true")
 //   - GIN_ACCESS_LOG_ENABLED: Enable/disable Gin HTTP request/response logs (default: "true")
@@ -189,16 +297,31 @@ func (c *Config) AdminLiveCheckTTL() time.Duration {
 // =====================================================
 func LoadConfig() *Config {
 
-	err := godotenv.Load()
-	if err != nil {
-		log.Warn("No .env file found, using default environment variables")
+	// A missing .env is the NORMAL case for every containerised deployment:
+	// compose, Kubernetes and systemd all inject the environment directly, and
+	// there is no file to find. Warning about it made the first line of a
+	// healthy container's log look like something had gone wrong, which is a
+	// bad way to start reading a log you are about to trust.
+	//
+	// It stays at Info because it is still worth knowing which of the two
+	// mechanisms supplied the configuration when one of them turns out to be
+	// empty. Anything genuinely missing is reported by Validate, by name.
+	if err := godotenv.Load(); err != nil {
+		log.Info("no .env file; reading configuration from the environment")
 	}
+
+	// bad collects present-but-unparseable values as loading proceeds. Passed
+	// into the strict parsers by pointer so one traversal both parses and
+	// records, and so Validate can report every problem at once instead of one
+	// per restart.
+	var bad []string
 
 	cfg := &Config{
 		Port:                      getEnv("PORT", "8080"),
 		DBUrl:                     getEnv("DB_URL", ""),
-		GinLogEnabled:             parseBool(getEnv("GIN_LOG_ENABLED", "true")),
-		GinAccessLogEnabled:       parseBool(getEnv("GIN_ACCESS_LOG_ENABLED", "true")),
+		DBMigrateOnBoot:           parseBoolStrict("DB_MIGRATE_ON_BOOT", getEnv("DB_MIGRATE_ON_BOOT", ""), true, &bad),
+		GinLogEnabled:             parseBoolStrict("GIN_LOG_ENABLED", getEnv("GIN_LOG_ENABLED", ""), true, &bad),
+		GinAccessLogEnabled:       parseBoolStrict("GIN_ACCESS_LOG_ENABLED", getEnv("GIN_ACCESS_LOG_ENABLED", ""), true, &bad),
 		KeycloakURL:               getEnv("KEYCLOAK_URL", ""),
 		KeycloakRealm:             getEnv("KEYCLOAK_REALM", ""),
 		KeycloakClientID:          getEnv("KEYCLOAK_CLIENT_ID", ""),
@@ -208,13 +331,23 @@ func LoadConfig() *Config {
 		KeycloakAdminClientID:     getEnv("KEYCLOAK_ADMIN_CLIENT_ID", ""),
 		KeycloakAdminClientSecret: getEnv("KEYCLOAK_ADMIN_CLIENT_SECRET", ""),
 		KeycloakAdminBaseURL:      getEnv("KEYCLOAK_ADMIN_BASE_URL", ""),
-		DevPlaygroundEnabled:      parseBool(getEnv("DEV_PLAYGROUND_ENABLED", "false")),
+		DevPlaygroundEnabled:      parseBoolStrict("DEV_PLAYGROUND_ENABLED", getEnv("DEV_PLAYGROUND_ENABLED", ""), false, &bad),
 		DevPlaygroundClientID:     getEnv("DEV_PLAYGROUND_CLIENT_ID", "saas-dev-playground"),
 		AdminConsoleClientID_:     getEnv("ADMIN_CONSOLE_CLIENT_ID", ""),
-		AdminConsoleEnabled:       parseBool(getEnv("ADMIN_CONSOLE_ENABLED", "false")),
-		AdminLiveCheckTTLSeconds:  parseIntDefault(getEnv("ADMIN_LIVE_CHECK_TTL_SECONDS", ""), 0),
+		AdminConsoleEnabled:       parseBoolStrict("ADMIN_CONSOLE_ENABLED", getEnv("ADMIN_CONSOLE_ENABLED", ""), false, &bad),
+		AdminLiveCheckTTLSeconds:  parseIntStrict("ADMIN_LIVE_CHECK_TTL_SECONDS", getEnv("ADMIN_LIVE_CHECK_TTL_SECONDS", ""), 0, &bad),
+		SecretsMasterKey:          getEnv("SECRETS_MASTER_KEY", ""),
+		SecretsKeyringSpec:        getEnv("SECRETS_KEYRING", ""),
+		SecretsKeyCurrent:         getEnv("SECRETS_KEY_CURRENT", ""),
 		CORSAllowedOrigins:        parseCSV(getEnv("CORS_ALLOWED_ORIGINS", "")),
+		RateLimitEdgeRPS:          parseFloatStrict("RATE_LIMIT_EDGE_RPS", getEnv("RATE_LIMIT_EDGE_RPS", ""), 0, &bad),
+		RateLimitCredentialRPS:    parseFloatStrict("RATE_LIMIT_CREDENTIAL_RPS", getEnv("RATE_LIMIT_CREDENTIAL_RPS", ""), 0, &bad),
+		ShutdownTimeoutSeconds:    parseIntStrict("SHUTDOWN_TIMEOUT_SECONDS", getEnv("SHUTDOWN_TIMEOUT_SECONDS", ""), DefaultShutdownTimeoutSeconds, &bad),
+		AuditRetentionDays:        parseIntStrict("AUDIT_RETENTION_DAYS", getEnv("AUDIT_RETENTION_DAYS", ""), DefaultAuditRetentionDays, &bad),
+		MetricsEnabled:            parseBoolStrict("METRICS_ENABLED", getEnv("METRICS_ENABLED", ""), false, &bad),
+		MetricsToken:              getEnv("METRICS_TOKEN", ""),
 	}
+	cfg.malformed = bad
 
 	if cfg.KeycloakJWKSURL == "" && cfg.KeycloakURL != "" && cfg.KeycloakRealm != "" {
 		cfg.KeycloakJWKSURL = strings.TrimRight(cfg.KeycloakURL, "/") +
@@ -226,31 +359,49 @@ func LoadConfig() *Config {
 	return cfg
 }
 
-// Validate enforces required runtime configuration. It calls log.Fatal on the
-// first missing value so the process exits before serving traffic with a
-// half-configured auth stack. Optional fields (KeycloakClientSecret,
-// KeycloakJWKSURL when derivable) are not checked.
-func (c *Config) Validate() {
-	missing := []string{}
-	if c.DBUrl == "" {
-		missing = append(missing, "DB_URL")
+// DefaultShutdownTimeoutSeconds is the drain window when none is configured.
+//
+// 20 seconds: long enough for a slow Keycloak round trip to finish — provider
+// calls are the longest thing a request here does, and the measurements in
+// Slice 8 put a p99 write at ~300ms — and short enough to sit under a
+// deliberately raised platform grace period. It is a ceiling, so a process with
+// nothing in flight exits at once and never waits for it.
+const DefaultShutdownTimeoutSeconds = 20
+
+// DefaultAuditRetentionDays is the retention window when none is configured.
+//
+// 90 days: long enough to cover a quarterly access review and the lag on
+// noticing a compromise, short enough that the table stays a working record
+// rather than an archive. An installation with a compliance requirement will
+// have a number; one without needs a default that is defensible, not generous.
+const DefaultAuditRetentionDays = 90
+
+// maxAuditRetentionDays bounds the window at ten years.
+//
+// Not a policy claim — it is a typo guard. `AUDIT_RETENTION_DAYS=36500000` is
+// indistinguishable from "forever", and the whole point of not offering
+// "forever" is that unbounded growth should be a decision rather than a
+// slipped digit.
+const maxAuditRetentionDays = 3650
+
+// AuditRetention returns the retention window as a duration.
+func (c *Config) AuditRetention() time.Duration {
+	days := c.AuditRetentionDays
+	if days <= 0 {
+		days = DefaultAuditRetentionDays
 	}
-	if c.KeycloakURL == "" {
-		missing = append(missing, "KEYCLOAK_URL")
-	}
-	if c.KeycloakRealm == "" {
-		missing = append(missing, "KEYCLOAK_REALM")
-	}
-	if c.KeycloakClientID == "" {
-		missing = append(missing, "KEYCLOAK_CLIENT_ID")
-	}
-	if c.KeycloakJWKSURL == "" {
-		missing = append(missing, "KEYCLOAK_JWKS_URL (or KEYCLOAK_URL+KEYCLOAK_REALM to derive it)")
-	}
-	if len(missing) > 0 {
-		log.Fatal("missing required environment variables: " + strings.Join(missing, ", "))
-	}
+	return time.Duration(days) * 24 * time.Hour
 }
+
+// ShutdownTimeout returns the drain window as a duration.
+func (c *Config) ShutdownTimeout() time.Duration {
+	if c.ShutdownTimeoutSeconds <= 0 {
+		return DefaultShutdownTimeoutSeconds * time.Second
+	}
+	return time.Duration(c.ShutdownTimeoutSeconds) * time.Second
+}
+
+// Validate lives in validate.go, alongside the rules it enforces.
 
 // =====================================================
 // getEnv retrieves an environment variable value
@@ -292,56 +443,64 @@ func getEnv(key string, fallback string) string {
 	return fallback
 }
 
-// =====================================================
-// parseBool converts a string value to a boolean.
+// ─── Strict parsers ─────────────────────────────────────────────────────────
 //
-// This is a private helper function used internally to safely
-// parse boolean configuration values from environment variables.
+// Absent means the default. Present-and-unparseable means the boot fails.
 //
-// Parameters:
-//   - value: String representation of a boolean
-//     Accepted values (case-insensitive):
-//   - True: "true", "1", "yes", "on"
-//   - False: "false", "0", "no", "off", or any other value
+// The previous helpers returned the default for both, on the reasoning that a
+// typo should not take an installation down. That is right for an absent value
+// and wrong for a present one: an operator who typed something meant something,
+// and quietly substituting a different number leaves them running an
+// installation they cannot reason about. `RATE_LIMIT_CREDENTIAL_RPS=2O` became
+// 20 and nothing said so.
 //
-// Returns:
-//   - bool: true for recognized true values, false otherwise
+// Each parser records the problem rather than returning an error, because
+// LoadConfig builds a struct literal and threading errors through it would turn
+// one readable block into thirty statements. The recorded list is reported all
+// at once by Validate, so configuring a fresh deployment is one pass rather
+// than a restart per mistake.
 //
-// Example:
-//
-//	enabled := parseBool("true")     // returns true
-//	enabled := parseBool("false")    // returns false
-//	enabled := parseBool("1")        // returns true
-//	enabled := parseBool("yes")      // returns true
-//	enabled := parseBool("invalid")  // returns false
-//
-// Notes:
-//   - Case-insensitive (handles "True", "TRUE", etc.)
-//   - Defaults to false for any unrecognized value
-//   - Private function (lowercase): only used within this package
-//
-// =====================================================
-func parseBool(value string) bool {
-	switch value {
+// The fallback is still applied to the field. Nothing runs with it — Validate
+// refuses the boot — but it keeps loading total so every OTHER problem is found
+// in the same pass.
+
+func parseBoolStrict(name, value string, fallback bool, bad *[]string) bool {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "true", "1", "yes", "on":
 		return true
-	default:
+	case "false", "0", "no", "off":
 		return false
+	default:
+		*bad = append(*bad, name+" must be true or false (got "+quoteOrEmpty(value)+")")
+		return fallback
 	}
 }
 
-// parseIntDefault parses value as a base-10 integer, returning fallback for
-// empty / unparseable input. Kept tolerant so a typo in an env var falls back
-// to the safe default rather than crashing the process at boot.
-func parseIntDefault(value string, fallback int) int {
-	if value == "" {
+func parseIntStrict(name, value string, fallback int, bad *[]string) int {
+	if strings.TrimSpace(value) == "" {
 		return fallback
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
+		*bad = append(*bad, name+" must be a whole number (got "+quoteOrEmpty(value)+")")
 		return fallback
 	}
 	return n
+}
+
+func parseFloatStrict(name, value string, fallback float64, bad *[]string) float64 {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		*bad = append(*bad, name+" must be a number (got "+quoteOrEmpty(value)+")")
+		return fallback
+	}
+	return f
 }
 
 // parseCSV splits a comma-separated env-var value into a clean string slice:
