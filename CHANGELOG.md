@@ -46,6 +46,29 @@ Nothing was removed. The v0.3.1 `/admin/*` identity surface still exists and
 still behaves the same way; it is now optional, and unset by default for a
 self-hosted install. See **Changed** for the defaults that moved.
 
+The schema migrates itself: the baseline migration reproduces the previous
+AutoMigrate schema exactly and is a no-op on an existing database. Two
+configuration changes are not automatic, and both bite an existing Compose
+installation that runs the bundled Keycloak:
+
+1. **Set the two container-internal Keycloak addresses in your `.env`.**
+   v0.3.1 hardcoded them in `docker-compose.yml`, so they were never in `.env`
+   and the file is not overwritten by an upgrade. Left empty they are derived
+   from `KEYCLOAK_URL` — `localhost:8081`, which *inside the API container* is
+   the container itself — and the API exits after failing to fetch JWKS:
+
+   ```
+   KEYCLOAK_JWKS_URL=http://keycloak:8080/realms/saas/protocol/openid-connect/certs
+   KEYCLOAK_ADMIN_BASE_URL=http://keycloak:8080
+   ```
+
+   Pointing at your own Keycloak instead? Leave both blank: they are then
+   derived from `KEYCLOAK_URL`, which is the only address there is.
+
+2. **Start the bundled Keycloak explicitly**, with
+   `docker compose --profile dev-idp up -d`. See the compose entry under
+   **Changed** for why it moved behind a profile.
+
 ### Added — installation and first run
 
 - **`./scripts/init.sh`** — the supported way to configure an installation.

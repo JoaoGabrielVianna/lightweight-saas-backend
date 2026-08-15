@@ -27,12 +27,12 @@
 #                       the install command in the docs. No tests, no toolchain
 #                       download, no git reads. Runs on every push.
 #
-# The split exists because git tags point at commits and this repository's SDK
-# currently lives entirely in an uncommitted working tree. A check that validated
-# the working tree and then reported "ready to tag" would be telling a precise
-# lie: tagging HEAD today produces a tag containing no SDK at all. `--worktree`
-# says what it checked; `--head` says what a tag would contain. Those are
-# different sentences and this script refuses to blur them.
+# The split exists because git tags point at commits, and the working tree is not
+# the commit. A check that validated the files on disk and then reported "ready
+# to tag" would be telling a precise lie whenever the two differ: a tag captures
+# the commit and nothing that is only on disk. `--worktree` says what it checked;
+# `--head` says what a tag would contain. Those are different sentences and this
+# script refuses to blur them.
 #
 # Usage:
 #   scripts/check-sdk-release.sh --worktree v0.1.0

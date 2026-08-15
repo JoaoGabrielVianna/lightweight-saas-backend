@@ -24,8 +24,15 @@ change is listed under **Breaking**, and shows up as a removed line in
 
 ## [Unreleased]
 
-Nothing has been released. The first release is expected to be `v0.1.0`, tagged
-`sdk/go/v0.1.0`; see [docs/SDK_GO.md](../../docs/SDK_GO.md#the-first-release).
+Nothing yet.
+
+---
+
+## [0.1.0] — 2026-08-15
+
+The first public release, published by the tag `sdk/go/v0.1.0` and installed as
+`…/sdk/go@v0.1.0`; those two strings differ on purpose, and
+[docs/SDK_GO.md](../../docs/SDK_GO.md#the-first-release) explains why.
 
 ### Added
 
