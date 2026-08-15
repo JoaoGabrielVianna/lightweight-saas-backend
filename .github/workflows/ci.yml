@@ -13,9 +13,17 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Pinned so a new linter release cannot turn a green branch red with no code
+  # change. Keep in sync with GOLANGCI_VERSION in the Makefile.
+  GOLANGCI_VERSION: v2.12.2
+
 jobs:
-  ci:
-    name: lint · vet · build · test · swagger
+  # ── Gate 1 ────────────────────────────────────────────────────────────────
+  # Everything needing neither Docker nor a service container. Fast, and the
+  # failure most PRs will hit, so it stands alone and reports first.
+  gate:
+    name: fmt · vet · lint · build · test · swagger · docs
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,7 +39,10 @@ jobs:
       - name: Install swag CLI (for swagger-check)
         run: go install github.com/swaggo/swag/cmd/swag@latest
 
-      - name: Run CI gate (fmt-check · vet · build · test · swagger-check)
+      - name: Install golangci-lint (pinned)
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ env.GOLANGCI_VERSION }}
+
+      - name: Run CI gate
         run: make ci
 
       - name: Upload binary artifact
@@ -40,5 +51,422 @@ jobs:
         with:
           name: api-${{ github.sha }}
           path: bin/api
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Gate 2 ────────────────────────────────────────────────────────────────
+  # Unit coverage floor — no services, so it reports in ~1 minute and a
+  # coverage failure is legible at a glance instead of buried in the main
+  # gate's log.
+  #
+  # This is NOT the authoritative number. It excludes the integration-tagged
+  # suite, which is where most repository code is exercised; the authoritative
+  # measurement lives in the `integration` job below, which has a database.
+  # Both floors are enforced, and neither substitutes for the other.
+  coverage:
+    name: coverage floor (unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Enforce unit coverage floor
+        run: make coverage-gate-unit
+
+      - name: Upload coverage profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit-${{ github.sha }}
+          path: coverage.out
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Gate 3 ────────────────────────────────────────────────────────────────
+  # Admin console tests. Node only, no Go toolchain — the cheapest job here.
+  # These 30 tests pin UI regressions (UI-001..004) and ran OUTSIDE CI until
+  # 2026-07-27, which is half of TD-003.
+  frontend:
+    name: admin console tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run admin console test suites
+        run: node --test web/admin/static/js/tests/
+
+  # ── Gate 4 ────────────────────────────────────────────────────────────────
+  # Integration tests against a real PostgreSQL and a real Keycloak, and the
+  # AUTHORITATIVE coverage measurement.
+  #
+  # Correctness and the coverage metric are one job because they are one test
+  # run: `-tags=integration` compiles the untagged files as well as the tagged
+  # ones, so this single pass is a strict superset of the unit job's. Splitting
+  # it would run the same suite twice to produce two views of one result.
+  #
+  # Keycloak IS started here, unlike before. The workspace-scoped identity
+  # runtime resolves each request through a workspace's active Connection to a
+  # specific realm, and the property that matters — that two workspaces pointed
+  # at two realms cannot leak into each other — is not expressible against a
+  # stub. The suite skips cleanly when KEYCLOAK_VERIFY_URL is unset, which is
+  # what keeps it runnable on a laptop with only a database.
+  #
+  # This is still not end-to-end coverage of the product (V1-01 on the roadmap);
+  # it is the runtime boundary, tested against the real provider.
+  integration:
+    name: integration + coverage (postgres · keycloak)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: saas
+          POSTGRES_PASSWORD: saas
+          POSTGRES_DB: saas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U saas -d saas_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Started as a step rather than as a service container: the Keycloak
+      # image ships no curl or wget, so a service-container --health-cmd has
+      # nothing to run and the job would proceed against a Keycloak that is
+      # still booting. Polling from the runner, which does have curl, is the
+      # readiness check that actually works.
+      - name: Start Keycloak
+        run: |
+          docker run -d --name keycloak \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            -e KC_HEALTH_ENABLED=true \
+            -p 8081:8080 \
+            quay.io/keycloak/keycloak:26.0 start-dev
+
+      - name: Wait for Keycloak
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://localhost:8081/realms/master/.well-known/openid-configuration; then
+              echo "keycloak ready after ${i}s"; exit 0
+            fi
+            sleep 2
+          done
+          echo "keycloak did not become ready"; docker logs keycloak | tail -50; exit 1
+
+      - name: Run integration suite and enforce the authoritative coverage floor
+        env:
+          DB_URL: postgres://saas:saas@localhost:5432/saas_test?sslmode=disable
+          KEYCLOAK_VERIFY_URL: http://localhost:8081
+        run: make coverage-gate-full
+
+      - name: Upload authoritative coverage profile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-full-${{ github.sha }}
+          path: coverage.out
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Gate 5 ────────────────────────────────────────────────────────────────
+  # End-to-end, against the real thing.
+  #
+  # This is the tier [TD-003]/[R-01] have been open on since 2026-07-27: nothing
+  # in CI started the stack, authenticated, and exercised a real request path.
+  # Every other job proves components work. This one proves the PRODUCT works.
+  #
+  # It runs `scripts/m2m-harness.sh --smoke`, which is the same script a
+  # developer runs locally — not a third suite written for CI. A CI-only harness
+  # would be the one that rots, because nobody runs it while debugging.
+  #
+  # What --smoke drops is time, not coverage: the expired-credential row (which
+  # needs a real 6-second wait) and the measurement pass. Everything else is the
+  # full run, and lwprobe prints SKIP for what it did not check, so the omission
+  # is visible in the log rather than implied.
+  #
+  # What it proves, end to end: database boots · Keycloak boots · migrations run
+  # · LIGHTWEIGHT boots · readiness turns 200 · workspace, connection, project
+  # and credential are created through the API · an external client authenticates
+  # · real reads and writes land in the right realm · the wrong workspace is
+  # refused · insufficient scope is refused · revocation is immediate ·
+  # connection rotation is invisible to the credential · no secret reaches the
+  # log · shutdown is graceful.
+  #
+  # [TD-003]: docs/TECH_DEBT.md#td-003
+  # [R-01]: docs/RISKS.md#r-01
+  e2e:
+    name: e2e (postgres · keycloak · real process)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: saas
+          POSTGRES_PASSWORD: saas
+          POSTGRES_DB: saas_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U saas -d saas_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Same reasoning as the integration job: the Keycloak image ships no curl
+      # or wget, so a service-container health check has nothing to run and the
+      # job would proceed against a Keycloak that is still booting.
+      - name: Start Keycloak
+        run: |
+          docker run -d --name keycloak \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            -e KC_HEALTH_ENABLED=true \
+            -p 8081:8080 \
+            quay.io/keycloak/keycloak:26.0 start-dev
+
+      - name: Wait for Keycloak
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://localhost:8081/realms/master/.well-known/openid-configuration; then
+              echo "keycloak ready after ${i}s"; exit 0
+            fi
+            sleep 2
+          done
+          echo "keycloak did not become ready"; docker logs keycloak | tail -50; exit 1
+
+      # The harness boots ./bin/api itself; building here keeps a compile error
+      # out of the middle of the run, where it would look like a stack failure.
+      - name: Build
+        run: make build
+
+      - name: Run the end-to-end harness
+        env:
+          DB_URL: postgres://saas:saas@localhost:5432/saas_e2e?sslmode=disable
+          KEYCLOAK_VERIFY_URL: http://localhost:8081
+          API_PORT: "58090"
+          # The harness deletes its scratch directory on exit. Setting this
+          # copies the API's log out first, so a failed run leaves something to
+          # read instead of the reason it failed.
+          LW_DIAGNOSTICS_DIR: ${{ runner.temp }}/diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics"
+          ./scripts/m2m-harness.sh --smoke | tee "$RUNNER_TEMP/harness.log"
+
+      # The negative half of the same boundary (Slice 14 / KI-018).
+      #
+      # It reuses the services this job already started, so the marginal cost is
+      # the run itself — about fifteen seconds — rather than another Postgres and
+      # another Keycloak. Its own database, because it creates fixed-name
+      # workspaces and must not collide with the harness above.
+      #
+      # What the m2m harness proves is that an authorized backend can do its
+      # job. What this proves is that every OTHER caller cannot: wrong
+      # workspace, missing scope, wrong capability family, revoked credential,
+      # archived workspace, retired connection, a resource id belonging to
+      # another realm — each refused, each leaving the provider untouched, and
+      # each leaving no successful event in the durable trail.
+      - name: Run the negative authorization matrix
+        env:
+          DB_URL: postgres://saas:saas@localhost:5432/saas_negauthz?sslmode=disable
+          KEYCLOAK_VERIFY_URL: http://localhost:8081
+          API_PORT: "58092"
+          LW_DIAGNOSTICS_DIR: ${{ runner.temp }}/diagnostics
+        run: |
+          PGPASSWORD=saas psql -h localhost -U saas -d postgres \
+            -c 'DROP DATABASE IF EXISTS saas_negauthz' \
+            -c 'CREATE DATABASE saas_negauthz'
+          ./scripts/negative-authz-e2e.sh | tee "$RUNNER_TEMP/negative-authz.log"
+
+      # Diagnostics, redacted.
+      #
+      # A failed e2e run is worthless without the logs, and the logs contain
+      # freshly minted credentials — the harness prints key prefixes, and the
+      # API log records request lines. `redact-logs.sh` strips anything shaped
+      # like a credential BEFORE the upload step can see it. Artifacts outlive
+      # the run and are downloadable by anyone with read access to the repo.
+      - name: Collect and redact diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics"
+          docker logs keycloak > "$RUNNER_TEMP/diagnostics/keycloak.log" 2>&1 || true
+          cp "$RUNNER_TEMP/harness.log" "$RUNNER_TEMP/diagnostics/" 2>/dev/null || true
+          cp "$RUNNER_TEMP/negative-authz.log" "$RUNNER_TEMP/diagnostics/" 2>/dev/null || true
+          ./scripts/redact-logs.sh "$RUNNER_TEMP/diagnostics"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics-${{ github.sha }}
+          path: ${{ runner.temp }}/diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ── Gate 6 ────────────────────────────────────────────────────────────────
+  # The OPERATOR boundary, in a real browser.
+  #
+  # Gate 5 proves a machine can use the product. This one proves a person can
+  # configure it — and the two are not the same claim. Everything a machine
+  # consumes has to be created by an operator first: the workspace, the
+  # connection to a realm, the project, the credential. A console that renders
+  # but cannot complete that sequence is a product nobody can install, and
+  # until this job existed a regression in it shipped with every gate green.
+  # That is [TD-031], and it is what this closes.
+  #
+  # A SEPARATE job, deliberately. Mixed into the e2e job, "backend green /
+  # browser red" would read as one failure and cost a bisect to tell apart.
+  # Separate jobs make the diagnosis the job name.
+  #
+  # What it proves, end to end: PostgreSQL boots · Keycloak 26 boots ·
+  # LIGHTWEIGHT boots · readiness turns 200 BEFORE Chromium opens · a real
+  # operator completes an Authorization Code + PKCE login through Keycloak's
+  # own form, with no token injected · a workspace, connection, project and
+  # credential are created by clicking · the connection is verified and
+  # activated · the one-time credential secret is shown once and never again ·
+  # that credential works from outside over plain HTTP · its mutation appears
+  # in the console's Audit view attributed to the project · the operator
+  # revokes it in the browser and the machine is refused on its next request ·
+  # the revocation appears attributed to the operator · logout clears the
+  # session · a /v1 error renders as prose · two workspaces on two realms do
+  # not leak into each other · no unexpected browser error occurred · and no
+  # published artifact contains a credential or a bearer token.
+  #
+  # [TD-031]: docs/TECH_DEBT.md#td-031
+  browser-e2e:
+    name: browser e2e (postgres · keycloak · chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: saas
+          POSTGRES_PASSWORD: saas
+          POSTGRES_DB: saas_browser
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U saas -d saas_browser"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Node is needed only for Playwright. `cache: npm` keys off the
+      # committed lockfile, which is also what pins the toolchain version.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+
+      # Same reasoning as the other two jobs: the Keycloak image ships no curl
+      # or wget, so a service-container health check has nothing to run and the
+      # job would proceed against a Keycloak that is still booting.
+      - name: Start Keycloak
+        run: |
+          docker run -d --name keycloak \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            -e KC_HEALTH_ENABLED=true \
+            -p 8081:8080 \
+            quay.io/keycloak/keycloak:26.0 start-dev
+
+      - name: Wait for Keycloak
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://localhost:8081/realms/master/.well-known/openid-configuration; then
+              echo "keycloak ready after ${i}s"; exit 0
+            fi
+            sleep 2
+          done
+          echo "keycloak did not become ready"; docker logs keycloak | tail -50; exit 1
+
+      # `npm ci` installs EXACTLY the lockfile. Pinning the toolchain in the
+      # repository rather than in the workflow is what makes a CI failure
+      # reproducible on a laptop with one command.
+      - name: Install the pinned Playwright
+        working-directory: tests/browser
+        run: npm ci
+
+      # Chromium only. Cross-browser support is not the risk this slice is
+      # about, and every extra browser is ~200 MB of download per run for
+      # coverage nobody has asked for. The version is fixed by the Playwright
+      # package version above, so this is reproducible without pinning a
+      # second thing that could drift from the first.
+      - name: Install Chromium
+        working-directory: tests/browser
+        run: npx playwright install --with-deps chromium
+
+      # Built here so a compile error surfaces as a build failure rather than
+      # in the middle of the fixture, where it would look like a stack problem.
+      - name: Build
+        run: make build
+
+      - name: Run the operator browser journeys
+        env:
+          DB_URL: postgres://saas:saas@localhost:5432/saas_browser?sslmode=disable
+          KEYCLOAK_VERIFY_URL: http://localhost:8081
+          API_PORT: "58095"
+          LW_BROWSER_ARTIFACT_DIR: ${{ runner.temp }}/browser-artifacts
+          LW_DIAGNOSTICS_DIR: ${{ runner.temp }}/diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics" "$RUNNER_TEMP/browser-artifacts"
+          ./scripts/browser-e2e.sh | tee "$RUNNER_TEMP/browser-e2e.log"
+
+      # Diagnostics, redacted — then scanned again.
+      #
+      # The suite's own artifact scan already ran inside the script, and it is
+      # the authoritative gate. This second pass covers what the script cannot:
+      # the Keycloak container log and this job's own tee'd stdout, neither of
+      # which existed when the in-script scan ran.
+      - name: Collect and redact diagnostics
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/diagnostics"
+          docker logs keycloak > "$RUNNER_TEMP/diagnostics/keycloak.log" 2>&1 || true
+          cp "$RUNNER_TEMP/browser-e2e.log" "$RUNNER_TEMP/diagnostics/" 2>/dev/null || true
+          ./scripts/redact-logs.sh "$RUNNER_TEMP/diagnostics"
+
+      # No trace, no screenshot, no video is uploaded, because none is
+      # produced — see tests/browser/playwright.config.js for why that is the
+      # smallest safe policy rather than a debugging inconvenience. What ships
+      # is the per-test browser-error log, the JSON result file, and the
+      # redacted process logs.
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-diagnostics-${{ github.sha }}
+          path: ${{ runner.temp }}/diagnostics
           if-no-files-found: ignore
           retention-days: 7

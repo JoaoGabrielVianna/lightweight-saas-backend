@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# pre-push — run the checks that would otherwise fail in CI.
+#
+# Budget: under 90 seconds. This is the last cheap moment to catch a red
+# build; discovering it from a CI email costs a context switch instead.
+#
+# Runs `make ci` (fmt-check · vet · build · test · swagger-check) plus the
+# documentation gates. Deliberately does NOT run the integration suite — that
+# needs the docker-compose stack up, and a hook that fails because Docker is
+# not running teaches people to pass --no-verify reflexively.
+#
+# Install:  make hooks-install
+# Bypass:   git push --no-verify   (justify it in the PR)
+set -uo pipefail
+
+echo "pre-push: running the CI gate locally…"
+
+if ! make ci; then
+  echo
+  echo "✗ pre-push: 'make ci' failed — this WILL fail in CI."
+  echo "  Fix it, or push with --no-verify and explain why in the PR."
+  exit 1
+fi
+
+if ! make check-docs; then
+  echo
+  echo "✗ pre-push: documentation checks failed."
+  echo "  See docs/QUALITY_GATE.md §Documentation."
+  exit 1
+fi
+
+echo "  + pre-push OK"
+exit 0
