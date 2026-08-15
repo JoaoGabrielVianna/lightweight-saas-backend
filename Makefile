@@ -437,6 +437,20 @@ check-docs: ## docs: All documentation gates — links + published metrics
 	@$(MAKE) -s check-links
 	@$(MAKE) -s check-metrics
 
+# RANGE defaults to the commits this branch adds on top of origin/main, so the
+# target judges only what you wrote. Override it to audit something else:
+#   make check-attribution RANGE=v0.3.1..HEAD
+.PHONY: check-attribution
+check-attribution: ## quality: Fail if a new commit message carries AI attribution
+	@./scripts/check-commit-attribution.sh --self-test
+	@if [ -n "$(RANGE)" ]; then \
+		./scripts/check-commit-attribution.sh --range "$(RANGE)" && echo "  + no AI attribution in $(RANGE)"; \
+	elif git rev-parse --verify --quiet origin/main >/dev/null; then \
+		./scripts/check-commit-attribution.sh --range origin/main..HEAD && echo "  + no AI attribution in origin/main..HEAD"; \
+	else \
+		echo "  ! origin/main unavailable — pass RANGE=<base>..HEAD to check a range"; \
+	fi
+
 .PHONY: ci
 ci: ## quality: The CI gate — fmt-check · vet · lint · build · test · sdk · swagger · docs
 	@$(MAKE) -s fmt-check
@@ -447,6 +461,7 @@ ci: ## quality: The CI gate — fmt-check · vet · lint · build · test · sdk
 	@$(MAKE) -s sdk-check
 	@$(MAKE) -s swagger-check
 	@$(MAKE) -s check-docs
+	@$(MAKE) -s check-attribution
 	@echo "  + CI checks passed"
 
 .PHONY: ci-full
@@ -462,10 +477,11 @@ ci-full: ## quality: `ci` plus coverage gate, frontend tests, and integration te
 check: ci ## quality: Alias for `ci`
 
 .PHONY: hooks-install
-hooks-install: ## quality: Point git at .githooks/ (pre-commit + pre-push)
+hooks-install: ## quality: Point git at .githooks/ (commit-msg + pre-commit + pre-push)
 	@git config core.hooksPath .githooks
 	@chmod +x .githooks/* 2>/dev/null || true
 	@echo "  + git hooks enabled (core.hooksPath=.githooks)"
+	@echo "    commit-msg: AI-attribution guard          (instant)"
 	@echo "    pre-commit: gofmt · vet · .env guard      (~3s)"
 	@echo "    pre-push:   make ci + make check-docs     (~60s)"
 	@echo "    bypass with --no-verify; justify it in the PR"

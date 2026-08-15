@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# commit-msg — reject AI attribution before the commit object exists.
+#
+# Budget: milliseconds. It reads one file and runs five greps.
+#
+# This stage is chosen deliberately. A commit message is the one thing in this
+# repository that cannot be fixed after it is published: rewriting it changes
+# the commit SHA and every descendant SHA with it. Catching it here costs an
+# amended message; catching it after a release costs nothing, because by then
+# it is immutable.
+#
+# The patterns live in scripts/check-commit-attribution.sh, shared with the CI
+# job of the same name, so a hook and a gate cannot disagree about the rule.
+#
+# Install:  make hooks-install
+# Bypass:   git commit --no-verify   (CI still enforces this one)
+set -uo pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CHECKER="$REPO_ROOT/scripts/check-commit-attribution.sh"
+
+[ -x "$CHECKER" ] || exit 0
+
+exec "$CHECKER" --file "$1"

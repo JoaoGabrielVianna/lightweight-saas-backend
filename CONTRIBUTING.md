@@ -61,6 +61,15 @@ Full walkthrough in [`docs/getting-started/QUICKSTART.md`](docs/getting-started/
   - `docs:` documentation only
   - `chore:` tooling, refactors, dependency bumps
   - `test:` test-only changes
+- **No AI attribution in commit messages.** A commit records who is
+  accountable for a change, and that is a person. Do not add `Co-Authored-By`
+  trailers naming Claude, ChatGPT, Copilot or any other agent or vendor, and do
+  not add `Generated with …`, `AI-assisted` or `AI-generated` footers. Human
+  co-authors are welcome and unaffected — `Co-Authored-By: Jane Developer
+  <jane@example.com>` is correct and stays. Enforced by the `commit-msg` hook
+  and by the `commit attribution` CI job; check locally with
+  `make check-attribution`. If you use a coding agent, [CLAUDE.md](CLAUDE.md)
+  states the rule in the form the agent reads.
 
 ## Pull request expectations
 
@@ -86,7 +95,7 @@ If the PR touches `sdk/go/`, two extra things apply:
 ### Before you open a PR
 
 ```bash
-make hooks-install   # once per clone — pre-commit + pre-push checks
+make hooks-install   # once per clone — commit-msg + pre-commit + pre-push checks
 make ci              # what CI enforces  (~5s)
 make ci-full         # + coverage floor + frontend tests  (~10s)
 ```

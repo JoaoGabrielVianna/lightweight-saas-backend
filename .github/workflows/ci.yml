@@ -54,6 +54,47 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # ── Gate 1b ───────────────────────────────────────────────────────────────
+  # AI attribution in commit messages. Separate from the main gate for two
+  # reasons: it needs full history (`fetch-depth: 0`), which the other jobs
+  # deliberately avoid paying for, and its failure is about the commit rather
+  # than the code, so it should not be buried in a build log.
+  #
+  # It judges only the commits the event introduces. Scanning all history would
+  # fail forever on three commits that are ancestors of the published v0.4.0
+  # and sdk/go/v0.1.0 tags and therefore cannot be rewritten.
+  commit-attribution:
+    name: commit attribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove the gate still detects what it claims to
+        run: ./scripts/check-commit-attribution.sh --self-test
+
+      - name: Check the commit messages this change introduces
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          # `github.event.before` is all-zeroes on a branch's first push, and a
+          # force-push can name a commit this clone no longer has. Fall back to
+          # the single head commit rather than scanning history that was never
+          # part of this change.
+          if [ -z "${BASE}" ] || [ "${BASE}" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "no usable base — checking ${HEAD_SHA} alone"
+            ./scripts/check-commit-attribution.sh --commit "${HEAD_SHA}"
+          else
+            echo "checking ${BASE}..${HEAD_SHA}"
+            ./scripts/check-commit-attribution.sh --range "${BASE}..${HEAD_SHA}"
+          fi
+          echo "  + no AI attribution in the commits this change introduces"
+
   # ── Gate 2 ────────────────────────────────────────────────────────────────
   # Unit coverage floor — no services, so it reports in ~1 minute and a
   # coverage failure is legible at a glance instead of buried in the main
