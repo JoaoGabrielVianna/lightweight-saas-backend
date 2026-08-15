@@ -2,7 +2,7 @@
 
 Browser-based developer console for the Keycloak integration. Served at **`http://localhost:8080/dev/auth`** when `DEV_PLAYGROUND_ENABLED=true`.
 
-Single page · six cards. The backend's `/auth/debug` endpoint is the single source of truth for validation — the UI consumes it and translates failures into human "why + fix" blocks, but never re-decides validity client-side.
+Single page · six cards. The backend's `/dev/auth/debug` endpoint is the single source of truth for validation — the UI consumes it and translates failures into human "why + fix" blocks, but never re-decides validity client-side.
 
 > **Developer observability tool, not product UI.** Not hardened, accessible, internationalized, or branded. Gated behind the env flag plus a Keycloak client that exists only when `features.dev_playground=true` in [`config/project.json`](../../config/project.json).
 
@@ -13,13 +13,13 @@ Single page · six cards. The backend's `/auth/debug` endpoint is the single sou
 | #  | Card                  | Source-of-truth                          | What you do here |
 |----|-----------------------|------------------------------------------|------------------|
 | 1  | **connection**        | `/health` + KC realm root + OIDC discovery | See whether each piece of the auth stack is reachable. Auto-refreshes every 10s. |
-| 2  | **authentication**    | local PKCE flow + `/auth/debug` for user info | Login / refresh / logout. Live expiry countdown. Copy token to clipboard. |
-| 3  | **token introspection**| `/auth/debug` (entire response)         | Every claim and config check the API uses, with a green/yellow/red pill on `valid`. |
-| 4  | **debugging**         | `/auth/debug.reason`                     | Only visible when `valid=false`. Human "why + fix" translation. |
+| 2  | **authentication**    | local PKCE flow + `/dev/auth/debug` for user info | Login / refresh / logout. Live expiry countdown. Copy token to clipboard. |
+| 3  | **token introspection**| `/dev/auth/debug` (entire response)         | Every claim and config check the API uses, with a green/yellow/red pill on `valid`. |
+| 4  | **debugging**         | `/dev/auth/debug.reason`                     | Only visible when `valid=false`. Human "why + fix" translation. |
 | 5  | **api testing**       | live calls with the active bearer        | `GET /me`, `GET /health`. Placeholder buttons for future endpoints. |
-| 6  | **raw payloads**      | `/auth/debug`, `/me`, local JWT decode   | Collapsible JSON dumps with copy buttons. Client-side JWT decode is cosmetic only. |
+| 6  | **raw payloads**      | `/dev/auth/debug`, `/me`, local JWT decode   | Collapsible JSON dumps with copy buttons. Client-side JWT decode is cosmetic only. |
 
-The validation discipline is strict: every `valid`, `expired`, `roles`, `email`, `aud`, `iss` value comes from `/auth/debug`. Replacing the cosmetic JWT decode would not change any validation outcome.
+The validation discipline is strict: every `valid`, `expired`, `roles`, `email`, `aud`, `iss` value comes from `/dev/auth/debug`. Replacing the cosmetic JWT decode would not change any validation outcome.
 
 ### Token-side specifics
 
@@ -104,16 +104,26 @@ Static assets are read from disk (`./web/dev/`) at request time — Go's `//go:e
 
 ---
 
-## `/auth/debug` — token introspection endpoint
+## `/dev/auth/debug` — token introspection endpoint
 
 Companion to the playground UI for the curl-and-jq crowd. Same gate (`DEV_PLAYGROUND_ENABLED=true`), different URL namespace. Collapses "why is my token rejected?" into one call.
+
+> **Two introspection routes exist — use the right one.**
+>
+> | Route | Auth | Mounted | Use it for |
+> |---|---|---|---|
+> | `GET /dev/auth/debug` | **None** | `DEV_PLAYGROUND_ENABLED=true` only | Debugging a token that is being **rejected**. This is the endpoint documented below. |
+> | `GET /auth/debug` | Required | Every environment | What the admin console consumes. Returns the same payload, but a bad token gets a `401` from middleware before the handler runs — so it can never tell you *why*. |
+>
+> Prior to 2026-07-26 both were registered on `/auth/debug`, which panicked the
+> process at boot. See [KI-001](../KNOWN_ISSUES.md#ki-001).
 
 ### Request
 
 ```
-GET /auth/debug                                    # config introspection
-GET /auth/debug   Authorization: Bearer <jwt>      # token introspection (header wins)
-GET /auth/debug?token=<jwt>                        # token via query
+GET /dev/auth/debug                                    # config introspection
+GET /dev/auth/debug   Authorization: Bearer <jwt>      # token introspection (header wins)
+GET /dev/auth/debug?token=<jwt>                        # token via query
 ```
 
 ### Response — always HTTP 200
@@ -157,7 +167,7 @@ GET /auth/debug?token=<jwt>                        # token via query
 
 **No token (config introspection):**
 ```bash
-$ curl -sS http://localhost:8080/auth/debug | jq '{issuer, allowed_clients, valid, reason}'
+$ curl -sS http://localhost:8080/dev/auth/debug | jq '{issuer, allowed_clients, valid, reason}'
 {
   "issuer":          "http://localhost:8081/realms/saas",
   "allowed_clients": ["saas-backend", "saas-dev-playground"],
@@ -191,7 +201,7 @@ Client-side `expired` check and validator's verdict agree byte-for-byte — both
 
 **Missing role (RBAC debug):**
 ```bash
-$ curl -sS http://localhost:8080/auth/debug -H "Authorization: Bearer $T" | jq '.roles | contains(["admin"])'
+$ curl -sS http://localhost:8080/dev/auth/debug -H "Authorization: Bearer $T" | jq '.roles | contains(["admin"])'
 false
 ```
 
@@ -200,7 +210,7 @@ Empty `roles` for a user you expected to have them → probably forgotten the `r
 ### From the playground browser console
 
 ```js
-fetch("/auth/debug", {
+fetch("/dev/auth/debug", {
   headers: { Authorization: "Bearer " + sessionStorage.kc_dev_access_token }
 }).then(r => r.json()).then(console.table);
 ```

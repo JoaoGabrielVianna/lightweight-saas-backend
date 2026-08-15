@@ -54,6 +54,28 @@ const _state = {
   route: null,
   // Seeded from localStorage at module load. See header comment §3.
   locale: _readPersistedLocale(),
+
+  // ── Workspace context (Slice 6) ──────────────────────────────────────────
+  // Written ONLY by lib/workspaces.js. Declared here so the shape of the
+  // store is readable in one place and so _resetForTests can clear it.
+  //
+  //   workspaces           the loaded /v1/workspaces list
+  //   currentWorkspaceId   the selected `ws_` id, or null
+  //   workspacesLoading    the list request is in flight
+  //   workspacesError      APIError from the last failed list request
+  //   wsConnection         the current workspace's ACTIVE connection, or null
+  //   wsConnectionLoading  the connection request is in flight
+  //   wsConnectionError    APIError from the last failed connection request
+  //
+  // Nothing here is a secret. wsConnection is the API's ConnectionResponse,
+  // which structurally cannot carry the sealed client secret.
+  workspaces: [],
+  currentWorkspaceId: null,
+  workspacesLoading: false,
+  workspacesError: null,
+  wsConnection: null,
+  wsConnectionLoading: false,
+  wsConnectionError: null,
 };
 
 const _subs = new Set();
@@ -109,6 +131,13 @@ export function _resetForTests(initialPatch) {
   _state.theme    = "dark";
   _state.route    = null;
   _state.locale   = _readPersistedLocale();
+  _state.workspaces          = [];
+  _state.currentWorkspaceId  = null;
+  _state.workspacesLoading   = false;
+  _state.workspacesError     = null;
+  _state.wsConnection        = null;
+  _state.wsConnectionLoading = false;
+  _state.wsConnectionError   = null;
   if (initialPatch) Object.assign(_state, initialPatch);
 }
 
@@ -121,4 +150,8 @@ export const STORAGE_KEYS = {
   pkceVerifier: "kc_admin_pkce_verifier",
   oauthState:   "kc_admin_oauth_state",
   theme:        "admin_theme",
+  // The selected workspace id. Owned by lib/workspaces.js, which exports it as
+  // WORKSPACE_STORAGE_KEY; listed here so the console's full storage footprint
+  // is visible in one place.
+  workspace:    "lw_selected_workspace",
 };

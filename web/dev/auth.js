@@ -4,14 +4,14 @@
  * Sections:
  *   1. Connection status (auto-refreshes every 10s)
  *   2. Authentication   (PKCE login/logout/refresh, expiry countdown)
- *   3. Token introspection — driven entirely by /auth/debug
- *   4. Debugging — human "why" explanation when /auth/debug.valid=false
+ *   3. Token introspection — driven entirely by /dev/auth/debug
+ *   4. Debugging — human "why" explanation when /dev/auth/debug.valid=false
  *   5. API testing — /me, /health (+ placeholders)
  *   6. Raw payloads — collapsible JSON dumps
  *
  * Source-of-truth rule: this UI MUST NOT decide on its own whether a token
  * is valid. Every `valid`, `expired`, `roles` value rendered to the user
- * comes from /auth/debug. The local JWT decode in section 6 is cosmetic
+ * comes from /dev/auth/debug. The local JWT decode in section 6 is cosmetic
  * only — it shows what's in the token without judging it.
  *
  * Migration path: swap the PKCE helpers for keycloak-js by replacing
@@ -240,7 +240,7 @@
     window.location.assign(u.toString());
   }
 
-  // ─────────────── /auth/debug consumer (Sections 3, 4) ───────────────
+  // ─────────────── /dev/auth/debug consumer (Sections 3, 4) ───────────────
   // The single source of truth for token validity.
 
   async function refreshDebug() {
@@ -253,7 +253,10 @@
       return;
     }
 
-    const r = await fetch("/auth/debug", { headers: { Authorization: "Bearer " + token } });
+    // /dev/auth/debug (not /auth/debug) — the unauthenticated twin. This
+    // playground's whole point is explaining WHY a token was rejected, and
+    // the authenticated route 401s before the handler can answer that.
+    const r = await fetch("/dev/auth/debug", { headers: { Authorization: "Bearer " + token } });
     DEBUG_RESPONSE = await r.json();
     renderIntrospection(DEBUG_RESPONSE);
     renderDebugging(DEBUG_RESPONSE);
@@ -300,7 +303,7 @@
   }
 
   /**
-   * Map a /auth/debug.reason string to a short human "why + fix" block.
+   * Map a /dev/auth/debug.reason string to a short human "why + fix" block.
    * This is purely translation — no new validation, no claim re-reading.
    * If the reason text changes server-side, the default case still renders
    * the raw provider message; we never silently swallow.

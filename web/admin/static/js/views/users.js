@@ -1,66 +1,101 @@
-// users.js — REAL backend integration. GET /users + GET /users/:id.
+// users.js — workspace-scoped user listing.
+//
+// Slice 6: migrated from GET /admin/users to
+// GET /v1/workspaces/{workspace_id}/users. The realm shown is the one the
+// selected workspace's active connection points at, resolved per request by
+// the server — this view never learns the realm's name, base URL or
+// credentials, and must not.
+//
+// Two things beyond the path changed, and both are correctness, not cosmetics:
+//
+//   1. PAGINATION. /admin echoed the caller's raw `max`; /v1 returns the
+//      EFFECTIVE values after clamping (TD-020, fixed on /v1 only). The view
+//      now paginates on what the server says it used, so a clamped page size
+//      no longer produces skipped rows.
+//   2. STALENESS. Every response is checked against the workspace context it
+//      was requested in before it reaches the DOM. See lib/workspaces.js.
 
-import { h, mount, esc, relativeTime } from "../lib/dom.js";
-import { apiTry } from "../lib/api.js";
-import { pageHeader, emptyState, pill, spinner, statusBadge } from "../components/common.js";
+import { h, mount, relativeTime } from "../lib/dom.js";
+import { apiTry, wsPath, enterWorkspace, captureWorkspaceToken, isWorkspaceStale } from "../lib/workspaces.js";
+import { pageHeader, pill, spinner, statusBadge } from "../components/common.js";
 import { renderTable } from "../components/table.js";
-import { navigate } from "../lib/router.js";
-import { toastBad } from "../components/toast.js";
+import { renderGateState, renderAPIError, connectionBanner } from "../components/ws-states.js";
+import { navigate, wsRoute } from "../lib/router.js";
 
 const PAGE_SIZE = 20;
 
 let pageState = { search: "", first: 0, max: PAGE_SIZE };
 let searchHandlerInstalled = false;
 
-export default async function usersView({ container, query }) {
-  // Sync URL query → local state
+export default async function usersView({ container, params, query }) {
+  const workspaceId = params.workspace_id;
+
+  // Sync URL query → local state. Pagination and search are per-workspace by
+  // construction: the workspace is in the path, so navigating to another
+  // workspace produces a different route with its own (absent) query, and
+  // A's page-3 offset cannot survive into B.
   pageState = {
     search: query.search || "",
     first:  Math.max(0, parseInt(query.first || "0", 10) || 0),
     max:    PAGE_SIZE,
   };
 
-  // Wire topbar search once
   if (!searchHandlerInstalled) {
     window.addEventListener("admin:search", (e) => {
-      if (location.hash.startsWith("#/users") && !location.hash.includes("/users/")) {
+      // Only react while a users LIST page is showing — not a user detail page.
+      if (/^#\/workspaces\/ws_[^/]+\/users$/.test(location.hash.split("?")[0])) {
         pageState.search = e.detail;
         pageState.first = 0;
-        renderInto(container);
+        renderInto(container, workspaceId);
       }
     });
     searchHandlerInstalled = true;
   }
 
-  renderInto(container);
+  renderInto(container, workspaceId);
 }
 
-async function renderInto(container) {
+async function renderInto(container, workspaceId) {
   mount(container,
     pageHeader("Users", h("span", null,
-      "Realm users from Keycloak. Click any row to edit, reset password, manage roles or delete. ",
+      "Users in this workspace's realm. Click any row to edit, reset password, manage roles or delete. ",
       statusBadge("live"),
     ), [
       h("button", {
         class: "btn btn-primary",
-        onclick: () => navigate("/invitations"),
-        title: "Open the Invitations modal",
+        onclick: () => navigate(wsRoute(workspaceId, "invitations")),
+        title: "Open the Invitations page",
       }, "+ Invite user"),
     ]),
     h("div", { id: "users-content" }, h("div", "row", spinner(), h("span", "muted", "loading…"))),
   );
 
+  const gate = await enterWorkspace(workspaceId);
+  const target = container.querySelector("#users-content");
+  if (!target) return;
+  if (!gate.ok) {
+    mount(target, renderGateState(gate, { onRetry: () => renderInto(container, workspaceId) }));
+    return;
+  }
+
   const params = new URLSearchParams();
   if (pageState.search) params.set("search", pageState.search);
   if (pageState.first)  params.set("first",  pageState.first);
   if (pageState.max)    params.set("max",    pageState.max);
-  const r = await apiTry("/admin/users?" + params.toString());
 
-  const target = container.querySelector("#users-content");
-  if (!target) return;
+  const token = captureWorkspaceToken();
+  const r = await apiTry(wsPath(workspaceId, "/users?" + params.toString()), { signal: token.signal });
+
+  // THE isolation check. Without it, workspace A's user list can arrive after
+  // the operator has switched to B and paint A's people under B's name — the
+  // precise setup for deleting the wrong account.
+  if (isWorkspaceStale(token)) return;
+
+  const target2 = container.querySelector("#users-content");
+  if (!target2) return;
 
   if (!r.ok) {
-    mount(target, renderError(r));
+    mount(target2, renderAPIError(r, { onRetry: () => renderInto(container, workspaceId) }));
     return;
   }
 
@@ -71,20 +106,29 @@ async function renderInto(container) {
     _created: u.created_at,
   }));
 
-  renderTable(target, {
+  // /v1 reports the EFFECTIVE page window. Paginating on the requested values
+  // instead would skip rows whenever the server clamped `max`.
+  const effectiveFirst = Number.isFinite(r.data.first) ? r.data.first : pageState.first;
+  const effectiveMax   = Number.isFinite(r.data.max)   ? r.data.max   : pageState.max;
+
+  mount(target2,
+    connectionBanner(gate.connectionState, gate.connection, { workspaceId }),
+    h("div", { id: "users-table" }),
+  );
+
+  renderTable(container.querySelector("#users-table"), {
     toolbar: {
       search: true,
-      placeholder: "Filter on Keycloak (search applied server-side)…",
+      placeholder: "Filter on the provider (search applied server-side)…",
       value: pageState.search,
       onSearch: (v) => {
         pageState.search = v;
         pageState.first = 0;
-        // debounce-ish: small delay so we don't fire per keystroke
         clearTimeout(usersView._searchT);
-        usersView._searchT = setTimeout(() => renderInto(container), 250);
+        usersView._searchT = setTimeout(() => renderInto(container, workspaceId), 250);
       },
       actions: [
-        h("button", { class: "btn btn-sm", onclick: () => renderInto(container) }, "↻ refresh"),
+        h("button", { class: "btn btn-sm", onclick: () => renderInto(container, workspaceId) }, "↻ refresh"),
       ],
     },
     columns: [
@@ -97,55 +141,18 @@ async function renderInto(container) {
       { key: "_created", title: "Created", render: (v) => v ? relativeTime(v) : "—" },
     ],
     rows,
-    onRowClick: (row) => navigate("/users/" + row.id),
+    onRowClick: (row) => navigate(wsRoute(workspaceId, "users/" + row.id)),
     pagination: {
-      first: pageState.first,
-      max:   pageState.max,
+      first: effectiveFirst,
+      max:   effectiveMax,
       onChange: ({ first }) => {
         pageState.first = first;
-        renderInto(container);
+        renderInto(container, workspaceId);
       },
     },
     empty: {
       title: pageState.search ? "No users match the filter" : "No users yet",
-      body:  pageState.search ? "Try a different search." : "Realm has no users.",
+      body:  pageState.search ? "Try a different search." : "This workspace's realm has no users.",
     },
-  });
-}
-
-function renderError(r) {
-  if (r.status === 401) {
-    return emptyState({
-      icon: "🔒",
-      title: "Sign in required",
-      body: "GET /admin/users requires a valid bearer token. Use the Playground to authenticate.",
-      action: h("button", { class: "btn btn-primary", onclick: () => navigate("/playground") }, "Go to Playground"),
-    });
-  }
-  if (r.status === 403) {
-    return emptyState({
-      icon: "⛔",
-      title: "Admin role required",
-      body: "Your token validated, but lacks the realm `admin` role. Sign in as adminuser/password to see this view.",
-    });
-  }
-  if (r.status === 503) {
-    return emptyState({
-      icon: "⚠",
-      title: "Identity management not configured",
-      body: "The API was started without KEYCLOAK_ADMIN_CLIENT_ID / SECRET. Set features.identity_management=true and re-run make regen.",
-    });
-  }
-  if (r.status === 502) {
-    return emptyState({
-      icon: "↯",
-      title: "Upstream Keycloak unreachable",
-      body: "The API couldn't reach the Keycloak Admin REST endpoint.",
-    });
-  }
-  return emptyState({
-    icon: "✗",
-    title: "Request failed",
-    body: `HTTP ${r.status}: ${r.error?.message || "unknown error"}`,
   });
 }

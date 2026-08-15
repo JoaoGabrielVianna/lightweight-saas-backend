@@ -8,17 +8,48 @@ import { h, mount } from "../lib/dom.js";
 
 const ROOT = "#modal-root";
 
+// _openModals tracks every modal currently on screen so the shell can tear
+// them all down at once.
+//
+// This exists for one specific defect class (Slice 6, Phase 9): an operator
+// opens "Delete user" in workspace A, switches to workspace B while the
+// dialog is up, and clicks Delete. The dialog's closure still holds A's user
+// id, but the mutation would be built for whatever workspace is current —
+// deleting an unrelated account, or nothing, in B's realm. Neither outcome is
+// acceptable, and disabling the button is not enough: the safe move is that a
+// workspace switch dismisses every workspace-scoped dialog outright.
+const _openModals = new Set();
+
+/**
+ * closeAllModals — dismiss every open modal.
+ *
+ * Called on workspace switch. Safe to call when nothing is open.
+ */
+export function closeAllModals() {
+  for (const close of Array.from(_openModals)) {
+    try { close(); } catch { /* a modal that fails to close must not block the rest */ }
+  }
+  _openModals.clear();
+}
+
+/** openModalCount — test seam; how many modals are currently registered. */
+export function openModalCount() {
+  return _openModals.size;
+}
+
 export function openModal({ title, body, actions, onClose }) {
   const root = document.querySelector(ROOT);
   if (!root) return () => {};
 
   const closeFns = [];
   const close = () => {
+    _openModals.delete(close);
     closeFns.forEach(fn => { try { fn(); } catch {} });
     mount(root); // clear
     document.body.style.removeProperty("overflow");
     if (onClose) onClose();
   };
+  _openModals.add(close);
 
   const backdrop = h("div", { class: "modal-backdrop", onclick: (e) => { if (e.target === backdrop) close(); } },
     h("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": title || "dialog" },

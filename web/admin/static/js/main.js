@@ -10,14 +10,23 @@
 
 import { h, mount } from "./lib/dom.js";
 import { setState, getState, STORAGE_KEYS } from "./lib/state.js";
-import { init as initRouter, navigate } from "./lib/router.js";
+import { init as initRouter, navigate, wsRoute, workspaceIdFromPath, currentPath } from "./lib/router.js";
 import { completeLogin, refreshDebug, isAuthenticated, startLogin } from "./lib/auth.js";
+import {
+  initWorkspaces, selectWorkspace, getCurrentWorkspaceId, loadActiveConnection,
+  onWorkspaceSwitch,
+} from "./lib/workspaces.js";
 
 import { renderSidebar } from "./components/sidebar.js";
 import { renderTopbar }  from "./components/topbar.js";
 import { toastBad } from "./components/toast.js";
+import { closeAllModals } from "./components/modal.js";
 
 import overviewView    from "./views/overview.js";
+import workspacesView  from "./views/workspaces.js";
+import connectionsView from "./views/connections.js";
+import projectsView, { projectDetailView } from "./views/projects.js";
+import workspaceAuditView from "./views/workspace-audit.js";
 import playgroundView  from "./views/playground.js";
 import usersView       from "./views/users.js";
 import userDetailView  from "./views/user-detail.js";
@@ -40,22 +49,48 @@ import docsView, { DOC_MAP } from "./views/docs.js";
 // The sidebar renders the result when the active route does NOT start with
 // /docs/. Mode preservation guarantee: nothing in the admin behavior depends
 // on the docs view being present.
+// Entries carrying `ws: true` are WORKSPACE-SCOPED: their real path is
+// /workspaces/<selected>/<path>, and the sidebar rewrites them at draw time
+// against whichever workspace is current. Entries without it are
+// installation-scoped and have no workspace in their URL — see lib/router.js
+// for why that split is in the route rather than in application state.
+//
+// The WORKSPACE section is the control plane for workspaces themselves. It is
+// deliberately above IDENTITY: an operator with no workspace has to go there
+// first, and an operator debugging a broken realm goes there next.
 const ADMIN_NAV_FULL = [
   { path: "/overview",    title: "Overview",    icon: "▤", section: "MAIN" },
   { path: "/playground",  title: "Playground",  icon: "▷", section: "MAIN",        devOnly: true },
 
-  { path: "/users",       title: "Users",       icon: "◉", section: "IDENTITY" },
-  { path: "/roles",       title: "Roles",       icon: "◇", section: "IDENTITY" },
-  { path: "/sessions",    title: "Sessions",    icon: "◴", section: "IDENTITY" },
-  { path: "/invitations", title: "Invitations", icon: "✉", section: "IDENTITY" },
+  { path: "/workspaces",  title: "Workspaces",  icon: "◫", section: "WORKSPACE" },
+  { path: "/connections", title: "Connections", icon: "⇄", section: "WORKSPACE", ws: true },
+  { path: "/projects",    title: "Projects",    icon: "⚿", section: "WORKSPACE", ws: true },
 
-  { path: "/audit-logs",  title: "Audit Logs",  icon: "≣", section: "OBSERVABILITY" },
+  { path: "/users",       title: "Users",       icon: "◉", section: "IDENTITY", ws: true },
+  { path: "/roles",       title: "Roles",       icon: "◇", section: "IDENTITY", ws: true },
+  { path: "/sessions",    title: "Sessions",    icon: "◴", section: "IDENTITY", ws: true },
+  { path: "/invitations", title: "Invitations", icon: "✉", section: "IDENTITY", ws: true },
+
+  // Workspace-scoped and DURABLE, unlike /audit-logs below, which is the
+  // process-local ring. Both exist because they answer different questions;
+  // the titles say which.
+  { path: "/audit",       title: "Audit",       icon: "≡", section: "OBSERVABILITY", ws: true },
+
+  { path: "/audit-logs",  title: "Recent (all)",icon: "≣", section: "OBSERVABILITY" },
 
   { path: "/api-explorer",title: "API Explorer",icon: "⌘", section: "DEVELOPER",   apiExplorerOnly: true },
   { path: "/swagger",     title: "Swagger",     icon: "≡", section: "DEVELOPER" },
 
-  { path: "/email",            title: "Email / SMTP",      icon: "✉", section: "ADMIN" },
-  { path: "/email-templates", title: "Templates de Email", icon: "✏", section: "ADMIN" },
+  // ── Legacy provider settings ─────────────────────────────────────────────
+  // Slice 6, Phase 13: SMTP and email templates have NO /v1 equivalent — they
+  // are realm settings, not identity administration, and migrating them means
+  // designing that seam (a slice, not a step). They stay on /admin/*, and they
+  // stay in their own clearly-named section so nobody reads them as applying
+  // to the selected workspace. They act on the realm in this installation's
+  // KEYCLOAK_* configuration, whichever workspace is selected.
+  { path: "/email",            title: "Email / SMTP",      icon: "✉", section: "LEGACY PROVIDER SETTINGS" },
+  { path: "/email-templates",  title: "Email templates",   icon: "✏", section: "LEGACY PROVIDER SETTINGS" },
+
   { path: "/settings",        title: "Settings",           icon: "⚙", section: "ADMIN" },
 ];
 
@@ -127,23 +162,78 @@ function gateDevToolView(view, flagName) {
   };
 }
 
-const ROUTES = {
-  "/":             ({ container }) => navigate("/overview"),
+// legacyIdentityRedirect — the pre-Slice-6 flat identity paths (/users,
+// /roles, …) now redirect into the selected workspace.
+//
+// They are kept as routes rather than deleted because they are what is in
+// every operator's browser history and in the docs written before this slice.
+// A 404-ish "view crashed" screen for a bookmark that worked yesterday is a
+// worse answer than landing them on the same page in their current workspace.
+//
+// With no workspace selectable the redirect goes to /workspaces, which
+// explains what to do — NOT to /admin/*, which would silently show a realm
+// nobody chose.
+function legacyIdentityRedirect(section) {
+  return () => {
+    const id = getCurrentWorkspaceId();
+    navigate(id ? wsRoute(id, section) : "/workspaces");
+  };
+}
 
-  // Admin (existing — untouched except for dev-surface gating below).
+const ROUTES = {
+  "/":             () => navigate("/overview"),
+
+  // Installation-scoped. No workspace in the URL, deliberately.
   "/overview":     overviewView,
   "/playground":   gateDevToolView(playgroundView, "devTools"),
-  "/users":        usersView,
-  "/users/:id":    userDetailView,
-  "/roles":        rolesView,
-  "/sessions":     sessionsView,
-  "/invitations":  invitationsView,
   "/audit-logs":   auditLogsView,
   "/api-explorer": gateDevToolView(apiExplorerView, "apiExplorer"),
   "/swagger":      swaggerView,
+  "/settings":     settingsView,
+
+  // Legacy provider settings — /admin/*, NOT workspace-scoped. See the nav
+  // comment above and Phase 13.
   "/email":            emailView,
   "/email-templates":  emailTemplatesView,
-  "/settings":         settingsView,
+
+  // Workspace control plane.
+  "/workspaces":                            workspacesView,
+  "/workspaces/:workspace_id":              ({ params }) => navigate(wsRoute(params.workspace_id, "users")),
+  "/workspaces/:workspace_id/connections":  connectionsView,
+
+  // Projects and their machine credentials. Operator-only on the server, so
+  // these views are reachable only by a console session — a project credential
+  // gets operator_only from every endpoint behind them.
+  "/workspaces/:workspace_id/projects":              projectsView,
+  "/workspaces/:workspace_id/projects/:project_id":  projectDetailView,
+
+  // Workspace-scoped identity. The workspace id is a route param, so a deep
+  // link, a reload, and a second browser tab all resolve to the right realm
+  // without consulting any stored preference.
+  "/workspaces/:workspace_id/users":           usersView,
+  "/workspaces/:workspace_id/users/:user_id":  userDetailView,
+  "/workspaces/:workspace_id/roles":           rolesView,
+  "/workspaces/:workspace_id/sessions":        sessionsView,
+  "/workspaces/:workspace_id/invitations":     invitationsView,
+
+  // The durable, workspace-scoped audit trail. Operator-only in practice
+  // (the console holds an operator token), though the same endpoint serves a
+  // project credential carrying audit:read.
+  "/workspaces/:workspace_id/audit":           workspaceAuditView,
+
+  // Pre-Slice-6 bookmarks.
+  "/users":        legacyIdentityRedirect("users"),
+  "/users/:id":    ({ params }) => {
+    // The user id is dropped on purpose: it named a user in whichever realm
+    // the legacy /admin surface pointed at, and that is not necessarily the
+    // selected workspace's realm. Resolving it into the current workspace
+    // could open a DIFFERENT person's record.
+    const id = getCurrentWorkspaceId();
+    navigate(id ? wsRoute(id, "users") : "/workspaces");
+  },
+  "/roles":        legacyIdentityRedirect("roles"),
+  "/sessions":     legacyIdentityRedirect("sessions"),
+  "/invitations":  legacyIdentityRedirect("invitations"),
 
   // Docs.
   "/docs":             (ctx) => docsView({ ...ctx, params: { ...ctx.params, page: "" } }),
@@ -199,11 +289,36 @@ async function boot() {
     return;
   }
 
-  // 4. Mount sidebar + topbar — both are mode-aware. The sidebar renders
+  // 4. Workspace context.
+  //
+  // AFTER authentication, because /v1/workspaces requires a bearer token, and
+  // BEFORE the router starts, so the first view already knows which workspace
+  // it is in rather than rendering an empty state and then correcting itself.
+  //
+  // Note the boundary this respects: the operator authenticated once, against
+  // the installation's realm. Selecting a workspace is NOT a second login, and
+  // the console never authenticates the operator against a workspace's realm —
+  // the connection's service account does that, server-side, and its
+  // credentials never reach this browser.
+  //
+  // Phase 9: a workspace switch closes every open dialog before anything from
+  // the new workspace can render behind it. A "Delete user" confirmation left
+  // open across a switch is the exact defect this prevents.
+  onWorkspaceSwitch(() => closeAllModals());
+
+  await initWorkspaces({ routeId: workspaceIdFromPath(currentPath()) });
+  if (getCurrentWorkspaceId()) {
+    // Not awaited: the connection's health decorates the shell and gates
+    // mutation controls, but no view should wait on it to paint. Views that
+    // need it call enterWorkspace, which awaits the same in-flight load.
+    loadActiveConnection(getCurrentWorkspaceId());
+  }
+
+  // 5. Mount sidebar + topbar — both are mode-aware. The sidebar renders
   //    NAV_ITEMS or DOCS_NAV depending on whether the active route lives
-  //    under /docs/*. The topbar exposes a permanent Admin/Docs toggle.
-  //    The renderers subscribe to state changes, so a route transition
-  //    triggers a re-render with the correct nav set automatically.
+  //    under /docs/*. The topbar exposes a permanent Admin/Docs toggle and
+  //    the workspace selector. The renderers subscribe to state changes, so a
+  //    route transition or a workspace switch re-renders them automatically.
   renderSidebar("#sidebar", { admin: ADMIN_NAV, docs: DOCS_NAV });
   renderTopbar("#topbar", { admin: ADMIN_NAV, docs: DOCS_NAV }, (q) => {
     // Topbar search currently broadcasts via a custom event; views that
@@ -211,12 +326,31 @@ async function boot() {
     window.dispatchEvent(new CustomEvent("admin:search", { detail: q }));
   });
 
-  // 5. Start the router
+  // 6. Start the router
   document.body.removeAttribute("data-route-loading");
   initRouter({
     routes: ROUTES,
     container: "#main",
+    onChange: syncWorkspaceFromRoute,
   });
+}
+
+// syncWorkspaceFromRoute — the route is the source of truth for which
+// workspace is current, so every navigation reconciles state to it.
+//
+// This runs BEFORE the view renders (router.js calls onChange first), which is
+// what guarantees a view never briefly renders workspace A's context under
+// workspace B's URL. It is also the single place a switch happens, whether it
+// came from the selector, a deep link, the back button, or a second tab —
+// one code path, so the teardown in selectWorkspace cannot be skipped by
+// arriving through a different door.
+function syncWorkspaceFromRoute(route) {
+  const routeWorkspaceId = workspaceIdFromPath(route?.path || "");
+  if (!routeWorkspaceId) return; // installation-scoped page; leave selection alone
+  if (routeWorkspaceId === getCurrentWorkspaceId()) return;
+
+  selectWorkspace(routeWorkspaceId);
+  loadActiveConnection(routeWorkspaceId);
 }
 
 function applyTheme() {

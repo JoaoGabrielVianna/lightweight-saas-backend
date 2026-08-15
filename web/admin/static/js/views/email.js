@@ -1,10 +1,26 @@
-// email.js — SMTP configuration for the Keycloak realm.
+// email.js — SMTP configuration for the INSTALLATION's Keycloak realm.
 // Covers: GET/PUT /admin/settings/smtp, POST /admin/settings/smtp/test.
+//
+// ─── LEGACY PROVIDER SETTINGS — deliberately NOT workspace-scoped ───────────
+//
+// Slice 6 moved every identity view onto /v1/workspaces/{id}/…. This one did
+// NOT move, and must not be read as though it had. SMTP has no /v1 equivalent
+// (WORKSPACE_IDENTITY_API.md §7): it is a provider-specific realm SETTING, not
+// identity administration, and its implementation calls the concrete Keycloak
+// provider directly, past both IdentityProvider and identity.Service.
+// Migrating it means designing that seam — a slice, not a step.
+//
+// The consequence an operator must not misread: this page always acts on the
+// realm in this installation's KEYCLOAK_* configuration, whichever workspace
+// is selected in the topbar. The route carries no workspace segment, which is
+// what makes that structural rather than a promise — and the page says so in a
+// banner, because the selector is visible while reading it.
 
 import { h, mount } from "../lib/dom.js";
 import { apiTry } from "../lib/api.js";
 import { pageHeader, card, spinner } from "../components/common.js";
 import { toastOk, toastBad } from "../components/toast.js";
+import { legacyProviderBanner } from "../components/ws-states.js";
 
 // Known provider presets. Matched against the host field as the operator types.
 const PROVIDERS = [
@@ -28,8 +44,9 @@ function detectProvider(host) {
 export default async function emailView({ container }) {
   mount(container,
     pageHeader("Email / SMTP", "Configure the SMTP server Keycloak uses to send invitation and password-reset emails.", [
-      h("span", { class: "pill pill-neutral" }, "realm setting"),
+      h("span", { class: "pill pill-neutral" }, "legacy realm setting"),
     ]),
+    legacyProviderBanner("SMTP settings"),
     h("div", { id: "email-content" }, h("div", "row", spinner(), h("span", "muted", "loading…"))),
   );
 
