@@ -108,7 +108,7 @@ Grouped by category for triage.
 |----|-------|--------|-------------|
 | R02 | `POST /admin/roles {"name":"UPPERCASE"}` returns 201 with name lowercased | BUG_REPORT_CRUD.md §2 | **By design** — left as-is; remediation is one-line API doc note |
 | FS-2 / FS-3 | CRUD playwright fixture drift (resend/revoke depend on `user@example.com` pre-seed; revoke-one needs a non-admin session at test time) | FINAL_SMOKE.md §5 | Test-data only; not a runtime bug |
-| FS-4 | One-time `go test ./...` first-run flake on audit tests — not reproduced over 5 subsequent runs (including the `-race` runs in [FINAL_TAG_REPORT_v2.md §Gate 2](../release/FINAL_TAG_REPORT_v2.md#gate-2--go-test--race)) | FINAL_SMOKE.md §5 | Monitor — promote to P2 only if recurs |
+| FS-4 | One-time `go test ./...` first-run flake on audit tests — not reproduced over 5 subsequent runs (including the `-race` runs in [FINAL_TAG_REPORT_v2.md §Gate 2](../release/FINAL_TAG_REPORT_v2.md#gate-2--go-test---race)) | FINAL_SMOKE.md §5 | Monitor — promote to P2 only if recurs |
 
 ### 3.4 Closed in v0.2.0 (verified by this auditor)
 

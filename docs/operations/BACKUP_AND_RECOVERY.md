@@ -33,7 +33,7 @@ Describes **what the tooling supports today**, not promises. Set actual SLOs per
 | Keycloak DB full loss (out-of-band changes) | Time since last `pg_dump` / `make keycloak-export` | < 5 min | §3.3 — restore KC DB dump or replay export |
 | Lost docker volumes (both DBs) | Max of both above | < 10 min | §4 |
 | Lost host (all volumes, archive store intact) | Worst of above | < 30 min (depends on `docker pull` + restore size) | §5 |
-| Failed schema migration (`AutoMigrate`) | 0 (pre-migration `pg_dump` in §6.1) | Time to apply rollback SQL | §6 |
+| Failed schema migration | 0 (pre-migration `pg_dump` in §6.1) | Time to run `make migrate-steps N=-1`, or to apply rollback SQL by hand | §6 |
 
 Tightening RPO < 24 h requires WAL archiving (not wired in this compose stack) or shorter cron interval. Tightening RTO mostly means reducing dump size; logical restores are CPU-bound.
 
@@ -110,6 +110,54 @@ tar czf "$BACKUPS/env/env-$(date +%Y%m%d-%H%M%S).tgz" \
 30 2 * * * find /var/backups/lightweight-saas -type f -mtime +14 -delete
 ```
 
+
+### 2.6 The secret keyring — **not optional, and not in the dump**
+
+> A `pg_dump` alone does **not** restore a working installation.
+
+```
+database backup  +  keyring backup  =  recoverable installation
+```
+
+Identity-provider client secrets live in `connections.secret_ciphertext`, sealed
+with AES-256-GCM. The keys that open them are in `SECRETS_KEYRING` and are
+**deliberately not in the database** — that is what makes a stolen dump useless.
+It is also what makes a dump on its own worthless to *you*.
+
+Each row records `secret_key_version`, and is opened with that version and no
+other. So the rule is not "back up the current key":
+
+**Retain every key version any surviving backup might need.** A dump taken
+before a rotation contains v1 rows; restoring it into a process configured with
+only v2 yields credentials nobody can read.
+
+```bash
+# Store SEPARATELY from the database dumps, ideally in a different system
+# entirely. A key in the same bucket as the ciphertext it protects is not a
+# backup of a key, it is a copy of the plaintext with extra steps.
+umask 077
+cp .env "$BACKUPS/env/env-$(date +%Y%m%d-%H%M%S)"
+```
+
+| Do | Do not |
+|---|---|
+| Store the keyring apart from the dumps | Put `SECRETS_KEYRING` in the dump, in git, or in a ticket |
+| Keep old versions until their backups expire | Destroy v1 the moment `secrets status` says "safe to remove" — that means no **live row** needs it, not that no **backup** does |
+| Verify with `make secrets-status` after a restore | Assume a restored dump is readable because it restored cleanly |
+
+**What happens if a key is lost.** The connections sealed under it cannot be
+opened, by anyone, ever. Those workspaces answer `credentials_unavailable` and
+must have their connections re-created with fresh provider credentials issued at
+Keycloak. Every other workspace is unaffected, and no other data is touched.
+This is not a defect to be repaired later; it is what encryption at rest means.
+
+**Post-restore check.** After any restore, before declaring it done:
+
+```bash
+make secrets-status     # exits non-zero if a persisted version is unconfigured
+```
+
+Full procedure: [docs/SECRET_KEY_ROTATION.md](../SECRET_KEY_ROTATION.md).
 ---
 
 ## 3. Restore procedures
@@ -307,7 +355,12 @@ Expected: `200 OK`, non-zero `count`.
 
 ## 6. Migrations & schema rollback
 
-> **Honest disclosure.** Schema migrations are driven by GORM `AutoMigrate` ([`internal/database/database.go:33`](../../internal/database/database.go#L33)) — **additive only**. No `migrate down` button. Schema rollback is a **manual SQL** exercise.
+> Schema migrations are versioned SQL embedded in the API binary and run by
+> `golang-migrate` ([`internal/database/migrate.go`](../../internal/database/migrate.go)).
+> Every migration ships a `down`, so `make migrate-steps N=-1` is a real rollback
+> button — but only as good as the `down` the author wrote, and it cannot bring
+> back data a destructive `up` deleted. **The pre-deploy dump in §6.1 is still
+> mandatory.** Authoring rules and dirty-state recovery: [`docs/MIGRATIONS.md`](../MIGRATIONS.md).
 
 ### 6.1 Before any deploy that bumps the schema
 
@@ -318,15 +371,27 @@ docker exec saas-postgres pg_dump \
   > "$BACKUPS/appdb/predeploy-$(git rev-parse --short HEAD)-$(date +%Y%m%d-%H%M%S).pgcustom"
 ```
 
-### 6.2 If `AutoMigrate` broke the schema post-deploy
+### 6.2 If a migration broke the schema post-deploy
 
-`AutoMigrate` failures surface as an API container that panics on boot, with the DB mid-migration.
+A failed migration surfaces as an API container exiting non-zero on boot, with
+`schema_migrations.dirty = true`. Every later boot then fails deliberately until
+you clear it.
+
+Try the ordinary path first — it is far cheaper than the diff below:
+
+```bash
+make migrate-version              # which version, and is it dirty?
+make migrate-steps N=-1           # revert the migration that failed
+```
+
+If the `down` cannot run (the `up` died part-way, so the schema matches neither
+version), fall back to reconstructing by hand:
 
 ```bash
 # 1. Stop the new api
 docker-compose stop api
 
-# 2. Diff live schema vs pre-deploy dump to see what AutoMigrate changed
+# 2. Diff live schema vs pre-deploy dump to see what the migration changed
 docker exec saas-postgres pg_dump --schema-only -U postgres -d lightweight_saas_backend_db > /tmp/schema-now.sql
 docker run --rm -i postgres:15-alpine pg_restore -l \
     < "$BACKUPS/appdb/predeploy-XXXXXX.pgcustom" > /tmp/schema-pre.sql
@@ -397,7 +462,8 @@ Run all six. Green on each = "restore complete".
 | `pg_dump`: relation does not exist (PG major mismatch) | Postgres majors are NOT cross-compatible at the data-dir level. To bump major: pin the OLD image, `pg_dump`, bump image, recreate volume, restore. |
 | `--clean --if-exists` errors with FK dependency drops | Drop and recreate the whole database instead: `DROP DATABASE … ; CREATE DATABASE …` then `pg_restore`. |
 | `make realm-reset` aborted halfway | `docker-compose down keycloak keycloak-postgres` → `docker volume rm lightweight-saas-backend_keycloak_postgres_data` → `docker-compose up -d keycloak-postgres keycloak`. |
-| API panics on boot post-restore (`column ... does not exist`) | Schema older than api binary. Either roll api back (`git checkout <prev-sha>`) or let AutoMigrate run forward. If AutoMigrate fails, restore api to previous SHA and file a forward-migration bug. |
+| API panics on boot post-restore (`column ... does not exist`) | Schema older than api binary. Run `make migrate` to bring it forward, or roll api back (`git checkout <prev-sha>`). Check `make migrate-version` first — a restored dump carries whatever `schema_migrations` row it was taken with. |
+| API exits at boot with `database is dirty at version N` | A migration failed part-way. Do not force blindly — follow [MIGRATIONS.md §5](../MIGRATIONS.md#5-when-a-migration-fails). |
 | `[identity-kc] compensating delete failed` lines | Invitation rollback path tried and failed (KC temporarily unavailable). Manually clean orphan: get an admin token via `client_credentials` against `saas-backend-admin`, then `DELETE /admin/realms/saas/users/<user-id>`. Background: [BUG_REPORT_CRUD.md §I14b](../validation/BUG_REPORT_CRUD.md). |
 
 ---
@@ -410,6 +476,6 @@ Describes **what works today**. The following would tighten the RPO/RTO targets 
 - **Backup verification job** — daily `pg_restore -l | grep -c TABLE` on the latest archive, fail loudly if truncated. Cron-friendly, ~10 lines of shell.
 - **Off-site archive automation** — §2.5 cron writes to a local path; add `aws s3 cp` / `restic backup` step.
 - **`make backup` / `make restore` targets** — Makefile exposes `keycloak-export` / `keycloak-import` / `realm-reset`; add `backup-appdb`, `backup-kcdb`, restore wizard.
-- **Schema migration tool with down-migrations** — replace `AutoMigrate` with `golang-migrate` / `goose` to make §6 rollback declarative instead of hand-crafted SQL.
+- ~~**Schema migration tool with down-migrations**~~ — done 2026-07-28: `golang-migrate` with an embedded, versioned migration set, so §6 rollback is `make migrate-steps N=-1` rather than hand-crafted SQL. The hand-crafted path remains documented as the fallback for an `up` that died mid-statement.
 
 None block the procedures above from working as documented.

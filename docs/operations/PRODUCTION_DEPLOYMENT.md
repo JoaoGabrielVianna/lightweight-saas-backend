@@ -242,7 +242,7 @@ app.your-domain.com {
 - `pg_hba.conf` restricted to the API/Keycloak network segments only.
 - Backups: enable PITR if available; otherwise daily `pg_dump` to encrypted object storage.
 - `idle_in_transaction_session_timeout = '60s'` and `statement_timeout = '30s'` on the app role.
-- Drop `GORM AutoMigrate` for the initial deployment migration: run a one-shot job and then disable. AutoMigrate at every boot ([internal/database/database.go:33](../../internal/database/database.go#L33)) becomes risky as the schema grows. Tracked for V1.x.
+- Run migrations as a one-shot job rather than at every API boot: set `DB_MIGRATE_ON_BOOT=false` and run `go run ./cmd/migrate up` (or the binary's `migrate` command) as a deploy step. This is what lets the runtime database role be DDL-less, and it keeps N replicas from all attempting the migration on startup. See [MIGRATIONS.md](../MIGRATIONS.md).
 
 ---
 
@@ -294,8 +294,12 @@ curl -si -H 'Authorization: Bearer <non-admin-token>' https://app.your-domain.co
 curl -si -H 'Authorization: Bearer <admin-token>' https://app.your-domain.com/admin/users      # expect 200
 
 # 4. Dev playground MUST be off
-curl -si https://app.your-domain.com/dev/auth     # expect 404
-curl -si https://app.your-domain.com/auth/debug   # expect 404
+curl -si https://app.your-domain.com/dev/auth        # expect 404
+curl -si https://app.your-domain.com/dev/auth/debug  # expect 404
+# NOTE: /auth/debug (without the /dev prefix) is mounted in EVERY environment
+# and is authenticated. Unauthenticated it returns 401, not 404 — that is
+# correct, not a misconfiguration.
+curl -si https://app.your-domain.com/auth/debug      # expect 401
 
 # 5. Swagger MUST be off (or auth-gated)
 curl -si https://app.your-domain.com/swagger/index.html  # expect 404 or 401

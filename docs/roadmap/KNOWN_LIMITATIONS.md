@@ -1,5 +1,26 @@
 # Known Limitations — v0.2.0-rc1
 
+> **⚠️ SUPERSEDED — historical record only.**
+>
+> This document captures the state at the v0.2.0-rc1 validation gate (May 2026).
+> It is **no longer maintained** and parts of it are out of date.
+>
+> **For the current list of issues, use [`docs/KNOWN_ISSUES.md`](../KNOWN_ISSUES.md).**
+>
+> Resolved since this document was written:
+> - **L4** (audit wiring pending, `audit.Record` a no-op) — **RESOLVED.**
+>   `logging.WireDefaultWithMemory(500)` is called in
+>   [`cmd/api/main.go`](../../cmd/api/main.go) and all 14 canonical actions are
+>   emitted from [`internal/identity/handler.go`](../../internal/identity/handler.go).
+> - **L5** (dev realm has no SMTP; three endpoints return 502) — **RESOLVED.**
+>   Mailpit is part of [`docker-compose.yml`](../../docker-compose.yml) with a
+>   healthcheck, and realm SMTP is manageable via `PUT /admin/settings/smtp`.
+>
+> Still open, and carried forward into `KNOWN_ISSUES.md` with new IDs:
+> F1 (partial — rate limit covers `/admin/*` only) · F2 → KI-002 ·
+> F3 → KI-014 · L1 → KI-018 (closed, Slice 14) · L6 / GAP-3 → KI-006 · L7 → KI-010 ·
+> L8–L10 → KI-016 · GAP-4 → KI-015.
+
 This document consolidates every limitation surfaced by the four RC1 validation agents. Each entry is intentionally a *limitation* (a documented gap), not a *defect* (a contract violation). RC1 ships with these gaps acknowledged; promotion to `v0.2.0` final follows the gates in [docs/RELEASE_CHECKLIST.md](../release/RELEASE_CHECKLIST.md).
 
 Source reports:

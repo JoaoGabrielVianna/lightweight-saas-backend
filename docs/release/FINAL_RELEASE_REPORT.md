@@ -87,7 +87,7 @@ Same accounting as [KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md): **Cr
 |-----|----------|---------|------------|-----------------|
 | FS-1 / F4 | Low | Realm-wide "Terminate all sessions" | UI button disabled with `coming-soon` badge; no backend route. | Per-user `LogoutUserSessions` works. |
 | F1  | Medium   | Rate limiting | No per-IP / per-`sub` throttling on `/me`, `/admin/*`, `/health`, KC token endpoint. | DoS surface, not confidentiality. Front API with Cloudflare/nginx or add 0.3 middleware. |
-| F2  | Low–Med  | Logout | Access JWTs remain valid up to `accessTokenLifespan` (3600s) post-OIDC end-session. | Standard stateless-JWT trade-off. Bounded by lifespan. Options in [FINAL_SECURITY.md §5](../security/FINAL_SECURITY.md#5-findings-carried-forward--informational--not-failures). |
+| F2  | Low–Med  | Logout | Access JWTs remain valid up to `accessTokenLifespan` (3600s) post-OIDC end-session. | Standard stateless-JWT trade-off. Bounded by lifespan. Options in [FINAL_SECURITY.md §5](../security/FINAL_SECURITY.md#5-findings-carried-forward-informational--not-failures). |
 | F3  | Low      | Token replay | No DPoP / `jti` revocation; bearer replayable until `exp`. | Expected for plain OAuth2 bearer. Revisit if regulatory scope warrants DPoP / mTLS. |
 | FS-2| Low      | CRUD invite resend / revoke fixture | Depends on a pre-seeded `user@example.com` invitation prior runs consume → SKIP. | Test-data drift only. Reseed via `make realm-reset`. |
 | FS-3| Low      | CRUD single-session revoke fixture | Needs an active non-admin session at test time → SKIP if absent. | Test-data drift only. Future driver should provision `testuser` login before phase 10. |

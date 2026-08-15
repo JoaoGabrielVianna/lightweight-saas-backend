@@ -1,4 +1,14 @@
-# Release Checklist
+# Release Checklist — v0.2.0 (historical)
+
+> **⚠️ SUPERSEDED — historical record only.**
+>
+> **For the current release process use [`docs/RELEASE_CHECKLIST.md`](../RELEASE_CHECKLIST.md).**
+>
+> This document was written for the v0.2.0 agent-driven milestone. It hardcodes
+> that release's branch name (`milestone/auth-v1`), its per-agent ownership
+> model, and its `docs/evidence/` layout — none of which apply to how the
+> project works now. It is kept because it is an accurate record of how v0.2.0
+> was actually shipped.
 
 This is the standing checklist used to take a release candidate to a final tag. It is reused across releases; release-specific status lives in the per-release RC reports (e.g. [docs/RC1_REPORT.md](RC1_REPORT.md)).
 
@@ -53,7 +63,7 @@ Run these against the *exact* RC build (i.e. the tagged commit, in a clean stack
 |---|------|-------|----------|
 | 2.2.1 | `bash scripts/security_live_check.sh` exits 0 with **17/17 PASS**. | security | [docs/evidence/security/summary.txt](../evidence/security/summary.txt) |
 | 2.2.2 | `bash scripts/security_advanced_check.sh` exits 0 with **5 PASS / 0 FAIL** (INFO ≤ 6). | security | [docs/evidence/security/advanced/summary.txt](../evidence/security/advanced/summary.txt) |
-| 2.2.3 | No new findings have been added since [SECURITY_VALIDATION_v0.3.md §10](../security/SECURITY_VALIDATION_v0.3.md#10-findings-carried-forward). If new ones appear, route them through [KNOWN_LIMITATIONS.md §1](../roadmap/KNOWN_LIMITATIONS.md#1-security--hardening-backlog) before continuing. | security | diff against prior summary.txt |
+| 2.2.3 | No new findings have been added since [SECURITY_VALIDATION_v0.3.md §10](../security/SECURITY_VALIDATION_v0.3.md#10-findings-carried-forward). If new ones appear, route them through [KNOWN_LIMITATIONS.md §1](../roadmap/KNOWN_LIMITATIONS.md#1-security--hardening-backlog-agent-a--info-findings) before continuing. | security | diff against prior summary.txt |
 
 ### 2.3 Browser E2E re-run (Agent B scope)
 
@@ -113,7 +123,7 @@ Run these against the *exact* RC build (i.e. the tagged commit, in a clean stack
 | # | Gate | Owner | Evidence |
 |---|------|-------|----------|
 | 5.1 | A fresh clone + `make up` + `make auth-test` produces a 200 on `/me` against the tag. | maintainer | terminal log on a clean checkout |
-| 5.2 | At least one untrusted reader (someone who did not work on this release) can run the [Quickstart](../../README.md#quickstart) end-to-end without back-channel help. | maintainer | written confirmation |
+| 5.2 | At least one untrusted reader (someone who did not work on this release) can run the [Quickstart](../../README.md#-quick-start) end-to-end without back-channel help. | maintainer | written confirmation |
 | 5.3 | All findings carried forward (F1–F3, L1–L10) have an issue / backlog ticket so they don't get lost. | release-prep | issue tracker links recorded in [KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md) |
 | 5.4 | Coordinator decommissions any RC-specific scaffolding (e.g. `RC1_REPORT.md` stays as historical record; a fresh `RC<n>_REPORT.md` is created for the next cycle). | release-prep | repo state |
 

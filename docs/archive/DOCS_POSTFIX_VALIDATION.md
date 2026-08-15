@@ -1,8 +1,8 @@
 # Docs UI — Post-Fix Runtime Validation
 
 > **Purpose:** confirm that the Firefox-freezing `setState` recursion is dead
-> after the fix in [lib/state.js](web/admin/static/js/lib/state.js) +
-> [views/docs.js](web/admin/static/js/views/docs.js), and that the live
+> after the fix in [lib/state.js](../../web/admin/static/js/lib/state.js) +
+> [views/docs.js](../../web/admin/static/js/views/docs.js), and that the live
 > runtime can sustain real user navigation without the fetch storm.
 >
 > **Method:** clean log baseline via `docker compose restart api`, manual

@@ -153,7 +153,8 @@ In this mode `.env`'s `DB_URL` points at `localhost:5432` (the host port binding
 |----------|-----|
 | `GET /health` | Liveness probe (no auth, no DB ping). |
 | `GET /me` | Your local user row (JIT-created on first protected call). |
-| `GET /auth/debug` | What the API sees in your token. **DEV-only** (gated by `DEV_PLAYGROUND_ENABLED`). |
+| `GET /auth/debug` | What the API sees in your token. Requires a valid token; available in every environment. |
+| `GET /dev/auth/debug` | Same payload, **no auth** — the only variant that explains *why* an invalid token was rejected. **DEV-only** (gated by `DEV_PLAYGROUND_ENABLED`). |
 | `GET /admin/users` | Admin list users. |
 | `GET /swagger/index.html` | Interactive API spec. |
 

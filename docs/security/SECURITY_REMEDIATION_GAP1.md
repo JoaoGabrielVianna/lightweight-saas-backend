@@ -1,7 +1,7 @@
 # SECURITY REMEDIATION — GAP-1 (Stale JWT retains revoked admin role)
 
 **Date:** 2026-05-20
-**Source finding:** [SECURITY_GAPS.md §D / GAP-1](SECURITY_GAPS.md#d-token-replay-after-privilege-revocation--gap-1-high) (HIGH)
+**Source finding:** [SECURITY_GAPS.md §D / GAP-1](SECURITY_GAPS.md#d-token-replay-after-privilege-revocation--gap-1-high--fixed-2026-05-20) (HIGH)
 **Status:** Fixed.
 
 ---
@@ -18,7 +18,7 @@ carried admin authority until `exp` regardless of any subsequent role
 revocation. With realm `accessTokenLifespan = 3600 s`, an admin who was
 demoted retained full admin powers for up to one hour from the wire.
 
-Demonstrated in [docs/SECURITY_GAPS.md §D](SECURITY_GAPS.md#d-token-replay-after-privilege-revocation--gap-1-high)
+Demonstrated in [docs/SECURITY_GAPS.md §D](SECURITY_GAPS.md#d-token-replay-after-privilege-revocation--gap-1-high--fixed-2026-05-20)
 by a demoted user mutating `adminuser.first_name → "PWNED"` with a stale token.
 
 ---
