@@ -5,3 +5,19 @@
 # Build artefacts
 /bin/
 /coverage.out
+
+# `go build ./cmd/api` with no -o drops a 50MB binary here. The Makefile always
+# passes -o bin/api, so this only catches the bare invocation — which is exactly
+# the one that would otherwise show up as an untracked release artifact.
+/api
+
+# The SDK is a separate module and reports its coverage separately, so its
+# profile lands beside it rather than in the root one.
+/sdk/go/coverage.out
+
+# Browser e2e toolchain. The LOCKFILE is committed — it is what pins the
+# Playwright and Chromium versions — but the installed tree and everything a
+# run produces are not.
+/tests/browser/node_modules/
+/tests/browser/artifacts/
+/tests/browser/test-results/

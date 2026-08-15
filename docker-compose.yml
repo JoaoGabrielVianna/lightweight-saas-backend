@@ -1,3 +1,43 @@
+# The reference deployment.
+#
+# This file is the smallest supported way to run LIGHTWEIGHT, and it is meant to
+# be read as documentation as much as run as configuration.
+#
+# ─── What is core and what is a development convenience ─────────────────────
+#
+#   postgres    CORE. LIGHTWEIGHT's own database. Not optional.
+#   api         CORE.
+#   keycloak    DEVELOPMENT CONVENIENCE, behind the `dev-idp` profile, along
+#   mailpit     with its database and a mail catcher.
+#
+# The profile matters architecturally, not just operationally. LIGHTWEIGHT
+# connects workspaces to Keycloak realms that already exist, wherever they are:
+# a managed instance, another team's, one per customer. Wiring the API to a
+# Keycloak in this file as a hard dependency would state the opposite — that
+# LIGHTWEIGHT ships its own identity provider — and an installation pointing at
+# an external one would be fighting the reference deployment.
+#
+# So:
+#
+#   docker compose up -d                      postgres + api, against YOUR Keycloak
+#   docker compose --profile dev-idp up -d    the above, plus a throwaway Keycloak
+#
+# The api service does NOT depend_on keycloak. It needs the issuer reachable to
+# fetch JWKS at boot, and where that issuer lives is the operator's decision.
+#
+# ─── Migrations ─────────────────────────────────────────────────────────────
+#
+# Applied automatically at boot (DB_MIGRATE_ON_BOOT, default true). The api
+# container is not healthy until they have finished, because its healthcheck is
+# READINESS, so anything waiting on `service_healthy` waits for the schema too.
+#
+# Set DB_MIGRATE_ON_BOOT=false when several replicas start at once, or when the
+# runtime database role may not DDL, and apply them as their own step. The
+# migration CLI ships in the same image, so this needs no second artifact:
+#
+#   docker compose run --rm api /app/migrate up
+#
+# That decision is deliberately visible here rather than buried in a doc.
 services:
   # =====================================================
   # Application database (used by the Go API)
@@ -11,7 +51,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      # Published so the migration and secrets CLIs can be run from the host.
+      # Configurable because "port is already allocated" is otherwise the first
+      # thing a machine with its own PostgreSQL sees, and the fix is not
+      # discoverable from the error.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,6 +68,7 @@ services:
   # Dedicated database for Keycloak (isolated from app data)
   # =====================================================
   keycloak-postgres:
+    profiles: ["dev-idp"]
     image: postgres:15-alpine
     container_name: saas-keycloak-postgres
     restart: unless-stopped
@@ -48,6 +93,7 @@ services:
   # http://localhost:8025.
   # =====================================================
   mailpit:
+    profiles: ["dev-idp"]
     image: axllent/mailpit:v1.20
     container_name: saas-mailpit
     restart: unless-stopped
@@ -68,6 +114,7 @@ services:
   # Realm "saas" is imported from deploy/keycloak/realm-export.json
   # =====================================================
   keycloak:
+    profiles: ["dev-idp"]
     image: quay.io/keycloak/keycloak:26.0
     container_name: saas-keycloak
     restart: unless-stopped
@@ -86,7 +133,11 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_HEALTH_ENABLED: "true"
     ports:
-      - "8081:8080"
+      # KC_HOST_PORT is part of KEYCLOAK_URL, which decides the `iss` claim
+      # tokens must carry. It was published on a hardcoded 8081 while the
+      # variable fed only the URL — so raising it produced an installation
+      # whose issuer pointed at a port nothing listened on.
+      - "${KC_HOST_PORT:-8081}:8080"
     volumes:
       - ./deploy/keycloak:/opt/keycloak/data/import:ro
     depends_on:
@@ -116,32 +167,110 @@ services:
       PORT: ${PORT}
       # Override DB_URL so the API talks to postgres over the docker network.
       DB_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      # Versioned SQL migrations are embedded in the binary and applied at boot.
+      # Set false to hand migrations to a separate deploy step (docs/MIGRATIONS.md).
+      DB_MIGRATE_ON_BOOT: ${DB_MIGRATE_ON_BOOT:-true}
+      # Seals identity-provider credentials at rest. All three empty means the
+      # connection API is not mounted (docs/CONNECTIONS.md).
+      #
+      # SECRETS_KEYRING carries every key version the process can decrypt with;
+      # SECRETS_KEY_CURRENT names the one that encrypts. Both must reach the
+      # container for a rotation to take effect — a keyring set only in .env
+      # and never forwarded is an installation that silently keeps using the
+      # old key. See docs/SECRET_KEY_ROTATION.md.
+      SECRETS_KEYRING: ${SECRETS_KEYRING:-}
+      SECRETS_KEY_CURRENT: ${SECRETS_KEY_CURRENT:-}
+      # Legacy single-key form. Cannot be combined with SECRETS_KEYRING.
+      SECRETS_MASTER_KEY: ${SECRETS_MASTER_KEY:-}
       GIN_LOG_ENABLED: ${GIN_LOG_ENABLED}
       GIN_ACCESS_LOG_ENABLED: ${GIN_ACCESS_LOG_ENABLED}
-      # KEYCLOAK_URL drives expected token `iss` claim — must match the URL
-      # clients actually use to fetch tokens (host-facing localhost:8081).
-      KEYCLOAK_URL: http://localhost:${KC_HOST_PORT:-8081}
-      # KEYCLOAK_JWKS_URL is fetched by the API itself, so it uses the
-      # docker-internal hostname. Overrides the URL-derived default.
-      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
+      # Operator authentication. All three come from .env RATHER than being
+      # written here, because an installation points at whatever Keycloak it
+      # already runs, and a value hardcoded in this file is one an operator
+      # cannot change: they would edit .env, compose would ignore it, and the
+      # API would fail to fetch JWKS from a hostname they never chose.
+      #
+      # KEYCLOAK_URL drives the expected token `iss` claim, so it must be the
+      # issuer as CLIENTS reach it. KEYCLOAK_JWKS_URL is fetched by the API
+      # itself and exists only for the case where those two addresses differ —
+      # the bundled `dev-idp` Keycloak, reachable at keycloak:8080 on this
+      # network and at localhost:8081 from a browser. Empty derives it from
+      # KEYCLOAK_URL, which is correct whenever there is only one address.
+      KEYCLOAK_URL: ${KEYCLOAK_URL}
+      KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL:-}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
       KEYCLOAK_ALLOWED_CLIENT_IDS: ${KEYCLOAK_ALLOWED_CLIENT_IDS:-${KEYCLOAK_CLIENT_ID}}
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
-      # admin client reaches keycloak over the docker network — distinct from
-      # KEYCLOAK_URL (host-facing, drives iss matching)
-      KEYCLOAK_ADMIN_BASE_URL: http://keycloak:8080
+      # Same reasoning as KEYCLOAK_JWKS_URL: an internal address for the admin
+      # API, set only when it differs from KEYCLOAK_URL. Empty falls back to it.
+      KEYCLOAK_ADMIN_BASE_URL: ${KEYCLOAK_ADMIN_BASE_URL:-}
       DEV_PLAYGROUND_ENABLED: ${DEV_PLAYGROUND_ENABLED:-false}
       DEV_PLAYGROUND_CLIENT_ID: ${DEV_PLAYGROUND_CLIENT_ID:-saas-dev-playground}
+      # Admin console SPA at /admin. ADMIN_CONSOLE_CLIENT_ID is the public PKCE
+      # client it logs in with; empty falls back to the playground's, which the
+      # process refuses in a deployment with the playground off.
+      ADMIN_CONSOLE_ENABLED: ${ADMIN_CONSOLE_ENABLED:-false}
+      ADMIN_CONSOLE_CLIENT_ID: ${ADMIN_CONSOLE_CLIENT_ID:-}
+      # Bounds how long a role revoked directly in Keycloak is still honoured.
+      ADMIN_LIVE_CHECK_TTL_SECONDS: ${ADMIN_LIVE_CHECK_TTL_SECONDS:-30}
+      # Browser origins allowed to call this API. Empty disables CORS, which is
+      # correct when the console is served from this same origin.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # /v1 rate limits. Empty means the built-in defaults (10 / 20 req/s).
+      RATE_LIMIT_EDGE_RPS: ${RATE_LIMIT_EDGE_RPS:-}
+      RATE_LIMIT_CREDENTIAL_RPS: ${RATE_LIMIT_CREDENTIAL_RPS:-}
+      # Must stay below stop_grace_period below, or the platform kills the
+      # process mid-drain and the log line explaining why is cut off.
+      SHUTDOWN_TIMEOUT_SECONDS: ${SHUTDOWN_TIMEOUT_SECONDS:-20}
+      # Durable audit retention, in days. Swept daily; 0 is refused.
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-90}
+      # Prometheus metrics at /metrics. Off by default. With no token they are
+      # served to loopback only — which inside a container means from inside
+      # THAT container, so a scraper on the host or network needs METRICS_TOKEN.
+      METRICS_ENABLED: ${METRICS_ENABLED:-false}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     ports:
-      - "8080:8080"
+      - "${API_HOST_PORT:-8080}:${PORT:-8080}"
+    # Docker sends SIGTERM and waits this long before SIGKILL. The default is
+    # 10s, which is below the API's own 20s drain — so the platform, not the
+    # application, would decide when in-flight requests are abandoned. Giving
+    # Docker the larger number puts the decision back where it is configured.
+    stop_grace_period: 30s
+    healthcheck:
+      # READINESS, not liveness: compose's `service_healthy` is what dependents
+      # wait for, and what they need to know is "can it serve traffic", which is
+      # the readiness question. Liveness would answer 200 while migrations were
+      # still running.
+      test: ["CMD", "/app/api", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
+      # Keycloak is an OPTIONAL dependency, which is a different statement from
+      # both "depends on it" and "does not".
+      #
+      # A real installation points at an issuer this file does not manage, so a
+      # hard dependency would make `docker compose up` fail for everyone who
+      # brought their own. That is why this was previously left out entirely.
+      #
+      # But leaving it out is wrong for the OTHER path. JWKS is fetched at boot
+      # and the process fails fast when the issuer is unreachable, so
+      # `--profile dev-idp up` started the API against a Keycloak that needed
+      # another ninety seconds: it died, restarted, died again — ten FATAL lines
+      # deep before converging on its own. It did work. It read as broken, which
+      # for a first-run experience is the same thing.
+      #
+      # `required: false` says exactly what is true: wait for it if it is part
+      # of this project, and do not ask for it if it is not.
       keycloak:
         condition: service_healthy
+        required: false
 
 volumes:
   postgres_data:

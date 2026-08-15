@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# pre-commit — fast, local, mechanical checks only.
+#
+# Budget: under 5 seconds. Anything slower belongs in pre-push or CI.
+# Developers disable hooks that make them wait, and a disabled hook catches
+# nothing. So this stage only runs checks that are near-instant and whose
+# failures are always real:
+#
+#   1. gofmt      — formatting is not a matter of opinion here; CI enforces it
+#   2. go vet     — compile-adjacent correctness, no full build needed
+#   3. .env guard — the single highest-cost mistake this repo can make
+#
+# Tests, lint and documentation checks run on pre-push (see .githooks/pre-push).
+#
+# Install:  make hooks-install
+# Bypass:   git commit --no-verify   (justify it in the PR)
+set -uo pipefail
+
+fail=0
+say() { printf '  %s\n' "$1"; }
+
+STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+
+# ── 1. Formatting ──────────────────────────────────────────────────────────
+if [ -n "$STAGED_GO" ]; then
+  UNFORMATTED=$(printf '%s\n' "$STAGED_GO" | xargs gofmt -l 2>/dev/null || true)
+  if [ -n "$UNFORMATTED" ]; then
+    say "✗ gofmt: these staged files need formatting:"
+    printf '%s\n' "$UNFORMATTED" | sed 's/^/      /'
+    say "  run: make fmt && git add -u"
+    fail=1
+  fi
+fi
+
+# ── 2. go vet ──────────────────────────────────────────────────────────────
+if [ -n "$STAGED_GO" ]; then
+  if ! VET_OUT=$(go vet ./... 2>&1); then
+    say "✗ go vet reported problems:"
+    printf '%s\n' "$VET_OUT" | head -20 | sed 's/^/      /'
+    fail=1
+  fi
+fi
+
+# ── 3. Secret guard ────────────────────────────────────────────────────────
+# .env holds live Keycloak and Postgres credentials. It is git-ignored, but an
+# explicit `git add -f` would sail past that. This is the one mistake in this
+# repository that cannot be undone by a revert — once pushed, the secret is
+# burned and must be rotated.
+STAGED_ALL=$(git diff --cached --name-only --diff-filter=ACM || true)
+if printf '%s\n' "$STAGED_ALL" | grep -qE '(^|/)\.env$|(^|/)\.env\.local$'; then
+  say "✗ refusing to commit a .env file — it contains live credentials."
+  say "  If you genuinely need a template, edit .env.example instead."
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  say ""
+  say "pre-commit failed. Bypass with --no-verify only if you can justify it."
+  exit 1
+fi
+
+exit 0
