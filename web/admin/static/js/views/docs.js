@@ -39,9 +39,19 @@ import { getLocale, onLocaleChange, localizedDocFile } from "../lib/locale.js";
 // file column is null, the docs view shows "Documentation not available yet".
 export const DOC_MAP = {
   "":                      { title: "Documentation Index", file: "INDEX.md",                                section: "DOCUMENTATION" },
-  "quick-start":           { title: "Quick Start",         file: "getting-started/QUICKSTART.md",           section: "GETTING STARTED" },
+
+  // GETTING STARTED is the acceptance journey, in the order it is walked.
+  // Object key order is the render order, so these stay adjacent and in
+  // sequence rather than sorted alphabetically into nonsense.
+  "getting-started":                    { title: "Start here",            file: "getting-started/README.md",               section: "GETTING STARTED" },
+  "getting-started/keycloak-existing":  { title: "I have Keycloak",       file: "getting-started/KEYCLOAK_EXISTING.md",    section: "GETTING STARTED" },
+  "getting-started/keycloak-bundled":   { title: "I need Keycloak",       file: "getting-started/KEYCLOAK_BUNDLED.md",     section: "GETTING STARTED" },
+  "getting-started/first-credential":   { title: "First credential",      file: "getting-started/FIRST_CREDENTIAL.md",     section: "GETTING STARTED" },
+  "getting-started/connect-backend":    { title: "Connect your backend",  file: "getting-started/CONNECT_BACKEND.md",      section: "GETTING STARTED" },
+
+  "quick-start":           { title: "Contributor stack",   file: "getting-started/QUICKSTART.md",           section: "CONTRIBUTING" },
   "bootstrap":             { title: "Bootstrap & Config",  file: "architecture/bootstrap.md",               section: "ARCHITECTURE" },
-  "keycloak":              { title: "Keycloak Setup",      file: "getting-started/KEYCLOAK_SETUP.md",       section: "ARCHITECTURE" },
+  "keycloak":              { title: "Keycloak (reference)",file: "getting-started/KEYCLOAK_SETUP.md",       section: "ARCHITECTURE" },
   "operations/backup":     { title: "Backup & Recovery",   file: "operations/BACKUP_AND_RECOVERY.md",       section: "OPERATIONS" },
   "operations/upgrade":    { title: "Upgrade & Rollback",  file: "operations/UPGRADE_AND_ROLLBACK.md",      section: "OPERATIONS" },
   "monitoring":            { title: "Monitoring",          file: "operations/MONITORING.md",                section: "MONITORING" },

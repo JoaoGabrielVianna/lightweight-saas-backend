@@ -1,10 +1,22 @@
-# Keycloak Setup
+# Keycloak Setup (historical reference)
 
-> **Start with §0 below.** It is the only part you need in order to install
-> LIGHTWEIGHT against a Keycloak you already run. Everything from §1 onward
-> describes the *bundled evaluation* stack and the older single-realm
-> `/admin/*` surface, and was written before workspaces existed — useful for
-> development, misleading as an installation guide.
+> ### ⚠ This is no longer the installation guide
+>
+> **§0 of this document was extracted, expanded and corrected into
+> [KEYCLOAK_EXISTING.md](KEYCLOAK_EXISTING.md). Read that instead.** It answers
+> the same questions plus supported versions, TLS and private CAs, client
+> secret rotation, and safe connection replacement.
+>
+> For the bundled evaluation stack, read
+> [KEYCLOAK_BUNDLED.md](KEYCLOAK_BUNDLED.md).
+>
+> Everything from §1 onward describes the bundled stack and the older
+> single-realm `/admin/*` surface, and was written before workspaces existed.
+> It is kept as a development reference and a troubleshooting appendix: §9 in
+> particular still holds failure modes worth searching. It is **not**
+> maintained as installation guidance and some of it is stale.
+>
+> §0 is preserved below so that links into it keep resolving.
 
 ---
 

@@ -7,10 +7,19 @@ especificação OpenAPI gerada ([`swagger.yaml`](swagger.yaml) /
 registram *por que* certas decisões foram tomadas, *o que* foi
 validado e *o que* permanece em aberto.
 
-Se você é novo no repositório: comece pelo [`../README.md`](../README.md),
-depois pelo [Quick Start](#quick-start) abaixo, depois por
-[`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md), e então volte aqui para o
-histórico das milestones.
+**Vai instalar ou avaliar o LIGHTWEIGHT?** O ponto de entrada é
+[`getting-started/`](getting-started/README.md), que leva do clone até a
+primeira chamada de API autenticada em cinco passos, com dois caminhos de
+instalação: já tenho Keycloak, ou preciso de um. Está em inglês por enquanto.
+
+Se você é novo no repositório **como contribuidor**: comece pelo
+[`../README.md`](../README.md), depois
+[PROJECT_STATUS.md](PROJECT_STATUS.md), depois
+[ARCHITECTURE.md](ARCHITECTURE.md), e então volte aqui para o histórico das
+milestones. O [Quick Start](#quick-start) abaixo é a stack de contribuidor, não
+um guia de instalação; e
+[`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md) é
+referência histórica, anterior aos workspaces.
 
 ---
 

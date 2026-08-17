@@ -123,7 +123,7 @@ Run these against the *exact* RC build (i.e. the tagged commit, in a clean stack
 | # | Gate | Owner | Evidence |
 |---|------|-------|----------|
 | 5.1 | A fresh clone + `make up` + `make auth-test` produces a 200 on `/me` against the tag. | maintainer | terminal log on a clean checkout |
-| 5.2 | At least one untrusted reader (someone who did not work on this release) can run the [Quickstart](../../README.md#-quick-start) end-to-end without back-channel help. | maintainer | written confirmation |
+| 5.2 | At least one untrusted reader (someone who did not work on this release) can run [Getting started](../getting-started/README.md) end-to-end, from clone to a first API call with a project credential, without back-channel help. | maintainer | written confirmation |
 | 5.3 | All findings carried forward (F1–F3, L1–L10) have an issue / backlog ticket so they don't get lost. | release-prep | issue tracker links recorded in [KNOWN_LIMITATIONS.md](../roadmap/KNOWN_LIMITATIONS.md) |
 | 5.4 | Coordinator decommissions any RC-specific scaffolding (e.g. `RC1_REPORT.md` stays as historical record; a fresh `RC<n>_REPORT.md` is created for the next cycle). | release-prep | repo state |
 

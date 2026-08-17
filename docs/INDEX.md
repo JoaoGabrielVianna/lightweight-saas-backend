@@ -51,21 +51,48 @@ all of them.
 | **[HEALTH_CHECK.md](HEALTH_CHECK.md)** | Is the project healthy right now? Three tiers, with expected timings. |
 | **[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)** | How to cut a release, end to end. |
 
-New to the repo? Read [PROJECT_STATUS.md](PROJECT_STATUS.md), then
-[../README.md](../README.md) for the quick start, then
-[ARCHITECTURE.md](ARCHITECTURE.md). About to open a PR? Read
-[CONTRIBUTION_CHECKLIST.md](CONTRIBUTION_CHECKLIST.md). Everything below is
-supporting detail and historical record.
+**Which of these do you want?**
+
+| You are | Start at |
+|---|---|
+| **Installing or evaluating LIGHTWEIGHT** | [getting-started/](getting-started/README.md). Not this page, and not PROJECT_STATUS |
+| **Integrating a backend against a running one** | [getting-started/CONNECT_BACKEND.md](getting-started/CONNECT_BACKEND.md) |
+| **Operating one in production** | [operations/RUNNING.md](operations/RUNNING.md) |
+| **Joining the project as a contributor** | [PROJECT_STATUS.md](PROJECT_STATUS.md), then [ARCHITECTURE.md](ARCHITECTURE.md), then [CONTRIBUTION_CHECKLIST.md](CONTRIBUTION_CHECKLIST.md) |
+
+The canonical set above is written for the **fourth** row. It is the state of
+the *project*, not the front door of the *product*. Sending a new user to
+PROJECT_STATUS first is how they end up reading a debt register instead of an
+install guide.
 
 ---
 
 ## Navigation
 
+Every document falls into exactly one of six classes. The class tells you
+whether to trust it as current guidance.
+
+| Class | Means |
+|---|---|
+| **GETTING STARTED** | The install-to-first-call journey. Read in order |
+| **GUIDE** | Task-shaped, current, maintained |
+| **REFERENCE** | Looked up, not read. Generated where possible |
+| **OPERATIONS** | Runbooks for a running installation |
+| **ARCHITECTURE** | How and why it is built this way |
+| **HISTORICAL** | Point-in-time record. **Not maintained.** Useful for *why*, unreliable for *what is true now* |
+
 ```
 docs/
 ├── INDEX.md                      ← you are here
 │
-│   ── CANONICAL SET ──
+│   ── GETTING STARTED (read in this order) ──
+├── getting-started/README.md          ← THE entry point for a new installation
+├── getting-started/KEYCLOAK_EXISTING.md  ← path A: I already have Keycloak
+├── getting-started/KEYCLOAK_BUNDLED.md   ← path B: I need a Keycloak
+├── getting-started/FIRST_CREDENTIAL.md   ← workspace → connection → project → credential
+├── getting-started/CONNECT_BACKEND.md    ← Go SDK and raw HTTP
+│
+│   ── CANONICAL SET (project state, for contributors) ──
 ├── PROJECT_STATUS.md             ← current state, metrics, maturity, ADRs
 ├── ARCHITECTURE.md               ← layers, request lifecycle, diagrams, invariants
 ├── MODULES.md                    ← per-module reference
@@ -83,10 +110,8 @@ docs/
 ├── WORKSPACE_CONSOLE.md          ← the multi-workspace console: routing, isolation, TD-024
 ├── PROJECTS.md                   ← machine credentials: scopes, workspace binding, revocation
 ├── SDK_GO.md                     ← the Go SDK: coverage matrix, boundary gates, release
-├── FRONTEND_READINESS.md         ← pre-migration assessment (superseded)
 ├── MIGRATIONS.md                 ← schema migrations: commands, authoring, recovery
-├── getting-started/QUICKSTART.md      ← linear path: clone → run → first admin call
-├── getting-started/KEYCLOAK_SETUP.md  ← onboarding, env vars, troubleshooting
+├── getting-started/QUICKSTART.md      ← CONTRIBUTOR stack (Go, make, regen loop)
 ├── architecture/                 ← bootstrap design + breaking-change records
 │   ├── bootstrap.md
 │   └── PHASE3_BREAKING_CHANGE.md
@@ -97,6 +122,11 @@ docs/
 ├── ui/                           ← admin-console UX catalog + dev playground guide
 │
 │   ── HISTORICAL RECORD (not maintained) ──
+├── MILESTONE_v0.4.md             ← DELIVERED as v0.4.0. Kept for its acceptance criteria
+├── FRONTEND_READINESS.md         ← pre-migration assessment (superseded)
+├── getting-started/KEYCLOAK_SETUP.md  ← pre-workspace Keycloak reference. §0 was
+│                                        extracted into KEYCLOAK_EXISTING.md; the rest
+│                                        describes the dev stack and the /admin surface
 ├── release/                      ← per-release reports, checklists, tag freezes
 ├── validation/                   ← smoke / audit / CRUD validation runs
 ├── roadmap/                      ← superseded by ROADMAP.md + KNOWN_ISSUES.md
@@ -110,21 +140,36 @@ docs/
 > some of their claims are now stale. In particular
 > [`roadmap/KNOWN_LIMITATIONS.md`](roadmap/KNOWN_LIMITATIONS.md) is superseded by
 > [KNOWN_ISSUES.md](KNOWN_ISSUES.md), and the artifacts in `evidence/` all
-> predate 2026-06-13 — they are screenshots, not tests
+> predate 2026-06-13: they are screenshots, not tests
 > ([TD-003](TECH_DEBT.md#td-003)).
+>
+> [`MILESTONE_v0.4.md`](MILESTONE_v0.4.md) moved here on 2026-08-16. It was
+> still marked `Status: proposed` and linked as "next milestone" three weeks
+> after v0.4.0 shipped, which is the same class of rot.
 
 ---
 
-## Quick Start
+## Getting started
 
-Zero-to-running-stack path for engineers cloning the repo. Pair with
-[`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md) for the realm config and with
-[`architecture/bootstrap.md`](architecture/bootstrap.md) for the config-as-source-of-truth model.
+**[`getting-started/`](getting-started/README.md) is the entry point.** Five
+documents, read in order, from a GitHub page to a backend making its first
+authenticated call.
 
 | Doc | Scope |
 |-----|-------|
-| [`getting-started/QUICKSTART.md`](getting-started/QUICKSTART.md) | Linear walkthrough: install → docker-compose → Keycloak → bootstrap → first admin call. ~10 min. |
-| [`archive/QUICKSTART_REVIEW.md`](archive/QUICKSTART_REVIEW.md) | DX-audit log of `getting-started/QUICKSTART.md` — factual cross-checks against `Makefile`, `docker-compose.yml`, `.env.example`, `config/project.json`, `realm-export.json`. Records what was corrected and what remains gapped (operations/secrets — covered below). |
+| [`getting-started/README.md`](getting-started/README.md) | The journey, and the one branch in it. Start here |
+| [`getting-started/KEYCLOAK_EXISTING.md`](getting-started/KEYCLOAK_EXISTING.md) | Path A: connect a Keycloak you already run. Clients, service-account roles, verify, activate, TLS limits, secret rotation |
+| [`getting-started/KEYCLOAK_BUNDLED.md`](getting-started/KEYCLOAK_BUNDLED.md) | Path B: the `dev-idp` evaluation stack. What starts, which ports, what persists, where it stops being suitable |
+| [`getting-started/FIRST_CREDENTIAL.md`](getting-started/FIRST_CREDENTIAL.md) | Workspace → connection → verify → activate → project → scopes → credential |
+| [`getting-started/CONNECT_BACKEND.md`](getting-started/CONNECT_BACKEND.md) | Go SDK and raw HTTP, with the error envelope, scopes and rate limits |
+
+Contributor onboarding is separate, and is not an installation guide:
+
+| Doc | Scope |
+|-----|-------|
+| [`getting-started/QUICKSTART.md`](getting-started/QUICKSTART.md) | The contributor stack: Go toolchain, `make` targets, the regeneration loop |
+| [`getting-started/KEYCLOAK_SETUP.md`](getting-started/KEYCLOAK_SETUP.md) | **Historical.** Pre-workspace Keycloak reference for the dev stack and `/admin` |
+| [`archive/QUICKSTART_REVIEW.md`](archive/QUICKSTART_REVIEW.md) | **Historical.** DX-audit log of an earlier QUICKSTART |
 
 Once the stack is up, branch to the [Operations](#operations) and
 [Security](#security-reports) sections for production hardening.

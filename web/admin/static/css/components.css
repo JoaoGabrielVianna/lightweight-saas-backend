@@ -513,6 +513,21 @@ details.disclosure[open] > summary::before { content: "▾"; }
   color: var(--fg);
 }
 
+/* The three-variable .env block at credential reveal.
+
+   `white-space: pre` and NOT `nowrap`: pre keeps the three newlines AND stops
+   wrapping, which is exactly what a .env block needs. `nowrap` would collapse
+   the block onto one line. Horizontal scroll rather than wrapping because a
+   wrapped `LIGHTWEIGHT_API_KEY=` line looks like two values, and this is the
+   one screen where an operator must not misread what they are copying. */
+.secret-env {
+  width: 100%;
+  resize: vertical;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
 /* A red left edge, unlike ws-banner's amber: this is not a degraded state to
    work around, it is a value that ceases to exist when the modal closes. */
 .ws-banner-secret { border-left-color: var(--bad); }

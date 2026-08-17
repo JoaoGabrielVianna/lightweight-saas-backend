@@ -78,6 +78,41 @@ repeat call returns `connection_already_active` rather than succeeding: a caller
 retrying may believe they are switching away from a *different* connection, and
 silently confirming that would be worse than an error.
 
+### Replacing an active connection, and rotating the provider secret
+
+`PATCH` edits a **draft** only, and resets its verification when it applies. So
+changing anything about a live connection, including its client secret, is a
+replacement rather than an edit:
+
+```
+1. Create a NEW connection with the new coordinates.   (the old one keeps serving)
+2. Verify it.                                          (the old one keeps serving)
+3. Activate it.       ← the switch. The old one is retired in the same transaction.
+4. Delete the retired one, once you are satisfied.
+```
+
+There is no window with two active connections, and none with zero. The
+provider cache is keyed on the connection's id **and** its `updated_at`, so the
+next request after step 3 resolves the new one; a rotated credential can never
+be served from a provider built against the old one.
+
+For a Keycloak client-secret rotation specifically, the gap between
+regenerating in Keycloak (which invalidates the old secret immediately) and
+step 3 is a window in which that workspace's identity operations fail. Keep it
+short, or use a second Keycloak client so step 1 can change the client id too.
+Step-by-step:
+[KEYCLOAK_EXISTING.md §10](getting-started/KEYCLOAK_EXISTING.md#10-rotating-the-keycloak-client-secret).
+
+### TLS
+
+Outbound HTTPS to a provider uses Go's default transport and the container's
+system trust store. A publicly-trusted certificate works with no
+configuration; a **private or self-signed CA does not**, and there is no
+configuration surface for one. Verify reports it as `provider unreachable`,
+with an `x509` line in the API log. The supported workaround, and the reasoning,
+are in
+[KEYCLOAK_EXISTING.md § TLS and certificates](getting-started/KEYCLOAK_EXISTING.md#tls-and-certificates).
+
 ---
 
 ## 3. Secrets at rest

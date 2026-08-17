@@ -511,16 +511,69 @@ function openCreateCredentialModal(container, params, project) {
   });
 }
 
+// integrationEnv renders the three variables a backend needs, as a .env block.
+//
+// These three names ARE the integration contract: the Go SDK's
+// NewClientFromEnv reads exactly LIGHTWEIGHT_URL, LIGHTWEIGHT_WORKSPACE_ID and
+// LIGHTWEIGHT_API_KEY, and has nowhere to read a fourth from. Naming them
+// anything else here would produce a block that looks copy-pasteable and is
+// not, which is worse than showing nothing.
+//
+// The base URL is location.origin rather than a configured value because the
+// console is served BY the API: the origin the operator is reading this on is,
+// by construction, the origin their backend must call. A separate setting would
+// be a second source of truth that nothing validates.
+export function integrationEnv(workspaceId, secret, origin) {
+  return [
+    "LIGHTWEIGHT_URL=" + origin,
+    "LIGHTWEIGHT_WORKSPACE_ID=" + workspaceId,
+    "LIGHTWEIGHT_API_KEY=" + secret,
+  ].join("\n");
+}
+
 // showSecretOnce is the one screen in this console that displays a credential.
 //
 // A dedicated modal rather than a toast, and deliberately hard to dismiss by
 // accident: the operator has to acknowledge that the value is not recoverable.
 // Closing it drops the only copy this browser ever had.
+//
+// ─── Why the whole .env block, and not just the key ─────────────────────────
+//
+// This is the only moment the secret exists. An operator standing here holds
+// all three values a backend needs — the origin they are looking at, the
+// workspace in the path, and the key — and handing over one of the three sends
+// them to the README to look up the names of the other two, at the exact
+// moment they are least able to come back for a second attempt.
+//
+// The plaintext lives in this modal's DOM and nowhere else: it is never
+// written to storage, never logged, never put in a URL, and cannot be
+// reconstructed after the modal closes, because the server stores only a
+// digest.
 function showSecretOnce(payload, container, params) {
   const secret = payload?.secret || "";
   const credential = payload?.credential || {};
+  const workspaceId = params.workspace_id;
+  const origin = window.location.origin;
 
-  const field = h("input", {
+  const envBlock = integrationEnv(workspaceId, secret, origin);
+
+  // readonly, not disabled: a disabled field cannot be selected, and manual
+  // selection is the fallback whenever the clipboard API is refused.
+  const envField = h("textarea", {
+    readonly: true,
+    rows: 3,
+    class: "secret-field secret-env",
+    spellcheck: "false",
+    onclick: (e) => e.target.select(),
+  });
+  envField.value = envBlock;
+
+  const copyEnvBtn = h("button", {
+    class: "btn btn-primary",
+    onclick: () => copyInto(copyEnvBtn, envField, envBlock, "Copy all three"),
+  }, "Copy all three");
+
+  const keyField = h("input", {
     type: "text",
     value: secret,
     readonly: true,
@@ -528,39 +581,50 @@ function showSecretOnce(payload, container, params) {
     onclick: (e) => e.target.select(),
   });
 
-  const copyBtn = h("button", {
-    class: "btn btn-primary",
-    onclick: async () => {
-      try {
-        await navigator.clipboard.writeText(secret);
-        copyBtn.textContent = "Copied";
-      } catch {
-        // Clipboard access can be refused (insecure context, permissions).
-        // Selecting the text is the fallback that always works.
-        field.select();
-        copyBtn.textContent = "Select and copy manually";
-      }
-    },
-  }, "Copy");
+  const copyKeyBtn = h("button", {
+    class: "btn",
+    onclick: () => copyInto(copyKeyBtn, keyField, secret, "Copy key only"),
+  }, "Copy key only");
 
   openModal({
     title: "Copy this credential now",
     body: h("div", "col",
       h("div", { class: "ws-banner ws-banner-secret", role: "alert" },
         pill("one time", "warn"),
-        h("span", null, "This credential will not be shown again. There is no way to recover it — ",
+        h("span", null, "This credential will not be shown again. There is no way to recover it: ",
           "only a digest is stored. If it is lost, create a new credential and revoke this one."),
       ),
-      h("div", "row", field, copyBtn),
+
+      h("p", "muted text-xs", "Your backend needs these three values, and nothing else:"),
+      envField,
+      h("div", "row", copyEnvBtn, copyKeyBtn),
+
       kvList([
         ["label",  credential.label || "—"],
         ["id",     h("code", null, credential.id || "—")],
         ["scopes", h("div", "row", ...(credential.scopes || []).map((s) => pill(s, "neutral")))],
         ["expires", credential.expires_at || "never"],
       ]),
+
+      h("details", { class: "muted text-xs" },
+        h("summary", null, "Just the key"),
+        h("div", "row", keyField),
+        h("p", null,
+          "Send it as ", h("code", null, "Authorization: Bearer <credential>"),
+          " to ", h("code", null, "/v1/workspaces/" + workspaceId + "/…"),
+        ),
+      ),
+
       h("p", "muted text-xs",
-        "Use it as a bearer token: ", h("code", null, "Authorization: Bearer <credential>"),
-        " against ", h("code", null, "/v1/workspaces/" + (params.workspace_id) + "/…"),
+        "Next: ",
+        h("a", { href: "#/docs/getting-started/connect-backend" }, "connect your backend"),
+        " · ",
+        h("a", {
+          href: "https://pkg.go.dev/github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go",
+          target: "_blank", rel: "noopener noreferrer",
+        }, "Go SDK reference"),
+        " · ",
+        h("a", { href: "#/swagger" }, "HTTP API"),
       ),
     ),
     actions: [
@@ -569,6 +633,30 @@ function showSecretOnce(payload, container, params) {
       } },
     ],
   });
+}
+
+// copyInto writes `text` to the clipboard and reports the outcome on the
+// button itself.
+//
+// The clipboard API is refused in an insecure context and by some permission
+// policies, and an operator who cannot copy the ONE value they will never see
+// again needs to be told what to do instead rather than left with a button
+// that silently did nothing. Selecting the field is the fallback that always
+// works.
+function copyInto(button, field, text, restoreLabel) {
+  const done = (label) => {
+    button.textContent = label;
+    setTimeout(() => { button.textContent = restoreLabel; }, 2000);
+  };
+  if (!navigator.clipboard?.writeText) {
+    field.select();
+    done("Select and copy manually");
+    return;
+  }
+  navigator.clipboard.writeText(text).then(
+    () => done("Copied"),
+    () => { field.select(); done("Select and copy manually"); },
+  );
 }
 
 function confirmRevoke(row, container, params, project) {

@@ -139,17 +139,40 @@ export default async function overviewView({ container }) {
 
     card({
       title: "Quick actions",
-      body: h("div", "row",
-        workspaceId
-          ? h("button", { class: "btn", onclick: () => navigate(wsRoute(workspaceId, "users")) }, "Manage users")
-          : h("button", { class: "btn btn-primary", onclick: () => navigate("/workspaces") }, "Create a workspace"),
-        h("button", { class: "btn", onclick: () => navigate("/workspaces") }, "Workspaces"),
-        h("button", { class: "btn", onclick: () => navigate("/playground") }, "Open Playground"),
-        h("button", { class: "btn", onclick: () => navigate("/api-explorer") }, "API Explorer"),
-        h("button", { class: "btn", onclick: () => navigate("/swagger") }, "Open Swagger"),
-      ),
+      body: h("div", "row", ...quickActions(workspaceId, state.config)),
     }),
   );
+}
+
+// quickActions is the Quick actions row, filtered by what this deployment
+// actually serves.
+//
+// The dev tools are gated twice on the server's config flags: pruneNav drops
+// them from the sidebar, and gateDevToolView bounces their routes back to
+// /overview. Rendering the buttons unconditionally defeated both — in a
+// production console (ADMIN_CONSOLE_ENABLED=true, DEV_PLAYGROUND_ENABLED=false,
+// which is exactly what `init.sh --keycloak-url` writes) the FIRST screen an
+// operator saw offered two buttons that silently returned them to the same
+// screen.
+//
+// Same predicate as pruneNav, deliberately: a missing flag means hide, so a
+// config.json that failed to load cannot expose a dev tool.
+export function quickActions(workspaceId, config) {
+  const actions = [
+    workspaceId
+      ? h("button", { class: "btn", onclick: () => navigate(wsRoute(workspaceId, "users")) }, "Manage users")
+      : h("button", { class: "btn btn-primary", onclick: () => navigate("/workspaces") }, "Create a workspace"),
+    h("button", { class: "btn", onclick: () => navigate("/workspaces") }, "Workspaces"),
+  ];
+  if (config?.devTools) {
+    actions.push(h("button", { class: "btn", onclick: () => navigate("/playground") }, "Open Playground"));
+  }
+  if (config?.apiExplorer) {
+    actions.push(h("button", { class: "btn", onclick: () => navigate("/api-explorer") }, "API Explorer"));
+  }
+  actions.push(h("button", { class: "btn", onclick: () => navigate("/swagger") }, "Open Swagger"));
+  actions.push(h("button", { class: "btn", onclick: () => navigate("/docs/getting-started") }, "Getting started"));
+  return actions;
 }
 
 // renderWorkspaceSnapshot — what the selected workspace routes through, so an
@@ -176,12 +199,19 @@ function renderWorkspaceSnapshot(workspace, state) {
   );
 }
 
+// renderIdentitySnapshot — the operator's own session.
+//
+// The empty state used to say "Sign in via the Playground", which predates the
+// console having a login of its own. The Playground is dev-only and absent
+// from every production deployment, so that instruction was impossible to
+// follow on exactly the installations that matter. The console signs in with
+// Authorization Code + PKCE from the topbar.
 function renderIdentitySnapshot(id, authed) {
   if (!authed || !id) {
     return emptyState({
       icon: "○",
       title: "Anonymous",
-      body: "Sign in via the Playground to populate this card.",
+      body: "Sign in from the top right to populate this card. It shows your own operator session, which is separate from the users any workspace manages.",
     });
   }
   return h("div", "col",

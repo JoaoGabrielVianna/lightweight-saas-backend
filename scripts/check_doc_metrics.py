@@ -52,6 +52,25 @@ METRICS = [
         [("docs/PROJECT_STATUS.md", r"\|\s*Go test functions\s*\|\s*(\d+)\s*\|")],
     ),
     (
+        # The PRODUCT surface. Added 2026-08-16, when the published route total
+        # was found to be 46 — the count from before workspaces existed, which
+        # omitted all 47 of these. The README's central claim about what
+        # LIGHTWEIGHT is now rests on this number, so it is derived.
+        "Product API routes (/v1)",
+        r"grep -cE 'v1\.(GET|POST|PUT|PATCH|DELETE)\(' internal/server/router.go",
+        [("docs/PROJECT_STATUS.md", r"\|\s*— \*\*Product API \(`/v1/\*`\)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|"),
+         ("README.md", r"(\d+) routes under `/v1`")],
+    ),
+    (
+        # Every route the server registers, across every group and every
+        # conditional mount. Counted from source rather than from a built
+        # router so this needs no Go toolchain.
+        "HTTP routes (total)",
+        r"ls internal/server/*.go | grep -v _test.go "
+        r"| xargs grep -hoE '\.(GET|POST|PUT|PATCH|DELETE|HEAD)\(\"' | wc -l",
+        [("docs/PROJECT_STATUS.md", r"\|\s*\*\*HTTP routes \(total\)\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|")],
+    ),
+    (
         "Admin API routes",
         r"grep -cE 'admin\.(GET|POST|PUT|PATCH|DELETE)\(' internal/server/router.go",
         [("docs/PROJECT_STATUS.md", r"\|\s*— Admin API \(`/admin/\*`, fully gated\)\s*\|\s*(\d+)\s*\|"),
@@ -59,10 +78,31 @@ METRICS = [
          ("docs/MODULES.md", r"\|\s*`/admin/\*` API\s*\|\s*(\d+)\s*\|")],
     ),
     (
+        # The credential vocabulary. Published in the README's concept table and
+        # in the getting-started guide, because "what may this key do" is the
+        # first question a reader asks about a project credential.
+        "Credential scopes",
+        r"grep -cE '^\tScope[A-Za-z]+ Scope = \"' internal/authz/scope.go",
+        [("docs/PROJECT_STATUS.md", r"\|\s*Credential scopes\s*\|\s*(\d+)\s*\|"),
+         ("README.md", r"What a credential may do\. \*\*(\d+)\*\* exist"),
+         ("docs/getting-started/FIRST_CREDENTIAL.md", r"There are \*\*(\d+)\*\*, and this is all of them")],
+    ),
+    (
+        # The configuration surface. The onboarding docs lead with "41 declared,
+        # you supply three", and that first number is the one a reader uses to
+        # decide whether to be afraid of .env.example. contract_test.go already
+        # pins .env.example against the contract table, so this only has to
+        # catch the PROSE drifting away from both.
+        "Declared environment variables",
+        r"grep -cE '^[A-Z][A-Z0-9_]*=' .env.example",
+        [("docs/operations/RUNNING.md", r"\*\*(\d+) variables are declared"),
+         ("docs/getting-started/KEYCLOAK_EXISTING.md", r"read all (\d+) lines of `\.env\.example`")],
+    ),
+    (
         "Canonical audit actions",
         r"grep -cE '^\s+Action[A-Za-z]+ +Action = ' internal/audit/event.go",
         [("docs/PROJECT_STATUS.md", r"\|\s*Canonical audit actions \(declared = emitted\)\s*\|\s*(\d+)\s*\|"),
-         ("README.md", r"structured event\. (\d+) canonical actions")],
+         ("README.md", r"it records\. (\d+) canonical actions")],
     ),
     (
         "IdentityProvider methods",
@@ -82,7 +122,7 @@ METRICS = [
     (
         "Admin console SPA views",
         "ls web/admin/static/js/views/*.js | wc -l",
-        [("README.md", r"`/admin`\. (\d+) views, PKCE login"),
+        [("README.md", r"SPA at `/admin`\. (\d+) views:"),
          ("docs/MODULES.md", r"(\d+) `views/` ·")],
     ),
     (

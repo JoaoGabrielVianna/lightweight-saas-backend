@@ -127,3 +127,74 @@ test("no scope in the vocabulary grants password setting", () => {
   assert.ok(!consoleScopes().includes("users:password"));
   assert.ok(!serverScopes().includes("users:password"));
 });
+
+// ─── The credential handoff ────────────────────────────────────────────────
+//
+// The credential reveal modal is the only moment the secret exists, and the
+// only moment an operator holds all three values a backend needs at once. It
+// therefore hands over a ready-to-paste .env block rather than the key alone.
+//
+// The risk that block introduces is a NAME drift: if the SDK renames a
+// variable and the console does not, the console keeps producing a block that
+// looks copy-pasteable and silently is not. So the names are pinned against
+// the SDK's own exported constants rather than restated here.
+
+const { integrationEnv } = await import("../views/projects.js");
+
+// sdkEnvNames reads the three constants sdk/go/client.go declares. They are
+// the integration contract: NewClientFromEnv reads exactly these and has
+// nowhere to read a fourth from.
+function sdkEnvNames() {
+  const src = readFileSync(
+    new URL("../../../../../sdk/go/client.go", import.meta.url), "utf8");
+  const names = {};
+  for (const [, konst, value] of src.matchAll(
+    /\b(EnvBaseURL|EnvWorkspaceID|EnvAPIKey)\s*=\s*"([A-Z_]+)"/g)) {
+    names[konst] = value;
+  }
+  assert.equal(Object.keys(names).length, 3,
+    "could not read all three Env* constants from sdk/go/client.go; this gate would pass vacuously");
+  return names;
+}
+
+test("the reveal block uses exactly the variable names the Go SDK reads", () => {
+  const { EnvBaseURL, EnvWorkspaceID, EnvAPIKey } = sdkEnvNames();
+  const block = integrationEnv("ws_abc", "lw_sk_lookup_secret", "https://lw.example.com");
+  const lines = block.split("\n");
+
+  assert.deepEqual(lines, [
+    `${EnvBaseURL}=https://lw.example.com`,
+    `${EnvWorkspaceID}=ws_abc`,
+    `${EnvAPIKey}=lw_sk_lookup_secret`,
+  ], "the console's block must be pasteable into an environment the SDK can read");
+});
+
+test("the reveal block carries exactly three variables, never a fourth", () => {
+  // "There is nowhere to put a fourth" is a product claim in the README and in
+  // the SDK docs. A console that emitted a realm, a provider URL or a client
+  // id would make that claim false and leak routing detail to a consumer that
+  // must not depend on it.
+  const lines = integrationEnv("ws_abc", "lw_sk_x", "https://lw.example.com").split("\n");
+  assert.equal(lines.length, 3);
+  for (const line of lines) {
+    assert.match(line, /^LIGHTWEIGHT_[A-Z_]+=/,
+      `every line must be a LIGHTWEIGHT_* assignment, got: ${line}`);
+  }
+});
+
+test("the block is plain text, with no quoting or shell escaping to undo", () => {
+  // Operators paste this into a .env file, a Compose file, or a secret store.
+  // Quotes would survive into the value in some of those and not others.
+  const block = integrationEnv("ws_abc", "lw_sk_x", "https://lw.example.com");
+  assert.ok(!block.includes('"'), "no double quotes");
+  assert.ok(!block.includes("'"), "no single quotes");
+  assert.ok(!block.includes("export "), "no shell-specific prefix");
+});
+
+test("the secret appears once, in the API key line only", () => {
+  const secret = "lw_sk_lookup_thesecretvalue";
+  const block = integrationEnv("ws_abc", secret, "https://lw.example.com");
+  const occurrences = block.split(secret).length - 1;
+  assert.equal(occurrences, 1, "the plaintext must not be repeated across lines");
+  assert.match(block, new RegExp(`^LIGHTWEIGHT_API_KEY=${secret}$`, "m"));
+});

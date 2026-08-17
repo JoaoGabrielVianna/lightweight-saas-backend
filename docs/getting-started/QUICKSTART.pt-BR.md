@@ -1,7 +1,25 @@
-# Quick Start
+# Quick Start (stack de contribuidor)
 
-> Do `git clone` à stack rodando com uma chamada admin autenticada — em menos de 10 minutos.
-> Onboarding operacional. Pule para [§9 Próximos passos](#9-próximos-passos) para docs mais profundos, ou veja [`docs/INDEX.md`](../INDEX.md) para o mapa completo.
+> ### ⚠ Este não é o guia de instalação
+>
+> **Se você quer instalar ou avaliar o LIGHTWEIGHT, vá para
+> [`getting-started/`](README.md).** Instalar precisa de Docker, `git` e um
+> comando; não precisa de Go, `make`, nem de responder aos prompts abaixo.
+> Esse guia está em inglês por enquanto.
+>
+> Esta página é a stack de **contribuidor**: o toolchain Go, os alvos `make` e
+> o ciclo de regeneração necessários para alterar o código. Aqui o `make init` é
+> uma **ferramenta de fork** que regenera `config/project.json`, `.env.example`
+> e o realm export do Keycloak a partir de prompts. Não é um instalador.
+> Instalar usa `./scripts/init.sh`, que não pergunta nada.
+>
+> Partes deste documento são anteriores aos workspaces e descrevem a superfície
+> `/admin/*` como se fosse o produto. Esse enquadramento está desatualizado: a
+> superfície de produto é a `/v1`. Veja o [README](../../README.md).
+
+Do `git clone` à stack de desenvolvimento rodando com uma chamada admin
+autenticada. Pule para [§9 Próximos passos](#9-próximos-passos) para docs mais
+profundos, ou veja [`docs/INDEX.md`](../INDEX.md) para o mapa completo.
 
 ---
 
@@ -22,7 +40,18 @@
 
 ## 1. O que este projeto faz
 
-Backend Go reutilizável com identidade delegada ao Keycloak (OIDC). Entrega uma superfície HTTP `/admin/*` (usuários, papéis, sessões, convites), uma SPA admin estática em `/admin`, e uma stack de dev de 5 containers via `docker-compose`. Nenhum tratamento de senha em Go — Keycloak cuida disso. Versão atual: v0.2.0 "Identity Management".
+O LIGHTWEIGHT é um control plane self-hosted que coloca um ou mais realms do
+Keycloak atrás de uma única API HTTP escopada por workspace. Backends gerenciam
+usuários, papéis, sessões e convites com uma credencial de máquina restrita, em
+vez de terem direitos de admin no Keycloak. Nenhum tratamento de senha em Go: o
+Keycloak cuida disso.
+
+A superfície de produto é a `/v1`. A superfície `/admin/*` e a SPA estática
+descritas adiante neste documento são anteriores aos workspaces, e hoje são
+superfície de operador e de compatibilidade. Release atual: **v0.4.0**, Go SDK
+**v0.1.0**.
+
+Visão completa: [`../../README.md`](../../README.md).
 
 ---
 

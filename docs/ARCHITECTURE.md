@@ -1,10 +1,108 @@
 # Architecture
 
-**Last updated:** 2026-07-26 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md)
+**Last updated:** 2026-08-16 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md)
 
 This document describes how the system is built and how a request travels
 through it. It documents the architecture that **exists**, not an aspirational
 one.
+
+---
+
+## 0. The shape of the system
+
+Two planes, one binary.
+
+**The control plane** is what an operator manages: workspaces, connections,
+projects and credentials. It is local state in PostgreSQL, and it never talks
+to an identity provider except to verify a connection.
+
+**The data plane** is what a backend calls: users, roles, sessions,
+invitations. It holds no state of its own. Every request on it is routed
+through the calling workspace's active connection to a Keycloak realm.
+
+```
+                       ┌──────────────── control plane ────────────────┐
+                       │  workspace · connection · project · credential │
+                       │  PostgreSQL. Operator only, without exception. │
+                       └────────────────────┬───────────────────────────┘
+                                            │ a workspace's ACTIVE connection
+                                            ▼
+                       ┌───────────────── data plane ──────────────────┐
+                       │  users · roles · sessions · invitations        │
+                       │  No local state. Resolved per request.         │
+                       └────────────────────┬───────────────────────────┘
+                                            ▼
+                                     Keycloak realm
+```
+
+### The workspace-scoped request path
+
+This is the chain that makes a workspace mean something at request time, and
+the one thing to understand before reading any handler:
+
+```
+HTTP router                          internal/server/router.go
+  ↓
+AuthenticatePrincipal                internal/auth        WHO is calling:
+                                                          operator token, or lw_sk_ credential
+  ↓
+RateLimitPerCredential               internal/server      needs the answer above
+  ↓
+Authorize                            internal/authz       MAY this principal call THIS route:
+                                                          route classification + scope,
+                                                          or operator role + live admin check
+  ↓
+Resolver.ForWorkspace                internal/identityruntime
+    ├─ workspace must exist and not be archived
+    ├─ its ACTIVE connection must exist and be usable
+    ├─ the sealed client secret is opened          internal/secrets
+    └─ an identity.IdentityProvider is built for that connection's realm
+  ↓
+identity.IdentityProvider            internal/identity            (the port)
+  ↓
+Keycloak Admin REST adapter          internal/identity/keycloak   (the adapter)
+  ↓
+Keycloak realm
+```
+
+Three things are deliberately invisible above `identityruntime`: the connection
+row, the encryption, and the credential. A handler receives an
+`identity.IdentityProvider` and has **no way to ask which realm it points at**.
+Isolation between workspaces is structural rather than disciplined: each
+connection gets its own provider instance, and every piece of state that could
+leak, the service-account token cache above all, is a field on that instance.
+
+### Package roles
+
+| Role | Packages |
+|---|---|
+| **Composition root** | `cmd/api` |
+| **HTTP shell** | `internal/server` |
+| **Control-plane features** | `internal/workspace`, `internal/connection`, `internal/project` |
+| **Data-plane feature** | `internal/identityruntime` |
+| **Audit feature** | `internal/auditlog` (durable, per workspace) |
+| **Legacy single-realm** | `internal/identity`, `internal/user` |
+| **Ports** | `internal/auth` (AuthProvider, AdminChecker, ProjectAuthenticator), `internal/identity` (IdentityProvider) |
+| **Adapters** | `internal/auth/keycloak` (JWKS), `internal/identity/keycloak` (Admin REST) |
+| **Cross-cutting** | `internal/authz`, `internal/audit`, `internal/logging`, `internal/requestid`, `internal/metrics` |
+| **Platform** | `internal/config`, `internal/database`, `internal/secrets`, `internal/publicid`, `internal/logger` |
+
+Each feature package owns its own `handler.go`, `service.go`, `repository.go`,
+`dto.go` and `errors.go`, including a catalogue of stable error codes. There is
+no shared `models/` or `services/` package; that is what makes this
+package-by-feature rather than package-by-layer with feature-shaped folder
+names.
+
+The two surfaces the router mounts:
+
+| Surface | Routes | Auth | Role |
+|---|---:|---|---|
+| `/v1/*` | 47 | operator token **or** `lw_sk_` credential | the product |
+| `/admin/*` | 32 | operator token only | legacy single-realm, plus SMTP and email-template settings for the installation's own realm |
+
+`/admin/*` predates workspaces. It is retained because the console still uses
+it for provider settings that have no `/v1` equivalent, and because the
+response bodies are a compatibility surface. It is not the product.
 
 ---
 
@@ -31,67 +129,97 @@ What the design actually commits to:
 
 ### Package dependency graph
 
+Derived from `go list -f '{{.Imports}}' ./...`, not maintained by hand.
+Platform leaves (`logger`, `publicid`, `database`, `metrics`) are omitted from
+the arrows to keep it readable; everything depends on them.
+
 ```mermaid
 flowchart TD
     main["cmd/api<br/><i>composition root</i>"]
     server["internal/server<br/><i>HTTP shell + routing</i>"]
-    identity["internal/identity<br/><i>handler → service</i>"]
+
+    subgraph control["control plane"]
+      workspace["internal/workspace"]
+      conn["internal/connection"]
+      project["internal/project"]
+    end
+
+    subgraph dataplane["data plane"]
+      idrt["internal/identityruntime<br/><i>resolve workspace → provider</i>"]
+    end
+
+    identity["internal/identity<br/><i>PORT: IdentityProvider</i>"]
     idkc["internal/identity/keycloak<br/><i>Admin REST adapter</i>"]
-    auth["internal/auth<br/><i>middleware + ports</i>"]
+    auth["internal/auth<br/><i>PORTS: AuthProvider,<br/>AdminChecker, ProjectAuthenticator</i>"]
     authkc["internal/auth/keycloak<br/><i>JWKS adapter</i>"]
+    authz["internal/authz<br/><i>route registry + scopes</i>"]
+    auditlog["internal/auditlog<br/><i>durable trail</i>"]
+    audit["internal/audit<br/><i>emit port</i>"]
     user["internal/user"]
-    workspace["internal/workspace<br/><i>handler → service → repository</i>"]
-    conn["internal/connection<br/><i>handler → service → repository</i>"]
-    secretsPkg["internal/secrets<br/><i>AES-256-GCM</i>"]
-    audit["internal/audit"]
+    secretsPkg["internal/secrets<br/><i>AES-256-GCM keyring</i>"]
     logging["internal/logging"]
-    db["internal/database"]
     cfg["internal/config"]
-    pubid["internal/publicid"]
-    reqid["internal/requestid"]
 
     main --> server
     main --> auth
     main --> authkc
-    main --> db
     main --> cfg
     main --> logging
+    main --> auditlog
 
-    server --> identity
-    server --> user
     server --> workspace
-    server --> auth
-    server --> idkc
-    server --> cfg
-    server --> reqid
-
-    workspace --> pubid
-    workspace --> reqid
-    reqid --> pubid
-
     server --> conn
+    server --> project
+    server --> idrt
+    server --> auditlog
+    server --> authz
+    server --> identity
+    server --> idkc
+    server --> user
+    server --> auth
+    server --> cfg
+
     conn --> workspace
     conn --> secretsPkg
-    conn --> pubid
-    conn --> reqid
+    project --> workspace
+    project --> authz
+
+    idrt --> conn
+    idrt --> workspace
+    idrt --> identity
+    idrt --> idkc
+    idrt --> secretsPkg
+
+    authz --> auth
+    authz --> idrt
 
     identity --> auth
-    identity --> audit
-    identity --> logging
     idkc --> identity
+    authkc --> auth
 
+    workspace --> audit
+    conn --> audit
+    project --> audit
+    auditlog --> audit
     logging --> audit
     logging --> auth
-    authkc --> auth
-    db --> user
 
     classDef port fill:#1f6feb,stroke:#1f6feb,color:#fff
-    class auth,identity port
+    class auth,identity,audit port
 ```
 
-Note the direction: `identity → auth`, never the reverse. Handlers call
-`auth.IdentityFrom(c)` to read the authenticated principal. The one place that
-needed the opposite direction — the live-admin check — is resolved with an
+Two edges are worth explaining, because both look backwards at first glance:
+
+- **`authz → identityruntime`** exists so the authorization registry can be
+  validated against the route list `identityruntime` declares. The direction is
+  deliberate and must not invert: `identityruntime` must not know how it is
+  authorized, or the write guard and the capability check would become two
+  halves of one tangled rule.
+- **`project → authz`** is for the scope vocabulary. A scope is an
+  authorization concept, so `authz` owns it and the feature consumes it.
+
+There is no `auth → identity` edge, and there must not be. The one place that
+needed the opposite direction, the live-admin check, is resolved with an
 adapter in the composition root rather than an import
 ([server.go](../internal/server/server.go), `adminCheckerFromProvider`):
 
@@ -105,6 +233,9 @@ func adminCheckerFromProvider(p identity.IdentityProvider) auth.AdminChecker {
 	})
 }
 ```
+
+`identity → auth`, never the reverse. Handlers call `auth.IdentityFrom(c)` to
+read the authenticated principal.
 
 ---
 

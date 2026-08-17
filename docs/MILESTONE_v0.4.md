@@ -1,10 +1,19 @@
-# Milestone Proposal — v0.4.0
+# Milestone — v0.4.0 (delivered)
 
-**Status:** proposed · **Drafted:** 2026-07-27 · **Owner:** maintainer
-**Theme:** *Trustworthy* — make the existing surface verifiable, observable and deployable.
+**Status:** **DELIVERED**, tagged `v0.4.0` · **Drafted:** 2026-07-27 · **Owner:** maintainer
+**Theme:** *Trustworthy*: make the existing surface verifiable, observable and deployable.
 
-> **Proposal, not a commitment.** Scope is negotiable until the milestone
-> opens; the acceptance criteria are not.
+> **This is a historical record, not a plan.** v0.4.0 is released. The document
+> is kept because the acceptance criteria below are what the release was judged
+> against, and that reasoning is worth preserving. Nothing here describes future
+> work.
+>
+> For what is planned next, see [ROADMAP.md](ROADMAP.md). For the current state
+> of the project, see [PROJECT_STATUS.md](PROJECT_STATUS.md). For what the
+> product is, see the [README](../README.md).
+>
+> The text below is preserved as it was drafted, in the future tense it was
+> written in.
 
 ---
 

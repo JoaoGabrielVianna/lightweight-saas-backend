@@ -114,12 +114,34 @@ environment does nothing.
 | `SEED_USER_PASSWORD` | bootstrap | dev-only | — | yes | password given to seed users by the bootstrap CLI |
 | `SHUTDOWN_TIMEOUT_SECONDS` | process | optional | 20 |  | how long in-flight requests may finish after SIGTERM before the process exits anyway |
 
+### You do not fill most of this in
+
+**41 variables are declared. A new installation supplies at most three of
+them**, and `./scripts/init.sh` generates or derives the rest. Read the table
+as a reference, not as a checklist.
+
+| Class | How many | What you do |
+|---|---:|---|
+| **Minimum manual input** | **3** | `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, passed as flags to `./scripts/init.sh`. For the bundled evaluation stack: **zero** |
+| **Generated for you** | 6 | `SECRETS_KEYRING`, `SECRETS_KEY_CURRENT`, `POSTGRES_PASSWORD`, `DB_URL`, `METRICS_TOKEN`, `KEYCLOAK_ADMIN_PASSWORD`. Never type these; the keyring in particular must be high-entropy |
+| **Derived, safe to leave empty** | 4 | `KEYCLOAK_JWKS_URL` and `KEYCLOAK_ADMIN_BASE_URL` fall back to `KEYCLOAK_URL`; `ADMIN_CONSOLE_CLIENT_ID` falls back to the console client; `KEYCLOAK_CLIENT_SECRET` is unused by a public client |
+| **Advanced, has a working default** | 16 | ports, rate limits, log switches, audit retention, shutdown timeout, live-check TTL, CORS, metrics |
+| **Legacy / compatibility** | 1 | `SECRETS_MASTER_KEY`. Superseded by `SECRETS_KEYRING`; setting both is refused |
+| **Reference deployment only** | 11 | `POSTGRES_*`, `KC_*`, `*_HOST_PORT`, `KEYCLOAK_ADMIN*`. Read by `docker-compose.yml`, never by the API |
+
+The one you must not lose is **`SECRETS_KEYRING`**. It is not in your database
+dump, and every provider client secret is sealed under it. See
+[§8 Backup](#8-backup-and-recovery).
+
 ### Reading this table
 
-- **required** — the process exits at boot without it.
+- **required** — the process exits at boot without it. There are four, and
+  three of them you supply; `DB_URL` is assembled by compose.
 - **optional** — absence means the stated default, or a feature that is simply
-  not mounted. `SECRETS_MASTER_KEY` is the important one: without it the
+  not mounted. `SECRETS_KEYRING` is the important one: without it the
   connection API and the workspace-identity API are **absent**, not broken.
+  (`SECRETS_MASTER_KEY` is its legacy single-key form and does the same thing;
+  new installations should leave it empty.)
 - **dev-only** — must not be set in a production deployment.
   `DEV_PLAYGROUND_ENABLED=true` exposes an unauthenticated login playground.
 - **secret** — never commit a real value, and note that `.env.example` ships

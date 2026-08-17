@@ -1,23 +1,35 @@
 # LIGHTWEIGHT SAAS BACKEND — Project Status
 
-> **This document is the canonical entry point for the current state of the
-> project.** It is written for both human engineers and AI agents joining this
-> repository. Where this document and any other document disagree, this one
-> wins — and the code wins over both.
+> **This is the maintainer's status document, not the product's front door.**
+> If you are installing or evaluating LIGHTWEIGHT, start at
+> [`getting-started/`](getting-started/README.md); if you want to know what the
+> product is, start at the [README](../README.md). This page is the current
+> state of the *project*: what is built, what is partial, what the numbers are.
+>
+> Where this document and any other document disagree, this one wins, and the
+> code wins over both.
 
-**Last updated:** 2026-08-10
-**Last release tag:** `v0.3.1` (2026-05-25) · **20 commits unreleased since**
-**Verified against:** commit `e3c4e22`, plus the KI-001 fix, the quality
-system delivered on 2026-07-27, and the Slice 11 browser end-to-end suite
+**Last updated:** 2026-08-16
+**Last release tag:** `v0.4.0` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
+**Verified against:** the v0.4.0 tree, with the published metrics below
+re-derived by `make check-metrics`
 
 ---
 
 ## Overview
 
-Lightweight SaaS Backend is a **reusable IAM foundation for SaaS products**,
-written in Go. It delegates identity to Keycloak and provides, on top of it:
-a hardened admin API, a dependency-free admin console SPA, an audit
-subsystem, and operator runbooks.
+LIGHTWEIGHT is a **self-hosted control plane that puts one or more Keycloak
+realms behind a single workspace-scoped HTTP API**, written in Go. Backends
+manage users, roles, sessions and invitations through a scoped machine
+credential instead of holding Keycloak admin rights.
+
+The product surface is the 47-route `/v1` API: workspaces, connections,
+projects, credentials, and workspace-scoped identity and audit. The 32-route
+`/admin/*` surface predates workspaces and is retained as operator and
+compatibility surface, not as the product.
+
+It is not an application backend: it stores no product data and serves no
+product endpoints.
 
 It is deliberately **not** a full SaaS backend. There is no billing, no
 multi-tenancy, no queue, no file storage. The business domain is essentially
@@ -501,36 +513,46 @@ middleware chain through the real Gin engine.
 
 ## Metrics
 
-Measured at commit `e3c4e22` plus the KI-001 fix, on 2026-07-26.
+Re-derived at the v0.4.0 tree. Every row marked ✓ is checked by
+`make check-metrics`, which fails the build when the code and this table
+disagree; the rest are re-derived by hand at release.
 
-| Metric | Value |
-|---|---:|
-| Go packages | 30 |
-| Go source files (non-test) | 141 |
-| Go test files | 113 |
-| Go test functions | 1162 |
-| Frontend test cases | 30 |
-| Lines of Go (incl. tests) | 37,183 |
-| Lines of Go (excl. tests and generated OpenAPI) | 15,728 |
-| Lines of frontend JS | 5,809 |
-| **Unit test coverage** | **74.4%** (floor 73.0%) |
-| **Full test coverage (authoritative, `-tags=integration`)** | **80.4%** (floor 80.0%) |
-| **HTTP routes (total)** | **46** |
-| — Admin API (`/admin/*`, fully gated) | 32 |
-| — Authenticated (`/me`, `/auth/debug`) | 2 |
-| — Public operational (`/health`, `/swagger/*`, `/`) | 3 |
-| — Admin console shell (public, static) | 4 |
-| — Dev playground (`DEV_PLAYGROUND_ENABLED` only) | 5 |
-| HTTP handler methods | 32 |
-| `IdentityProvider` interface methods | 23 |
-| Canonical audit actions (declared = emitted) | 28 |
+| Metric | Value | |
+|---|---:|:--:|
+| Go packages | 30 | ✓ |
+| Go source files (non-test) | 141 | ✓ |
+| Go test files | 113 | ✓ |
+| Go test functions | 1162 | ✓ |
+| Frontend test cases | 166 | |
+| Lines of Go (incl. tests) | 84,358 | |
+| Lines of Go (excl. tests and generated OpenAPI) | 32,562 | |
+| Lines of frontend JS | 9,132 | |
+| **Unit test coverage** | **74.3%** (floor 73.0%) | |
+| **Full test coverage (authoritative, `-tags=integration`)** | **80.4%** (floor 80.0%) | |
+| **HTTP routes (total)** | **96** | ✓ |
+| — **Product API (`/v1/*`)** | **47** | ✓ |
+| — Admin API (`/admin/*`, fully gated) | 32 | ✓ |
+| — Authenticated (`/me`, `/auth/debug`) | 2 | |
+| — Public operational (`/health`, `/health/live`, `/health/ready`, `/swagger/*`, `/`) | 5 | |
+| — Admin console shell (public, static) | 4 | |
+| — Dev playground (`DEV_PLAYGROUND_ENABLED` only) | 5 | |
+| — Metrics (`METRICS_ENABLED` only) | 1 | |
+| Credential scopes | 9 | ✓ |
+| HTTP handler methods | 32 | ✓ |
+| `IdentityProvider` interface methods | 23 | ✓ |
+| Canonical audit actions (declared = emitted) | 28 | ✓ |
+| Database tables owned | 6 | |
+| Docker Compose services | 5 | ✓ |
+
+> The route total omitted the entire `/v1` surface until 2026-08-16: it read
+> `46`, which was the count before workspaces existed. That is exactly the rot
+> `check_doc_metrics.py` exists to stop, so the total and the `/v1` line are
+> now derived rather than maintained.
 
 > **`Go packages` counts the SERVER module only.** `sdk/go` is a separate Go
-> module, so `go list ./...` stops at its boundary — while the file and
+> module, so `go list ./...` stops at its boundary, while the file and
 > test-function counts above use `find`, which does not. That asymmetry is why
 > the SDK reports its coverage separately; see [SDK_GO.md](SDK_GO.md#gates).
-| Database tables owned | 1 |
-| Docker Compose services | 5 |
 
 Admin API routes by verb: 12 GET · 8 POST · 3 PUT · 2 PATCH · 7 DELETE.
 

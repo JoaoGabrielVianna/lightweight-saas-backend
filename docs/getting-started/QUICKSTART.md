@@ -1,7 +1,24 @@
-# Quick Start
+# Quick Start (contributor stack)
 
-> From `git clone` to a running stack with an authenticated admin call — under 10 minutes.
-> Operational onboarding. Skip to [§9 Next steps](#9-next-steps) for deeper docs, or browse [`docs/INDEX.md`](../INDEX.md) for the full map.
+> ### ⚠ This is not the installation guide
+>
+> **If you are installing or evaluating LIGHTWEIGHT, go to
+> [`getting-started/`](README.md) instead.** Installing needs Docker, `git` and
+> one command; it does not need Go, `make`, or any of the prompts below.
+>
+> This page is the **contributor** stack: the Go toolchain, the `make` targets,
+> and the regeneration loop you need to change the code. `make init` here is a
+> **fork tool** that regenerates `config/project.json`, `.env.example` and the
+> Keycloak realm export from prompts. It is not an installer. Installing uses
+> `./scripts/init.sh`, which asks nothing.
+>
+> Parts of this document predate workspaces and describe the `/admin/*`
+> surface as the product. That framing is out of date; the product surface is
+> `/v1`. See the [README](../../README.md).
+
+From `git clone` to a running dev stack with an authenticated admin call.
+Skip to [§9 Next steps](#9-next-steps) for deeper docs, or browse
+[`docs/INDEX.md`](../INDEX.md) for the full map.
 
 ---
 
@@ -22,7 +39,16 @@
 
 ## 1. What this project does
 
-A reusable Go backend with identity delegated to Keycloak (OIDC). Ships a `/admin/*` HTTP surface (users, roles, sessions, invitations), a static admin SPA at `/admin`, and a 5-container dev stack via `docker-compose`. No password handling in Go — Keycloak owns it. Current release: v0.2.0 "Identity Management".
+LIGHTWEIGHT is a self-hosted control plane that puts one or more Keycloak
+realms behind a single workspace-scoped HTTP API. Backends manage users, roles,
+sessions and invitations through a scoped machine credential instead of holding
+Keycloak admin rights. No password handling in Go; Keycloak owns it.
+
+The product surface is `/v1`. The `/admin/*` surface and the static SPA
+described later in this document predate workspaces and are operator and
+compatibility surface. Current release: **v0.4.0**, Go SDK **v0.1.0**.
+
+Full picture: [`../../README.md`](../../README.md).
 
 ---
 
