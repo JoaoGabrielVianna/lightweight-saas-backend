@@ -81,8 +81,22 @@ METRICS = [
         # The credential vocabulary. Published in the README's concept table and
         # in the getting-started guide, because "what may this key do" is the
         # first question a reader asks about a project credential.
+        # Derived from AllScopes(), which is the RUNTIME authority rather than
+        # the const block above it: IsKnownScope iterates it, NormalizeScopes
+        # validates a new credential against it, and GET /v1/project-scopes
+        # serves it. A constant declared but left out of AllScopes is not part
+        # of the vocabulary, and the documented number must follow the
+        # vocabulary.
+        #
+        # NO `\t` IN THE PATTERN. This metric shipped as
+        # `grep -cE '^\tScope...'` and passed on macOS and busybox, whose greps
+        # read `\t` as a tab, while GNU grep -- the CI runner's -- reads it as a
+        # literal `t`, matched nothing, derived 0, and failed the build against
+        # documentation that was correct. POSIX ERE has no `\t`, so match the
+        # identifiers themselves and let `sort -u` do the counting.
         "Credential scopes",
-        r"grep -cE '^\tScope[A-Za-z]+ Scope = \"' internal/authz/scope.go",
+        r"""sed -n '/^func AllScopes() \[\]Scope {/,/^}/p' internal/authz/scope.go """
+        r"""| grep -oE 'Scope[A-Z][A-Za-z]*' | sort -u | wc -l""",
         [("docs/PROJECT_STATUS.md", r"\|\s*Credential scopes\s*\|\s*(\d+)\s*\|"),
          ("README.md", r"What a credential may do\. \*\*(\d+)\*\* exist"),
          ("docs/getting-started/FIRST_CREDENTIAL.md", r"There are \*\*(\d+)\*\*, and this is all of them")],
