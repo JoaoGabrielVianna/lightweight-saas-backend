@@ -13,6 +13,71 @@ Nothing yet.
 
 ---
 
+## [0.4.1] — 2026-08-18
+
+**The admin console tells an operator why it will not work for them.**
+
+*Why a patch:* no API changed, no configuration changed, no privilege moved.
+The server refused these callers before this release and refuses them the same
+way after it. What changed is one screen in the console — under the checklist's
+table, "fixes only" is a patch.
+
+### Fixed
+
+- **The console let an account in that could not use it.** Authentication was
+  its only boot-time question: any account in the realm completed the PKCE
+  flow, the shell mounted, the sidebar drew, and then `/v1/workspaces` and
+  every panel after it answered `403`. The refusals were correct — the server's
+  `RequireRole("admin")` → `RequireLiveAdmin` chain was never fooled — but they
+  arrived as a screenful of failed requests, which reads as a broken product
+  rather than as a missing role.
+
+  The console now asks the second question once, right after `/auth/debug`
+  hydrates and before the workspace load, the sidebar, or the router exist.
+  Without the `admin` role the boot stops on a screen that names the account,
+  the roles it actually carries, the role it needs, and the fact that roles are
+  granted in the identity provider rather than in the console. Signing out is
+  offered, because the remedy is a different account.
+
+  Three things this deliberately is not:
+
+  - **Not a new privilege boundary.** `RequireRole` → `RequireLiveAdmin` is
+    still the only enforcement. A browser that skipped the check would be
+    refused by every endpoint exactly as before, which is the reason a check
+    like this can live in a browser at all.
+  - **Not fail-open.** When the role list cannot be established — `/auth/debug`
+    unreachable, or a response the server itself marked `valid: false`, whose
+    `roles` came from an unverified base64 decode — the console denies and
+    offers Retry. A flaky lookup costs an admin one click; the alternative
+    restores the wall of 403s for exactly the users this exists to inform.
+  - **Not configurable.** `CONSOLE_ROLE` in `web/admin/static/js/lib/access.js`
+    is a constant mirroring `operatorRole` in `internal/authz/authorize.go`,
+    pinned by a test that names it. Two sources of truth for "which role runs
+    this installation" would be a worse defect than the one being fixed.
+
+  New: `web/admin/static/js/lib/access.js` (the decision),
+  `web/admin/static/js/components/access-denied.js` (the screen).
+
+### Changed
+
+- `GET /auth/debug`'s `roles` and `valid` fields are now load-bearing for the
+  console rather than cosmetic. The response shape is unchanged and was already
+  pinned by `TestAuthDebug_ReturnsSPAContract`; the test now records what
+  depends on those two fields.
+
+### Tests
+
+- `web/admin/static/js/tests/console-access.test.mjs` — 17 cases: the granted /
+  missing-role / unverified split, `valid: false` never granting even with
+  `admin` among the claimed roles, non-string role entries, the role name
+  matching the server's constant, and the denial screen (account named, roles
+  listed, markup rendered as text, Retry only in the unverified state).
+  Verified to fail against the pre-fix behaviour: 4 cases fail with the role
+  check removed, 1 with the `valid: false` guard removed.
+- Frontend suite: 166 → 183 cases across 15 suites.
+
+---
+
 ## [0.4.0] — 2026-08-15
 
 **LIGHTWEIGHT stops being an IAM foundation you build on and becomes an
@@ -1398,7 +1463,8 @@ Initial tagged release — **Authentication foundation** (`v0.1.0-auth-foundatio
   `make swagger-check` blocks drift between handlers and committed specs.
 - 41 unit tests, including a 50-goroutine race on JIT user provisioning.
 
-[Unreleased]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/joaogabrielvianna/lightweight-saas-backend/compare/v0.2.0...v0.3.0

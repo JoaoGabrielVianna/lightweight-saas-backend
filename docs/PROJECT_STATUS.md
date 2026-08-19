@@ -9,9 +9,11 @@
 > Where this document and any other document disagree, this one wins, and the
 > code wins over both.
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-19
 **Last release tag:** `v0.4.0` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
-**Verified against:** the v0.4.0 tree, with the published metrics below
+**Prepared, not tagged:** `v0.4.1` on `main` — the console's boot-time
+authorization gate. A patch: no API, configuration, or privilege changed.
+**Verified against:** the current `main` tree, with the published metrics below
 re-derived by `make check-metrics`
 
 ---
@@ -69,7 +71,7 @@ Read next:
 | **Overall maturity** | **8.0 / 10** |
 | **Production ready?** | **The answer differs by topology, and conflating the two would hide the distinction that matters.** Single-instance, documented: **yes** for the IAM scope. Horizontally scaled / HA: **no** — see [Production readiness by topology](#production-readiness-by-topology). As a SaaS product backend: no either way — the product domain does not exist. |
 | **CI** | Green. 6 jobs + CodeQL. `make ci` = fmt · vet · lint · build · test · swagger · docs. The two end-to-end jobs cover opposite boundaries: `e2e` (a machine using the API) and `browser-e2e` (an operator configuring it in Chromium) |
-| **Test coverage** | 74.3% unit (floor 73%) · **82.2% authoritative** (floor 80%, `-tags=integration`). Plus 157 frontend cases across 14 `node --test` suites and 27 browser journeys. Authorization is measured differently and reported separately — see [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md) |
+| **Test coverage** | 74.3% unit (floor 73%) · **82.2% authoritative** (floor 80%, `-tags=integration`). Plus 183 frontend cases across 15 `node --test` suites and 27 browser journeys. Authorization is measured differently and reported separately — see [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md) |
 | **Blocking linters** | 9 (`errcheck` and `staticcheck` deferred — see [QUALITY_GATE.md](QUALITY_GATE.md#the-lint-ratchet--read-before-adding-a-linter)) |
 | **Open critical bugs** | 0. Two defects found and fixed by the browser suite on 2026-08-10: [KI-019](KNOWN_ISSUES.md#ki-019) (OAuth codes in the access log) and [KI-020](KNOWN_ISSUES.md#ki-020) (the Audit view threw on any workspace with events) |
 | **Top risk** | [R-01](RISKS.md#r-01) — **further reduced 2026-08-13**. Both boundaries have real end-to-end coverage in CI, and Slice 14 added the negative half: every project-reachable route swept against every scope, refusals proven to land before the provider is reached, and real-stack evidence per boundary family ([KI-018](KNOWN_ISSUES.md#ki-018) closed, [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md)) |
@@ -513,7 +515,7 @@ middleware chain through the real Gin engine.
 
 ## Metrics
 
-Re-derived at the v0.4.0 tree. Every row marked ✓ is checked by
+Re-derived at the current `main` tree. Every row marked ✓ is checked by
 `make check-metrics`, which fails the build when the code and this table
 disagree; the rest are re-derived by hand at release.
 

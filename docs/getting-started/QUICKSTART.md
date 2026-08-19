@@ -46,7 +46,8 @@ Keycloak admin rights. No password handling in Go; Keycloak owns it.
 
 The product surface is `/v1`. The `/admin/*` surface and the static SPA
 described later in this document predate workspaces and are operator and
-compatibility surface. Current release: **v0.4.0**, Go SDK **v0.1.0**.
+compatibility surface. Current release: **v0.4.0**, Go SDK **v0.1.0**
+(**v0.4.1** is prepared on `main` and not tagged yet).
 
 Full picture: [`../../README.md`](../../README.md).
 

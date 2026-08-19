@@ -2,7 +2,7 @@
 // Lightweight SaaS Backend API
 //
 // @title Lightweight SaaS Backend API
-// @version 0.4.0
+// @version 0.4.1
 // @description SaaS backend with Keycloak-issued JWT auth.
 // @description All protected endpoints require a Bearer token obtained from Keycloak.
 // @host localhost:8080

@@ -1055,7 +1055,7 @@ info:
     SaaS backend with Keycloak-issued JWT auth.
     All protected endpoints require a Bearer token obtained from Keycloak.
   title: Lightweight SaaS Backend API
-  version: 0.4.0
+  version: 0.4.1
 paths:
   /admin/audit-events:
     get:

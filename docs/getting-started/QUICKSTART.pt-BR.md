@@ -49,7 +49,7 @@ Keycloak cuida disso.
 A superfície de produto é a `/v1`. A superfície `/admin/*` e a SPA estática
 descritas adiante neste documento são anteriores aos workspaces, e hoje são
 superfície de operador e de compatibilidade. Release atual: **v0.4.0**, Go SDK
-**v0.1.0**.
+**v0.1.0** (a **v0.4.1** está preparada na `main` e ainda não foi tagueada).
 
 Visão completa: [`../../README.md`](../../README.md).
 
