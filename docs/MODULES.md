@@ -659,6 +659,15 @@ management, workspace-scoped users/roles/sessions/invitations CRUD, legacy SMTP
 and email-template settings, audit log viewer, embedded documentation viewer,
 Swagger UI embed, EN/PT-BR localization, theme toggle.
 
+**Authorization at boot (v0.4.1).** Authentication and authorization are asked
+as two questions, not one. `lib/access.js` reads the role list from the
+`/auth/debug` response and stops the boot with an explicit denial screen
+(`components/access-denied.js`) when the session does not carry the `admin`
+role the server requires — before the sidebar, the workspace load, or the
+router exist. It grants nothing: `RequireRole` → `RequireLiveAdmin` on the
+server is still the only enforcement, and the console's copy of the role name
+is pinned by a test naming the server-side constant.
+
 **Workspace scoping (Slice 6).** Identity views consume
 `/v1/workspaces/{id}/…`, and the workspace lives in the ROUTE
 (`#/workspaces/ws_x/users`) rather than in application state — so refresh,
@@ -668,10 +677,10 @@ the legacy provider settings (SMTP, email templates) carry no workspace segment,
 which makes "this page is not workspace-scoped" structural rather than a
 convention. See [WORKSPACE_CONSOLE.md](WORKSPACE_CONSOLE.md).
 
-**Structure.** 1 entry (`main.js`) · 10 `lib/` modules · 8 `components/` ·
-18 `views/` · 8,600 lines of JS.
+**Structure.** 1 entry (`main.js`) · 10 `lib/` modules · 9 `components/` ·
+18 `views/` · 8,800 lines of JS.
 
-**Tests.** 157 cases across 14 `node --test` suites in
+**Tests.** 183 cases across 15 `node --test` suites in
 [static/js/tests/](../web/admin/static/js/tests/). **These do not run in the
 `make ci` gate** — [TD-003](TECH_DEBT.md#td-003) — but they do run in
 `make ci-full` via `make test-frontend`.

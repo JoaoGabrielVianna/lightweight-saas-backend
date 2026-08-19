@@ -219,6 +219,33 @@ Selecting a workspace is not a second login. The console never authenticates the
 operator against a workspace's realm — the connection's service account does
 that, server-side, and its credentials never reach the browser.
 
+**Authorization at boot is new in v0.4.1**, and it is a UI change, not a
+privilege change. Authentication was previously the console's only question:
+any account in the realm completed the PKCE flow and reached a fully drawn
+console where `/v1/workspaces` and everything after it answered 403. The server
+was never fooled; the operator was, because a wall of failed panels reads as a
+broken product rather than as a missing role.
+
+`lib/access.js` now asks the second question once, immediately after
+`/auth/debug` hydrates and before the workspace load, the sidebar, or the
+router. Without the `admin` role the boot stops on a screen naming the account,
+the roles it actually carries, the role it needs, and where roles are granted
+(the identity provider, not here).
+
+Three properties are deliberate:
+
+- **It grants nothing.** `RequireRole` → `RequireLiveAdmin` remains the only
+  enforcement. A browser that skipped this check would still be refused by
+  every endpoint, which is why the check can live in the browser at all.
+- **It fails closed.** When the role list cannot be established — `/auth/debug`
+  unreachable, or a response the server itself marked `valid: false`, whose
+  `roles` came from an unverified decode — the console denies and offers Retry
+  rather than guessing.
+- **The role name is not configuration.** `CONSOLE_ROLE` is a constant mirroring
+  `operatorRole` in [internal/authz/authorize.go](../internal/authz/authorize.go),
+  pinned by a test. Two sources of truth for "which role runs this
+  installation" would be a worse defect than the one this fixes.
+
 ## 8. The error envelope
 
 `/admin/*` answers `{"error": "not found"}`; `/v1` answers
@@ -256,7 +283,7 @@ field **omits** `client_secret`, which the PATCH contract already reads as
 
 ## 10. Tests
 
-143 cases across 12 `node --test` suites, dependency-free (the DOM is stubbed in
+183 cases across 15 `node --test` suites, dependency-free (the DOM is stubbed in
 `tests/helpers.mjs` rather than pulling in jsdom).
 
 The ones that matter most:
@@ -270,6 +297,7 @@ The ones that matter most:
 | `workspace-mutations` | switch closes dialogs; cross-workspace mutation refused and **not retargeted** |
 | `workspace-management` | the secret is never sent blank and never stored; degraded states offer a way forward |
 | `workspace-selector` | selected workspace rendered, archived not selectable, zero-workspace state |
+| `console-access` | the boot gate: `valid:false` never grants, unknown fails closed, the denial screen names the account and the missing role |
 
 ## 11. Proving it with two real realms
 

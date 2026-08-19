@@ -14,12 +14,27 @@ Ou via `make test-frontend` (também roda dentro de `make ci-full`).
 Saída esperada (resumida):
 
 ```
-ℹ tests 143
-ℹ pass  143
+ℹ tests 183
+ℹ pass  183
 ℹ fail  0
 ```
 
 ## O que cada arquivo cobre
+
+### Acesso ao console (v0.4.1)
+
+- **console-access.test.mjs** — o gate de autorização no boot:
+  - `admin` na sessão entra; qualquer outro conjunto de roles é **negado**, não
+    apenas "desconhecido";
+  - `valid: false` nunca concede, mesmo com `admin` entre as roles — nesse caso
+    o `/auth/debug` preencheu `roles` a partir de um decode **não verificado**;
+  - identidade ausente ou sem lista de roles é `unverified`, e ainda assim
+    barra (fail closed, com Retry);
+  - a role exigida é comparada com a constante que o servidor usa, para que uma
+    renomeação no backend derrube o teste em vez de destravar o console;
+  - a tela de negação nomeia a conta, as roles que ela tem e a que falta;
+    markup em um campo de identidade vira texto;
+  - Retry só aparece no estado `unverified`; Sign out aparece nos dois.
 
 ### Workspace (Slice 6)
 

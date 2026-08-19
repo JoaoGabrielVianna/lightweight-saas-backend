@@ -1564,6 +1564,12 @@ func TestAuthDebug_RequiresAuth(t *testing.T) {
 // reads. sidebar.js gates the whole user card on `valid`; settings.js renders
 // `issuer` and `allowed_clients`; overview.js reads `received_sub`/`received_azp`.
 // Dropping any of these silently breaks the console without failing a build.
+//
+// Since v0.4.1 two of them are load-bearing rather than cosmetic: lib/access.js
+// decides whether the console boots at all from `roles` and `valid`. Dropping
+// `roles` does not open the console — the gate fails closed and every operator
+// gets the "could not confirm your permissions" screen — but it does take the
+// console down, which is the reason this test names the fields individually.
 func TestAuthDebug_ReturnsSPAContract(t *testing.T) {
 	cfg := &config.Config{
 		GinLogEnabled:            false,

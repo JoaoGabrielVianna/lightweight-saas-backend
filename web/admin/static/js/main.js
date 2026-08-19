@@ -4,14 +4,16 @@
 //   1. Load theme from localStorage and apply to <body>
 //   2. Fetch /admin/config.json
 //   3. Handle PKCE callback (?code=...&state=...) if present
-//   4. Hydrate /auth/debug into state
+//   4. Hydrate /auth/debug into state, and stop here with an explicit denial
+//      screen when the session does not carry the console's role
 //   5. Wire sidebar + topbar
 //   6. Initialize router (which fires the initial view render)
 
 import { h, mount } from "./lib/dom.js";
 import { setState, getState, STORAGE_KEYS } from "./lib/state.js";
 import { init as initRouter, navigate, wsRoute, workspaceIdFromPath, currentPath } from "./lib/router.js";
-import { completeLogin, refreshDebug, isAuthenticated, startLogin } from "./lib/auth.js";
+import { completeLogin, refreshDebug, isAuthenticated, startLogin, logout } from "./lib/auth.js";
+import { evaluateConsoleAccess } from "./lib/access.js";
 import {
   initWorkspaces, selectWorkspace, getCurrentWorkspaceId, loadActiveConnection,
   onWorkspaceSwitch,
@@ -20,6 +22,7 @@ import {
 import { renderSidebar } from "./components/sidebar.js";
 import { renderTopbar }  from "./components/topbar.js";
 import { toastBad } from "./components/toast.js";
+import { renderAccessDenied } from "./components/access-denied.js";
 import { closeAllModals } from "./components/modal.js";
 
 import overviewView    from "./views/overview.js";
@@ -289,6 +292,24 @@ async function boot() {
     return;
   }
 
+  // 3b. Authorization gate.
+  //
+  // Being authenticated is not the same as being allowed in, and the console
+  // used to conflate the two: any account in the realm reached a fully drawn
+  // console where every request then failed with 403. The server was never
+  // fooled — RequireRole → RequireLiveAdmin refuses those calls and still
+  // does, and it remains the boundary — but the operator was, so we say it
+  // once, here, instead of scattering it across a dozen failed panels.
+  //
+  // BEFORE the workspace load, which is the first thing that would 403, and
+  // before the sidebar exists, because a nav to pages that cannot answer is
+  // part of the misleading UI being removed.
+  const access = evaluateConsoleAccess(getState().identity);
+  if (!access.allowed) {
+    showAccessDenied(access);
+    return;
+  }
+
   // 4. Workspace context.
   //
   // AFTER authentication, because /v1/workspaces requires a bearer token, and
@@ -359,6 +380,23 @@ function applyTheme() {
   document.body.classList.remove("theme-dark", "theme-light");
   document.body.classList.add("theme-" + theme);
   setState({ theme });
+}
+
+// showAccessDenied paints the denial screen and stops the boot. Sidebar,
+// topbar and router are never initialized: there is nothing to navigate to,
+// and a nav rail around an access error suggests otherwise.
+//
+// Retry is a full reload rather than a re-run of the boot sequence. The
+// unverified state means we do not know what half-loaded state we are in, and
+// reload is the one recovery path with no such doubt.
+function showAccessDenied(decision) {
+  document.body.removeAttribute("data-route-loading");
+  mount(document.querySelector("#main"),
+    renderAccessDenied(decision, {
+      onSignOut: () => logout(),
+      onRetry:   () => window.location.reload(),
+    }),
+  );
 }
 
 function showBootError(message, err) {
