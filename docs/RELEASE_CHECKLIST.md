@@ -222,13 +222,11 @@ make ci && make coverage-gate
 
 | Version | Date | Theme |
 |---|---|---|
+| `v0.4.1` | 2026-08-23 | Console authorization gate: an operator without the role is told so, not shown 403s |
 | `v0.4.0` | 2026-08-15 | Identity control plane: workspaces, connections, project credentials, Go SDK |
 | `v0.3.1` | 2026-05-25 | Landing page (CHANGELOG entry added retroactively 2026-07-26) |
 | `v0.3.0` | 2026-05-25 | Production hardening — rate limiting, audit buffer, CI, CodeQL |
 | `v0.2.0` | — | Identity management CRUD |
 | `v0.1.0-auth-foundation` | — | Authentication foundation |
 
-Next: **v0.4.1**, prepared on `main` and **not tagged yet**. It is a patch:
-the console's boot-time authorization gate, with no API, configuration or
-privilege change. Its CHANGELOG section is written; Phase 5 (annotated tag,
-push, GitHub Release) is what remains.
+Next planned: none scheduled.

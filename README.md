@@ -247,14 +247,13 @@ the production smoke procedure.
 
 | Component | Version | Install |
 |---|---|---|
-| Server | **v0.4.0** | `git clone` + `docker compose` |
+| Server | **v0.4.1** | `git clone` + `docker compose` |
 | Go SDK | **v0.1.0** | `go get github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go@v0.1.0` |
 
-**v0.4.1** is prepared on `main` and **not tagged yet**. It is a patch: the
-admin console now refuses to boot for an authenticated session that does not
-carry the operator role, instead of drawing a console whose every panel answers
-`403`. No API, configuration, or privilege changed. See the
-[CHANGELOG](CHANGELOG.md).
+**v0.4.1** is a patch over v0.4.0: the admin console now refuses to boot for an
+authenticated session that does not carry the operator role, instead of drawing
+a console whose every panel answers `403`. No API, configuration, or privilege
+changed. See the [CHANGELOG](CHANGELOG.md).
 
 ---
 

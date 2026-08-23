@@ -9,10 +9,8 @@
 > Where this document and any other document disagree, this one wins, and the
 > code wins over both.
 
-**Last updated:** 2026-08-19
-**Last release tag:** `v0.4.0` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
-**Prepared, not tagged:** `v0.4.1` on `main` — the console's boot-time
-authorization gate. A patch: no API, configuration, or privilege changed.
+**Last updated:** 2026-08-23
+**Last release tag:** `v0.4.1` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
 **Verified against:** the current `main` tree, with the published metrics below
 re-derived by `make check-metrics`
 

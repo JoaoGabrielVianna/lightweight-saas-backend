@@ -13,7 +13,7 @@ Nothing yet.
 
 ---
 
-## [0.4.1] — 2026-08-18
+## [0.4.1] — 2026-08-23
 
 **The admin console tells an operator why it will not work for them.**
 
