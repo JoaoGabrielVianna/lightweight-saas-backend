@@ -152,6 +152,28 @@ METRICS = [
         r"grep -cE '^  [a-z][a-z-]*:$' docker-compose.yml",
         [("docs/PROJECT_STATUS.md", r"\|\s*Docker Compose services\s*\|\s*(\d+)\s*\|")],
     ),
+    (
+        # Added 2026-08-24. ARCHITECTURE.md said "three tables" from the moment
+        # workspaces shipped until v0.4.2 found it — two releases during which
+        # the canonical architecture document understated the schema by half,
+        # while PROJECT_STATUS.md carried the right number a few files away.
+        #
+        # Neither existing gate could see it. check_docs_links.py reads links,
+        # not claims; check_metrics only compares numbers it has been told to
+        # derive, and nobody had told it about this one. The number is a single
+        # grep over the migrations, and it is published in two documents, which
+        # is exactly the shape that rots.
+        #
+        # Counting CREATE TABLE in the up migrations, rather than querying a
+        # live database, keeps this runnable in the no-services CI job. Every
+        # migration is idempotent (IF NOT EXISTS), so each table is created
+        # exactly once across the set.
+        "Database tables owned",
+        r"grep -rhcE 'CREATE TABLE (IF NOT EXISTS )?[a-z_]+' "
+        r"internal/database/migrations/*.up.sql | paste -sd+ - | bc",
+        [("docs/PROJECT_STATUS.md", r"\|\s*Database tables owned\s*\|\s*(\d+)\s*\|"),
+         ("docs/ARCHITECTURE.md", r"The service owns \*\*(\d+) tables\*\*")],
+    ),
 ]
 
 
