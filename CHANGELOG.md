@@ -13,6 +13,167 @@ Nothing yet.
 
 ---
 
+## [0.4.2] — 2026-08-24
+
+**Documentation truth, onboarding and product direction.**
+
+*Why a patch:* **no capability was added and no production code was changed.**
+The server, the API, the database schema, the configuration surface, the
+authorization model and the SDK's exported API are byte-for-byte what `v0.4.1`
+shipped. What changed is what the repository *says* about them.
+
+The v0.4.1 audit found that the documentation had split into two halves. The
+mechanically-gated half — route counts, scope counts, audit-action counts, links
+— was green and accurate. The prose half, which no gate reads, had been
+describing a product two releases old: the canonical architecture document
+undercounted the schema by half, the status document contradicted itself in five
+places, and the SDK's own README told readers the published module did not
+exist. This release closes that gap and adds one gate so the worst of it cannot
+recur silently.
+
+### Fixed — documentation that was factually wrong
+
+- **The Go SDK was documented as unpublished. It has been published since
+  2026-08-15.** [`sdk/go/README.md`](sdk/go/README.md) told a reader, in the
+  install section, that `v0.1.0` "does not exist on GitHub yet, so running it
+  today fails". [`docs/SDK_GO.md`](docs/SDK_GO.md) and
+  [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) said the same. The tag
+  `sdk/go/v0.1.0` is on `origin`, and `scripts/first-publish-smoke.sh v0.1.0`
+  passes against the public infrastructure: `proxy.golang.org` serves it,
+  `sum.golang.org` holds its hash, the module still pulls in nothing else, and
+  pkg.go.dev renders it. This was the only drift that actively told a user not
+  to do something that works.
+
+- **`ARCHITECTURE.md` §8 described the schema of `v0.3.1`.** It said the service
+  owns "three tables" — the count is six — and that "nothing consumes a
+  connection yet", which stopped being true with `v0.4.0`, whose entire subject
+  is that a connection is resolved per request. The section now documents all
+  six tables, their foreign keys and why each is shaped as it is, and the
+  entity diagram shows `projects`, `project_credentials` and `audit_events`
+  alongside the three that were already there.
+
+- **`PROJECT_STATUS.md` contradicted itself.** Its header described the current
+  product; its lower half described the one before it. It simultaneously
+  reported 183 and 166 frontend test cases, 82.2% and 80.4% authoritative
+  coverage, a durable audit trail and a volatile one, `/metrics` shipped and
+  `/metrics` absent, and end-to-end suites running in CI and "no automated
+  end-to-end tests". Both coverage figures were re-measured — **74.3% unit,
+  82.3% authoritative** — the per-package table was re-derived, and the feature,
+  testing, gaps and pending-work sections now describe what exists.
+
+- **`FEATURES.md` did not know `/v1` existed.** It documented only the legacy
+  `/admin/*` surface, reported 14 audit actions where the code declares 28, and
+  listed durable audit persistence, retention and key rotation as unimplemented.
+  It gains a section for the 47-route product API, and two rows that
+  contradicted each other about versioned migrations were reduced to one.
+
+- **`RISKS.md` had been re-scored once, for one risk.** R-04 was marked resolved
+  in its own entry while the summary table still scored it 16. R-02, R-05, R-07
+  and R-08 had all been materially addressed by shipped work. Five rows
+  re-scored with evidence; **R-03, bus factor of one, is unchanged at 20 and is
+  now the highest score on the register.**
+
+- **`INDEX.md` contradicted itself about `MILESTONE_v0.4.md`**, listing it as
+  "the next milestone" in one table and recording three sections later that it
+  had been moved to history for exactly that reason. It also described nine
+  credential scopes as eight.
+
+- **Two Known Issues were fixed weeks ago and never marked.**
+  [KI-008](docs/KNOWN_ISSUES.md#ki-008) (no `[0.3.1]` changelog entry) was fixed
+  on 2026-07-26 by the entry that names it. [KI-012](docs/KNOWN_ISSUES.md#ki-012)
+  (`/health` performs no dependency checks) was fixed on 2026-08-09 by the
+  liveness/readiness split, with one deliberate deviation from what the entry
+  recommended: readiness does not check Keycloak, because one tenant's provider
+  going down must not take the instance out of rotation.
+
+- **[TD-016](docs/TECH_DEBT.md#td-016) was open against a number that had
+  moved.** `internal/logging` was recorded at 25% coverage and measures **85.7%**;
+  it is no longer the lowest-covered package. The tests arrived with the audit
+  durability and access-log slices and were never credited. Resolved on
+  re-measurement.
+
+- **Summary counters in `TECH_DEBT.md` and `KNOWN_ISSUES.md` did not add up.**
+  The debt file claimed 18 open, 17 resolved and 1 partial against 38 entries.
+  Both files now publish counts that reconcile, list the open ids explicitly,
+  and carry a note to re-derive rather than edit.
+
+### Added — documentation
+
+- **[`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md).** What the product
+  is for, and what it deliberately is not. Three pillars — Identity, Experience,
+  Governance — each split into **available today**, **direction** and
+  **future**, so a reader cannot mistake an intention for a capability. It
+  states the boundary explicitly: LIGHTWEIGHT configures and narrows identity
+  work; **Keycloak remains the identity provider and runtime**, and reproducing
+  the Keycloak Admin Console is a non-goal rather than a gap.
+
+- **A first-success checklist** in
+  [`docs/getting-started/`](docs/getting-started/README.md). Six observable
+  checkpoints from "the server is running" to a `200` from `/v1` with a real
+  credential, each naming what is at fault when it fails.
+
+- **The console's operator-role denial is now documented.** `v0.4.1` added a
+  screen that stops the boot when an authenticated account lacks the `admin`
+  realm role, and no document mentioned it. An operator hitting it now has a
+  section explaining that signing in and being authorized are different
+  questions, and that the fix is in Keycloak.
+
+- **An expanded troubleshooting index**, grouped by where you are in the journey
+  rather than alphabetically, covering readiness failures, the `.env` refusal,
+  both console denial screens, and the runtime connection error codes. Every
+  symptom is one the code can actually produce; no error message was invented.
+
+### Changed — documentation structure
+
+- **`ROADMAP.md` is now CURRENT / NEXT / FUTURE.** It had not been updated since
+  2026-07-26 and still described "v1" and "v2" product generations, listing as
+  open seven items that had shipped. The v1/v2 material is preserved verbatim as
+  a clearly-labelled historical section, with every heading unchanged because
+  thirteen documents link to those anchors — including `CHANGELOG.md`, which is
+  immutable. A reconciliation table records, per item, what shipped and what did
+  not.
+
+- **`docs/MILESTONE_v0.4.md` now records what it did not deliver.** It declared
+  five blocking items and was marked DELIVERED without noting that **B3** (the
+  rate-limit bypass, [KI-004](docs/KNOWN_ISSUES.md#ki-004)) and **B5** (the
+  multi-tenancy ADR) never shipped. Both return to the debt and issue registers
+  as ordinary open entries; **neither is scheduled by this release.**
+
+### Added — one gate
+
+- **`Database tables owned` is now derived rather than published by hand.**
+  `scripts/check_doc_metrics.py` gains a 27th claim, checking
+  `PROJECT_STATUS.md` and `ARCHITECTURE.md` against a `CREATE TABLE` count over
+  the migrations.
+
+  This is the drift that motivated it: "three tables" survived two releases in
+  the canonical architecture document while the correct number sat in another
+  file. Neither existing gate could see it — `check_docs_links.py` reads links,
+  not claims, and `check_metrics` only compares numbers it has been told to
+  derive. The check is one grep, runs in the no-services CI job, and is verified
+  to fail on the exact regression it was written for.
+
+  **No documentation framework was added**, and no existing gate was weakened.
+
+### Not in this release
+
+Stated because a documentation release is the easiest place to smuggle work in.
+
+- **No production code changed.** No endpoint, migration, table, model, service,
+  handler, scope, provider or configuration variable was added, removed or
+  altered.
+- **The SDK's exported API is unchanged**, `api.txt` is untouched, and no new
+  SDK version was published.
+- **`v0.5.0` was not started.** Its direction is recorded in `ROADMAP.md` and
+  `PRODUCT_DIRECTION.md` and its **scope is explicitly not frozen**; both
+  documents list what has deliberately *not* been decided, so a brainstorm does
+  not harden into a contract by repetition.
+- **Audit and investigation** is recorded as direction with no version attached.
+- **No open debt was reprioritised** by being written about. Most of it carries
+  a trigger that has not fired, and that reasoning is preserved.
+
+---
+
 ## [0.4.1] — 2026-08-23
 
 **The admin console tells an operator why it will not work for them.**
