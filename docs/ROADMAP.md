@@ -1,49 +1,206 @@
 # Roadmap
 
-**Last updated:** 2026-07-26 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md)
+**Last updated:** 2026-08-24 · Companion to
+[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) and
+[PROJECT_STATUS.md](PROJECT_STATUS.md)
 
-Ordered by dependency, then impact. Every item states what it unblocks, so the
-sequencing is auditable rather than asserted.
-
-**Priority** — P0 blocks release · P1 next cycle · P2 planned · P3 opportunistic
-**Impact** — how much the item changes what the product can do or how safely it runs
-
----
-
-## Where the project stands
-
-The **MVP is complete**: this is a working IAM foundation. What is missing
-splits cleanly in two:
-
-1. **Operability gaps** — things that make the existing surface risky to run
-   (no e2e tests, no metrics, volatile audit trail). This is **v1**.
-2. **The product domain** — multi-tenancy, organizations, billing, storage,
-   queue. None of it exists. This is **v2 and beyond**.
-
-The single highest-leverage decision on this roadmap is **multi-tenancy**
-(V2-01). Its cost grows with every feature added before it, because retrofitting
-a tenant boundary touches the data model, every query, and every handler.
+**This document is about product direction and sequence.** What is *wrong* with
+the product lives in [TECH_DEBT.md](TECH_DEBT.md) and
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md), and a debt entry does not appear here
+merely because it exists. Debt earns a place on this page only when a planned
+capability cannot ship without it.
 
 ---
 
-## MVP — complete
+## CURRENT — v0.4.x
 
-Shipped through `v0.3.1`. Listed for completeness; nothing here is outstanding.
+**Shipped and published.** `v0.4.1` is the current server release; the Go SDK is
+`v0.1.0`.
 
-| Item | Delivered in |
+LIGHTWEIGHT is an installable identity control plane. One installation serves
+many workspaces, each bound to its own Keycloak realm and resolved per request,
+and a backend reaches it with three environment variables and no knowledge of
+the provider behind them.
+
+| Delivered | Where |
 |---|---|
-| OIDC/JWT authentication with JWKS validation | `v0.1.0-auth-foundation` |
-| Provider-agnostic auth middleware + ports | `v0.1.0` |
-| Identity admin CRUD — users, roles, sessions, invitations | `v0.2.0` |
-| Self-protection guards (self-delete, last-admin, …) | `v0.2.0` |
-| Live-admin check closing the stale-JWT window (GAP-1) | 2026-05-20 |
-| Audit subsystem — 14 actions, 2 sinks | `v0.3.0` |
-| Per-IP rate limiting | `v0.3.0` |
-| Admin console SPA | `v0.2.0`–`v0.3.0` |
-| CI + CodeQL | `v0.3.0` |
-| SMTP settings + email templates + custom FTL theme | unreleased (2026-06) |
-| Configurable CORS | unreleased (2026-06) |
-| Boot-time route collision fixed + flag-matrix tests | unreleased (2026-07-26) |
+| Workspaces, addressed as `ws_<uuid>` | [WORKSPACES.md](WORKSPACES.md) |
+| Connections: verify, activate, retire; client secret sealed AES-256-GCM under a rotatable keyring | [CONNECTIONS.md](CONNECTIONS.md) · [SECRET_KEY_ROTATION.md](SECRET_KEY_ROTATION.md) |
+| Per-request multi-realm routing | [WORKSPACE_IDENTITY_RUNTIME.md](WORKSPACE_IDENTITY_RUNTIME.md) |
+| Projects and `lw_sk_` credentials with 9 scopes | [PROJECTS.md](PROJECTS.md) |
+| Workspace-scoped identity: users, roles, sessions, invitations | [WORKSPACE_IDENTITY_API.md](WORKSPACE_IDENTITY_API.md) |
+| Durable, workspace-scoped audit trail, transactional with control-plane mutations | [AUDIT.md](AUDIT.md) |
+| Workspace-aware operator console | [WORKSPACE_CONSOLE.md](WORKSPACE_CONSOLE.md) |
+| Zero-dependency Go SDK, published | [SDK_GO.md](SDK_GO.md) |
+| An install a stranger can complete | [getting-started/](getting-started/README.md) |
+| Authorization evidenced end to end, in both directions | [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md) |
+
+**Supported topology: single instance.** Horizontal scaling is not supported and
+not claimed; the reason is [TD-027](TECH_DEBT.md#td-027).
+
+**v0.4.2** is a documentation release. It adds no capability. Its subject is
+making the published documentation true — see the
+[CHANGELOG](../CHANGELOG.md).
+
+---
+
+## NEXT — v0.5.0 · Identity Experience
+
+> ### THE EXACT v0.5.0 SCOPE IS NOT YET FROZEN.
+>
+> What follows is a **direction**, recorded so the next design conversation
+> starts from something. It is not a specification, not a commitment, and not a
+> backlog. Nothing here has been designed, sized, or promised, and nothing here
+> may be built ahead of that design.
+
+**The intent, in one sentence:** make the identity-experience settings that
+every installation needs reachable by someone who should not have to learn
+Keycloak's admin console to change them.
+
+**The problem it responds to.** LIGHTWEIGHT already removes the need for a
+backend to hold Keycloak admin rights. It does not yet remove the equivalent
+need for a *person*: an operator who wants to change the sender address on an
+invitation email, or what the login page says, is sent to Keycloak. That is a
+different console, a different vocabulary, and a level of access the task does
+not warrant.
+
+**Candidate areas**, in no committed order and with no committed shape:
+
+| Area | The question it would answer |
+|---|---|
+| Email delivery and configuration | Where does mail come from, and did it arrive? |
+| Email templates | What does an invitation actually say? |
+| Authentication experience | What does a user see when signing in? |
+| Login and registration customization | Which fields, which flows, in what language? |
+| Branding | Whose product does this look like? |
+| No-code configuration | Can an operator change it without a deploy? |
+| Advanced validated customization | Can a power user go further without being able to break it? |
+
+**What today's product already has in this area**, so the gap is measured
+honestly: SMTP settings, an SMTP connection test, Keycloak email-template
+customization and a custom FTL theme all exist, on the legacy `/admin/*`
+surface, with no `/v1` equivalent and no dedicated tests. The FTL theme does not
+survive container recreation ([KI-011](KNOWN_ISSUES.md#ki-011)). Why they were
+left there is recorded in
+[WORKSPACE_IDENTITY_API.md §7](WORKSPACE_IDENTITY_API.md#why-smtp-and-email-templates-are-deferred):
+they are provider-specific realm settings rather than identity administration,
+and migrating them means designing that seam.
+
+### Explicitly NOT promised for v0.5.0
+
+Listed because naming them keeps a brainstorm from hardening into a contract by
+repetition. None of the following has been decided, and none should be treated
+as intended:
+
+- any HTML format, markup subset, or templating dialect
+- any DSL
+- any specific component or component model
+- any schema, table, or migration
+- any endpoint, route, or API shape
+- any draft/publish or version-history model
+- any preview or validation engine
+- any rollback semantics
+- any list of supported providers
+- MFA
+- any count of configurable pages or screens
+- any new scope, role, or authorization vocabulary
+
+These belong to the v0.5.0 design sprint, which has not happened.
+
+**A constraint that design sprint inherits**, stated now because it is already
+true: LIGHTWEIGHT configures and simplifies; **Keycloak remains the identity
+provider and the runtime**. Anything in this area is a configuration surface
+over Keycloak, not a reimplementation of it. See
+[PRODUCT_DIRECTION.md § The boundary](PRODUCT_DIRECTION.md#the-boundary-with-keycloak).
+
+---
+
+## FUTURE — Audit and investigation
+
+**No version. No date. Direction only.**
+
+The durable audit trail answers "what happened to this workspace". The direction
+is to evolve it toward **investigation**: making security-relevant events
+visible and answerable, rather than only recorded.
+
+The honest starting point is that the groundwork here is analysis, not code, and
+some of it is already done and points at a real cost. Authorization refusals
+deliberately do **not** reach the durable trail today, and
+[TD-037](TECH_DEBT.md#td-037) carries the arithmetic for why: one misconfigured
+backend retrying a `403` in a loop would outweigh the real history by roughly
+four orders of magnitude in the same table, under a single age-based retention
+policy. The entry names a separate security-event class with its own retention
+as the eventual answer, and says plainly that doing it badly would degrade the
+trail the product's audit story now rests on.
+
+That analysis is a reason this is direction rather than a plan. It is listed
+here so the direction is on record; it is not scheduled, and
+[TD-037](TECH_DEBT.md#td-037) remains a debt entry rather than a roadmap item
+until something schedules it.
+
+---
+
+## How this roadmap is maintained
+
+Update it when a horizon actually moves, not when an idea is had. The release
+checklist gate 2.7 requires shipped items to be marked delivered with a date;
+that gate is human, and it was missed for `v0.4.0` and `v0.4.1`, which is why
+the section below needed reconciling in `v0.4.2`.
+
+Three documents, three jobs, and they should not blur:
+
+| Document | Answers |
+|---|---|
+| [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) | What is this product for, and what is it deliberately not? |
+| **This file** | What is done, what is next, in what order, and what is explicitly not promised |
+| [TECH_DEBT.md](TECH_DEBT.md) · [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | What is wrong with what exists |
+
+---
+
+# Historical — the v1 / v2 framing, as it stood before v0.4
+
+> **This section is a record, not a plan.** It is the backlog as it was framed
+> on 2026-07-26, when the project was an IAM foundation rather than a control
+> plane, and "v1" and "v2" meant *product generations* rather than version
+> numbers. v0.4.0 changed enough that the framing no longer describes the
+> product, and the CURRENT / NEXT / FUTURE sections above supersede it.
+>
+> It is kept, with its headings unchanged, for two reasons: the reasoning behind
+> each item is still worth reading, and thirteen documents link to these anchors
+> — including [CHANGELOG.md](../CHANGELOG.md), which is immutable history.
+>
+> Delivery status below was reconciled against the code on 2026-08-24. Where an
+> item shipped, it says so; where it did not, it says that too.
+
+## Status of the v1 items, reconciled 2026-08-24
+
+| Item | Status | Evidence |
+|---|---|---|
+| V1-01 · e2e suite | **Delivered** 2026-08-09 / 08-10 | [TD-003](TECH_DEBT.md#td-003), [TD-031](TECH_DEBT.md#td-031); `e2e` and `browser-e2e` CI jobs |
+| V1-02 · CI gate | **Delivered** 2026-07-27 | Already recorded below |
+| V1-03 · compose env wiring | **Delivered** 2026-08-09 | [TD-004](TECH_DEBT.md#td-004) |
+| V1-04 · rate-limit bypass | **NOT delivered** | [KI-004](KNOWN_ISSUES.md#ki-004) is open; `clientIP` still reads `X-Forwarded-For` unconditionally and no trusted-proxy setting exists among the 41 declared variables |
+| V1-05 · metrics and tracing | **Partially delivered** 2026-08-09 | `/metrics` and the readiness probe shipped; tracing did not — [TD-009](TECH_DEBT.md#td-009) |
+| V1-06 · durable audit trail | **Delivered** 2026-08-10 | [TD-008](TECH_DEBT.md#td-008) |
+| V1-07 · versioned migrations | **Delivered** 2026-07-28 | [TD-005](TECH_DEBT.md#td-005) |
+| V1-08 · deployment automation | **Partially delivered** | Graceful shutdown shipped ([TD-013](TECH_DEBT.md#td-013)); no CD pipeline, no Kubernetes manifests, no Helm chart, no IaC |
+| V1-09 · security hardening | **NOT delivered** | [KI-003](KNOWN_ISSUES.md#ki-003) and [KI-005](KNOWN_ISSUES.md#ki-005) are open; there is no `.github/dependabot.yml` |
+| V1-10 · perf and pagination | **NOT delivered** | [TD-007](TECH_DEBT.md#td-007), [KI-013](KNOWN_ISSUES.md#ki-013) |
+| V1-11 · `SetupRouter` refactor | **Delivered** 2026-08-09 | [TD-006](TECH_DEBT.md#td-006) |
+| V1-12 · realm-wide session revocation | **NOT delivered** | [KI-006](KNOWN_ISSUES.md#ki-006); `DELETE /admin/sessions` does not exist |
+
+**V2-01 · multi-tenancy** needs its own note, because it is the one item the
+reconciliation could not answer with a yes or a no. v0.4.0 shipped workspaces:
+one installation, many tenants, each bound to its own realm and resolved per
+request, with isolation proven across real realms. In substance that is the
+"Keycloak realm per tenant" strategy from the table below, implemented. What was
+never written is the ADR the milestone asked for by name, so the decision exists
+in code and not on paper. [TD-010](TECH_DEBT.md#td-010) is the entry that tracks
+the gap, and it is a documentation debt now rather than an architectural one.
+
+**V2-02, V2-03, V2-04, V2-05 and the Future table** below remain unstarted, and
+none of them is currently on the direction above. They are kept as the record of
+what was once considered.
 
 ---
 
@@ -407,6 +564,11 @@ flowchart TD
 
 ## Sequencing recommendation
 
+> **Superseded.** This was the plan as of 2026-07-27 and is preserved as the
+> record of how v0.4 was sequenced. For what comes next, read
+> [NEXT](#next--v050--identity-experience) above. Items 2, 3, 5 and 7 were
+> carried out; item 4 (V1-04) was not, and item 6's ADR was never written.
+
 Revised 2026-07-27 after V1-02 shipped.
 
 1. ~~**V1-02**~~ — ✅ delivered. Every item below now lands on an enforced gate.
@@ -426,8 +588,8 @@ Revised 2026-07-27 after V1-02 shipped.
 7. Treat **V1-05** as continuous rather than a milestone — add collectors as
    surfaces stabilize.
 
-The next concrete slice of this sequence is scoped in
-[MILESTONE_v0.4.md](MILESTONE_v0.4.md).
+That sequence was scoped in [MILESTONE_v0.4.md](MILESTONE_v0.4.md), which
+shipped as `v0.4.0` and is now a historical record rather than a plan.
 
 ## Validation log
 
@@ -447,8 +609,8 @@ priorities at each milestone boundary.
 
 ## Maintenance
 
-Update this document when an item ships (mark it delivered with the date and
-what was actually built — do not delete it), when a priority changes, or when a
-new dependency is discovered. Keep
+See [How this roadmap is maintained](#how-this-roadmap-is-maintained) at the top
+of the document. The rule has not changed: when an item ships, mark it delivered
+with the date and what was actually built, and do not delete it. Keep
 [PROJECT_STATUS.md](PROJECT_STATUS.md#roadmap-summary) in sync — it holds the
 one-paragraph version.
