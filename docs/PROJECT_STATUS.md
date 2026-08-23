@@ -9,10 +9,11 @@
 > Where this document and any other document disagree, this one wins, and the
 > code wins over both.
 
-**Last updated:** 2026-08-23
+**Last updated:** 2026-08-24
 **Last release tag:** `v0.4.1` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
 **Verified against:** the current `main` tree, with the published metrics below
-re-derived by `make check-metrics`
+re-derived by `make check-metrics` and both coverage figures re-measured by
+`scripts/check_coverage.sh`
 
 ---
 
@@ -47,7 +48,7 @@ Read next:
 
 **Where it is going**
 - [ROADMAP.md](ROADMAP.md) — what comes next and in what order
-- [MILESTONE_v0.4.md](MILESTONE_v0.4.md) — the next milestone proposal
+- [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md) — what the product is for, and what it is not
 - [RISKS.md](RISKS.md) — the ten biggest threats to future evolution, scored
 
 **What is wrong with it**
@@ -68,8 +69,8 @@ Read next:
 |---|---|
 | **Overall maturity** | **8.0 / 10** |
 | **Production ready?** | **The answer differs by topology, and conflating the two would hide the distinction that matters.** Single-instance, documented: **yes** for the IAM scope. Horizontally scaled / HA: **no** — see [Production readiness by topology](#production-readiness-by-topology). As a SaaS product backend: no either way — the product domain does not exist. |
-| **CI** | Green. 6 jobs + CodeQL. `make ci` = fmt · vet · lint · build · test · swagger · docs. The two end-to-end jobs cover opposite boundaries: `e2e` (a machine using the API) and `browser-e2e` (an operator configuring it in Chromium) |
-| **Test coverage** | 74.3% unit (floor 73%) · **82.2% authoritative** (floor 80%, `-tags=integration`). Plus 183 frontend cases across 15 `node --test` suites and 27 browser journeys. Authorization is measured differently and reported separately — see [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md) |
+| **CI** | Green. 7 jobs (`gate`, `commit-attribution`, `coverage`, `frontend`, `integration`, `e2e`, `browser-e2e`) plus CodeQL in its own workflow. `make ci` = fmt · vet · lint · build · test · swagger · docs. The two end-to-end jobs cover opposite boundaries: `e2e` (a machine using the API) and `browser-e2e` (an operator configuring it in Chromium) |
+| **Test coverage** | 74.3% unit (floor 73%) · **82.3% authoritative** (floor 80%, `-tags=integration`), both re-measured 2026-08-24. Plus 183 frontend cases across 15 `node --test` suites and 27 browser journeys. Authorization is measured differently and reported separately — see [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md) |
 | **Blocking linters** | 9 (`errcheck` and `staticcheck` deferred — see [QUALITY_GATE.md](QUALITY_GATE.md#the-lint-ratchet--read-before-adding-a-linter)) |
 | **Open critical bugs** | 0. Two defects found and fixed by the browser suite on 2026-08-10: [KI-019](KNOWN_ISSUES.md#ki-019) (OAuth codes in the access log) and [KI-020](KNOWN_ISSUES.md#ki-020) (the Audit view threw on any workspace with events) |
 | **Top risk** | [R-01](RISKS.md#r-01) — **further reduced 2026-08-13**. Both boundaries have real end-to-end coverage in CI, and Slice 14 added the negative half: every project-reachable route swept against every scope, refusals proven to land before the provider is reached, and real-stack evidence per boundary family ([KI-018](KNOWN_ISSUES.md#ki-018) closed, [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md)) |
@@ -151,13 +152,12 @@ None blocks a documented single-instance deployment. One blocks HA, one is an
 operational-correctness limit an operator must be told about, and one is
 adoption friction for consumers of the SDK.
 
-Slice 16 removed the other adoption blocker. The SDK is now releasable through
-standard Go module tooling: the nested-module tag format is proven by
-resolution rather than assumed, an external consumer compiles with no `replace`
-directive, and a tag gate refuses a release whose commit does not contain the
-module. Nothing has been published — that is deliberately an operator decision —
-but the remaining step is `git push`, not engineering. See
-[SDK_GO.md § Release](SDK_GO.md#release).
+Slice 16 removed the other adoption blocker, and the release then happened.
+**The SDK is published: `sdk/go/v0.1.0` is on `origin` and the module resolves
+as `…/sdk/go@v0.1.0`.** `scripts/first-publish-smoke.sh v0.1.0` confirms it
+against the public infrastructure from outside this repository: the proxy serves
+it, `sum.golang.org` holds its hash, it still pulls in nothing else, and
+pkg.go.dev renders it. See [SDK_GO.md § Release](SDK_GO.md#release).
 
 Slice 15 moved the operational-correctness row rather than removing it: the half
 that could be made atomic was, and the half that cannot be is now recorded under
@@ -256,30 +256,52 @@ Full detail, including request lifecycle and Mermaid diagrams:
 
 Status legend: ✅ implemented · 🟡 partial · 🔴 not started · ⚪ planned only
 
+**The product surface (`/v1`)** — 47 routes, reachable by an operator token or a
+`lw_sk_` project credential.
+
 | Feature | Status | Notes |
 |---|:--:|---|
-| OIDC / PKCE login | ✅ | Delegated to Keycloak; no login endpoint in Go by design |
+| Workspaces | ✅ | Create, list, get, update, archive. No delete by design — [WORKSPACES.md](WORKSPACES.md) |
+| Connections | ✅ | Draft → active → retired, verify probe, client secret sealed AES-256-GCM. **Consumed per request** by the identity runtime — [CONNECTIONS.md](CONNECTIONS.md) |
+| Multi-realm routing | ✅ | `internal/identityruntime` resolves the calling workspace's active connection and builds a provider from it, cached on connection id plus `updated_at` |
+| Projects | ✅ | `prj_<uuid>`, permanently bound to one workspace — [PROJECTS.md](PROJECTS.md) |
+| Project credentials | ✅ | `lw_sk_<lookup>_<secret>`, SHA-256 digest, shown once, revocable, optionally expiring |
+| Credential scopes | ✅ | 9, enforced by a registry the router refuses to boot without — [security/AUTHORIZATION_MATRIX.md](security/AUTHORIZATION_MATRIX.md) |
+| Workspace-scoped identity | ✅ | Users, roles, sessions, invitations — 24 operations, [WORKSPACE_IDENTITY_API.md](WORKSPACE_IDENTITY_API.md) |
+| Durable audit trail | ✅ | PostgreSQL, workspace-scoped, `GET /v1/workspaces/{id}/audit`. Control-plane mutations commit their row in the same transaction — [AUDIT.md](AUDIT.md) |
+| Per-credential rate limiting | ✅ | Token bucket keyed on credential id, after authentication; a separate edge limiter runs before it |
+
+**Identity and platform**
+
+| Feature | Status | Notes |
+|---|:--:|---|
+| OIDC / PKCE login | ✅ | Delegated to Keycloak; no login endpoint in Go by design (AD-001) |
 | JWT validation (JWKS) | ✅ | Asymmetric algorithms only; `iss` + `azp` + `exp` enforced |
-| RBAC by realm role | ✅ | `RequireRole`, `RequireAnyRole` |
-| Live-admin check (stale-JWT defense) | ✅ | Closes the token revocation window to a 30 s cache TTL |
-| User CRUD (admin) | ✅ | 13 routes |
-| Role CRUD (admin) | ✅ | Rename intentionally unsupported |
-| Session listing & revocation | ✅ | Per-user and per-session; realm-wide missing |
-| Invitations | ✅ | Derived from Keycloak user state |
-| Password reset (email) + direct set | ✅ | `POST .../reset-password`, `PUT .../password` |
-| Self-protection guards | ✅ | self-delete, self-disable, self-strip-admin, last-admin |
-| Audit subsystem | ✅ | 14 canonical actions, 2 sinks |
-| Per-IP rate limiting | ✅ | Token bucket on `/admin/*` |
+| RBAC by realm role | ✅ | `RequireRole`; `RequireAnyRole` exists but is mounted nowhere ([TD-014](TECH_DEBT.md#td-014)) |
+| Live-admin check (stale-JWT defense) | ✅ | Closes the revocation window to the cache TTL. Fail-closed |
+| Self-protection guards | ✅ | self-delete, self-disable, self-strip-admin, last-admin — asserted end to end ([KI-018](KNOWN_ISSUES.md#ki-018)) |
+| Secrets at rest | ✅ | Versioned keyring, per-row AAD, online rotation — [SECRET_KEY_ROTATION.md](SECRET_KEY_ROTATION.md) |
+| Versioned migrations | ✅ | `golang-migrate`, `go:embed`, applied at boot — [MIGRATIONS.md](MIGRATIONS.md) |
+| Graceful shutdown | ✅ | `SHUTDOWN_TIMEOUT_SECONDS`; readiness reports the drain |
+| Liveness / readiness probes | ✅ | `/health/live`, `/health/ready`; `/health` kept for compatibility |
+| Prometheus metrics | ✅ | `/metrics`, off by default, loopback-only without a token. Hand-written exposition, no new dependency |
 | CORS | ✅ | Explicit allow-list, disabled by default |
-| SMTP config + email templates | 🟡 | Works; no dedicated Go tests; FTL theme does not survive rebuild |
-| Workspaces (`/v1`) | 🟡 | CRUD-minus-delete + archive — [WORKSPACES.md](WORKSPACES.md) |
-| Connections (`/v1`) | 🟡 | Lifecycle + verify + sealed secrets; **not consumed by the Identity API yet** — [CONNECTIONS.md](CONNECTIONS.md) |
-| Admin console SPA | ✅ | 14 views, PKCE, i18n, embedded docs viewer |
-| Dev auth playground | ✅ | Restored 2026-07-26 (see KI-001) |
-| Embedded docs viewer | ✅ | Serves `docs/**.md` from `embed.FS` |
+| Go SDK | ✅ | Published `v0.1.0`, separate module, zero dependencies — [SDK_GO.md](SDK_GO.md) |
+| Admin console SPA | ✅ | 18 views, PKCE, i18n, embedded docs viewer, workspace-aware — [WORKSPACE_CONSOLE.md](WORKSPACE_CONSOLE.md) |
 | Swagger / OpenAPI | ✅ | CI gate fails if annotations drift |
-| Project bootstrap CLI | ✅ | `project.json` → `.env` + realm export |
-| Observability | 🟡 | Structured logs + in-memory ring buffer only |
+| Project bootstrap CLI | ✅ | `project.json` → `.env` + realm export. A fork tool, not the installer |
+| Installer | ✅ | `./scripts/init.sh` — POSIX sh, no Go, no prompts, refuses to overwrite an existing `.env` |
+
+**Legacy operator surface (`/admin/*`)** — 32 routes, operator token only,
+single-realm, retained for compatibility. Not the product; see
+[TD-022](TECH_DEBT.md#td-022).
+
+| Feature | Status | Notes |
+|---|:--:|---|
+| User / role / session / invitation CRUD | ✅ | The pre-workspace surface. Still what the console uses for provider settings |
+| SMTP config + email templates | 🟡 | Works; no dedicated Go tests; FTL theme does not survive container recreation ([KI-011](KNOWN_ISSUES.md#ki-011)). No `/v1` equivalent — deliberately, [WORKSPACE_IDENTITY_API.md §7](WORKSPACE_IDENTITY_API.md#why-smtp-and-email-templates-are-deferred) |
+| Audit ring buffer | 🟡 | `GET /admin/audit-events`, 500 entries, volatile. Superseded by the durable trail; the two response shapes are [TD-034](TECH_DEBT.md#td-034) |
+| Dev auth playground | ✅ | `DEV_PLAYGROUND_ENABLED` only |
 
 Complete list with per-feature code references: **[FEATURES.md](FEATURES.md)**.
 
@@ -287,30 +309,37 @@ Complete list with per-feature code references: **[FEATURES.md](FEATURES.md)**.
 
 | Feature | What works | What is missing |
 |---|---|---|
-| **Observability** | Structured auth + audit event streams; `GET /admin/audit-events` ring buffer | No Prometheus metrics, no tracing, no `/metrics`. Hooks exist ([`auth.SetEventHook`](../internal/auth/events.go), [`audit.SetDefault`](../internal/audit/recorder.go)) but nothing consumes them |
-| **Audit persistence** | Events emitted and logged | Ring buffer is volatile and capped at 500; nothing writes to a database table |
-| **Pagination** | `ListUsers` clamps to [1,100]; `ListInvitations` / `ListUsersByRole` page internally with a hard cap | `ListRoles`, `ListSessions`, `ListUserRoles`, `ListUserSessions` do not paginate at all |
-| **Email subsystem** | SMTP config, connection test, template customization, custom FTL theme | No Go tests; theme not persisted across container rebuild |
-| **Deployment** | Dockerfile + docker-compose + written runbook | No CD pipeline, no IaC; compose omits 4 env vars ([TD-004](TECH_DEBT.md#td-004)) |
-| **Secrets management** | `.env` correctly git-ignored; documented rotation procedure | Manual; no Vault / Secrets Manager integration |
+| **Observability** | Prometheus metrics, liveness and readiness probes, structured auth and audit event streams, request correlation by `request_id` / `project_id` / `credential_id` / `workspace_id` | No tracing: no spans, no context propagation, no OpenTelemetry ([TD-009](TECH_DEBT.md#td-009)). `/metrics` has never been scraped by a real Prometheus ([TD-032](TECH_DEBT.md#td-032)) |
+| **Pagination** | `ListUsers` clamps to [1,100]; `ListInvitations` / `ListUsersByRole` page internally to a hard cap | `ListRoles`, `ListSessions`, `ListUserRoles`, `ListUserSessions` do not paginate at all; hard-cap truncation is silent ([TD-007](TECH_DEBT.md#td-007), [KI-013](KNOWN_ISSUES.md#ki-013)) |
+| **Audit atomicity** | All 14 control-plane mutations commit their audit row in the same transaction as the change | Provider mutations cannot — 15 routes act on a realm PostgreSQL cannot roll back ([TD-038](TECH_DEBT.md#td-038)) |
+| **Email subsystem** | SMTP config, connection test, template customization, custom FTL theme | No Go tests; theme not persisted across container rebuild; `/admin`-only |
+| **Deployment** | Dockerfile, docker-compose, `./scripts/init.sh`, written runbook, graceful shutdown, `make product-acceptance` proving the install path | No CD pipeline, no Kubernetes manifests or Helm chart, no IaC |
+| **Secrets management** | Versioned keyring, per-row AAD, online rotation, `.env` git-ignored, documented procedure | No Vault / Secrets Manager integration; the keyring lives in an environment variable |
+| **API ergonomics** | Uniform `/v1` error envelope with `request_id`, stable machine-readable codes | No idempotency keys, so a client whose response was lost cannot safely retry ([TD-036](TECH_DEBT.md#td-036)) |
 
 ## Planned Features
 
-Nothing below exists in code. Do not assume otherwise.
+Nothing below exists in code. Do not assume otherwise. This table is *absence of
+implementation*; for where the product is going and why, see
+[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md), and for sequence see
+[ROADMAP.md](ROADMAP.md).
 
-| Feature | Status | Blocking dependency |
+| Feature | Status | Note |
 |---|:--:|---|
-| Multi-tenancy | ⚪ | Architectural decision required first — see [ROADMAP.md](ROADMAP.md#v2--make-it-a-saas-backend) |
-| Organizations / Teams | 🔴 | Multi-tenancy |
-| Billing | 🔴 | Multi-tenancy + queue |
-| File upload / object storage | 🔴 | — |
-| Job queue + workers | 🔴 | — |
-| Outbound webhooks | 🔴 | Queue |
-| Scheduler / cron | 🔴 | Queue |
-| Runtime feature flags | ⚪ | Only build-time flags exist in the bootstrap CLI |
-| API keys | 🔴 | — |
+| Realm-wide session revocation | 🔴 | `DELETE /admin/sessions` does not exist; the console's Sessions tab carries a `coming-soon` flag ([KI-006](KNOWN_ISSUES.md#ki-006)) |
+| Identity experience configuration | ⚪ | Email delivery, templates, login and branding as a first-class configurable surface. **Direction only, scope not frozen** — [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md#2-experience) |
+| Security event class | ⚪ | A durable trail for authorization refusals, with its own retention. Analysed and deliberately deferred ([TD-037](TECH_DEBT.md#td-037)) |
+| Organizations / Teams | 🔴 | No package, no model, no route |
+| Billing | 🔴 | No package, no payment dependency in [go.mod](../go.mod) |
+| Job queue + workers | 🔴 | No package; `cmd/` has `api`, `bootstrap`, `migrate`, `secrets`, `lwprobe` |
+| Outbound webhooks | 🔴 | No package, no delivery or retry logic |
+| Object storage / uploads | 🔴 | No package, no S3 dependency |
+| Scheduler / cron | 🔴 | No package |
+| Runtime feature flags | ⚪ | Only build-time flags in the bootstrap CLI, and three of those are collected and never read ([TD-015](TECH_DEBT.md#td-015)) |
 | Social OAuth (Google) | ⚪ | `google_login` is a bootstrap prompt that nothing reads |
-| Distributed cache | 🔴 | — |
+| Distributed cache | 🔴 | No dependency in [go.mod](../go.mod). Would be the shape of an answer to [TD-027](TECH_DEBT.md#td-027) |
+| GraphQL API | 🔴 | REST + OpenAPI only |
+| Notifications, full-text search, WebSocket/SSE, API i18n | 🔴 | — |
 
 ---
 
@@ -470,44 +499,85 @@ OAuth, backchannel logout.
 
 | | |
 |---|---|
-| **Aggregate coverage** | **73.2%** (floor 73%) — `go test -count=1 -coverprofile=… -coverpkg=./... ./...` |
-| **Go test functions** | 1162 across 112 test files |
-| **Frontend tests** | 150 across 13 `node --test` suites in [web/admin/static/js/tests/](../web/admin/static/js/tests/) |
-| **Tooling** | Standard `testing` + `httptest`. No external assertion or mocking library |
+| **Unit coverage** | **74.3%** (floor 73.0%) — no database needed |
+| **Authoritative coverage** | **82.3%** (floor 80.0%) — `-tags=integration`, against a real PostgreSQL |
+| **Go test functions** | 1162 across 113 test files (103 server, 10 SDK) |
+| **Frontend tests** | **183** across **15** `node --test` suites in [web/admin/static/js/tests/](../web/admin/static/js/tests/) |
+| **Browser journeys** | 27, real Chromium against a real stack — [testing/BROWSER_E2E.md](testing/BROWSER_E2E.md) |
+| **Tooling** | Standard `testing` + `httptest`, and `node --test`. No external assertion or mocking library |
 
-> Always pass `-count=1` when measuring coverage. Go's test cache will
-> otherwise return stale per-package results and the aggregate will be wrong.
+**The two coverage numbers are two measurements, not a strict and a lenient one.**
+A build tag is additive, so the `integration` run executes a superset of the
+untagged run in a single pass with the same `-coverpkg` denominator. The eight-point
+gap is the share of repository code only a database can reach. Both floors live in
+[`scripts/check_coverage.sh`](../scripts/check_coverage.sh).
 
-**Strategy.** Unit tests dominate, using `httptest.Server` to stand in for
-Keycloak so no test needs a live stack. Handler tests exercise the full
-middleware chain through the real Gin engine.
+> Always pass `-count=1` when measuring. Go's test cache otherwise returns stale
+> per-package results and the aggregate is wrong — during the 2026-07-26 audit a
+> cached run reported a five-point phantom regression.
+
+**Strategy.** Unit tests dominate and use `httptest.Server` in place of Keycloak,
+so no test in the default run needs a live stack. Handler tests exercise the full
+middleware chain through the real Gin engine. Everything that can only be true
+against real infrastructure — CHECK constraints, partial unique indexes under
+genuine concurrency, migration up and down, cross-realm isolation — is behind the
+`integration` tag and runs in CI.
 
 ### Coverage by package
 
+Unit run, statement-weighted, re-derived 2026-08-24. Packages under `cmd/` and
+the test harnesses are excluded from the gate's denominator and are not listed.
+
 | Package | Coverage |
 |---|---:|
-| `internal/config` | 94.4% |
-| `internal/bootstrap` | 87.2% |
+| `internal/logger` | 100.0% |
+| `internal/publicid` | 97.4% |
+| `internal/metrics` | 97.2% |
+| `internal/requestid` | 95.5% |
+| `internal/auth` | 95.4% |
+| `internal/secrets` | 94.3% |
+| `internal/authz` | 93.6% |
+| `internal/config` | 92.4% |
+| `internal/identityruntime` | 89.2% |
+| `internal/bootstrap` | 89.0% |
 | `internal/audit` | 86.5% |
 | `internal/auth/keycloak` | 86.4% |
-| `internal/identity/keycloak` | 74.4% |
-| `internal/auth` | 71.0% |
-| `internal/identity` | 67.5% |
-| `internal/server` | 62.7% |
-| `internal/database` | 42.9% |
-| `internal/user` | 40.0% |
-| `internal/logging` | 25.0% |
-| `cmd/*`, `logger`, `banner`, `fonts` | 0% |
+| `internal/identity` | 86.0% |
+| `internal/logging` | 85.7% |
+| `internal/identity/keycloak` | 74.5% |
+| `internal/workspace` | 70.5% |
+| `internal/server` | 70.5% |
+| `internal/connection` | 66.9% |
+| `internal/auditlog` | 66.0% |
+| `internal/database` | 59.5% |
+| `internal/project` | 56.4% |
+| `internal/user` | 45.1% |
+
+The lower figures are where the integration run does its work: `internal/database`,
+`internal/connection`, `internal/project` and `internal/workspace` are largely
+reachable only with a database, which is why the authoritative number is eight
+points higher.
+
+*Re-derive:* `COVERAGE_MODE=unit ./scripts/check_coverage.sh`, then group the
+resulting profile by package. Deduplicate blocks by their `file:range` key first —
+with `-coverpkg` each block appears once per test binary, and summing them naively
+understates every package.
 
 ### Gaps
 
-- **No automated end-to-end tests.** The artifacts under
-  [evidence/](evidence/) are static screenshots and JSON captures from manual
-  runs in May 2026. They are records, not regression tests. See
-  [TD-003](TECH_DEBT.md#td-003).
-- **Integration and frontend tests do not run in CI.** The integration test is
-  behind the `integration` build tag; the frontend suites need `node --test`.
-  `make ci` runs neither.
+- **No tracing.** No spans, no context propagation, no OpenTelemetry
+  ([TD-009](TECH_DEBT.md#td-009)). Correlation is by `request_id` in logs.
+- **`/metrics` has never been scraped by a real Prometheus**
+  ([TD-032](TECH_DEBT.md#td-032)). The exposition format is covered by tests that
+  parse it back; what they cannot catch is a semantic disagreement a parser
+  tolerates.
+- **`internal/user` is the lowest-covered non-harness package** at 45.1%. It is
+  the thin projection of Keycloak subjects and has no open debt entry; recorded
+  here as a number, not as a commitment.
+- **The artifacts under [evidence/](evidence/) are not tests.** They are static
+  screenshots and JSON captures from manual runs in May 2026, kept as a
+  historical record. The regression suites that replaced them are the `e2e`,
+  `browser-e2e`, `integration` and `frontend` CI jobs.
 
 ---
 
@@ -523,12 +593,12 @@ disagree; the rest are re-derived by hand at release.
 | Go source files (non-test) | 141 | ✓ |
 | Go test files | 113 | ✓ |
 | Go test functions | 1162 | ✓ |
-| Frontend test cases | 166 | |
+| Frontend test cases | 183 | |
 | Lines of Go (incl. tests) | 84,358 | |
 | Lines of Go (excl. tests and generated OpenAPI) | 32,562 | |
 | Lines of frontend JS | 9,132 | |
 | **Unit test coverage** | **74.3%** (floor 73.0%) | |
-| **Full test coverage (authoritative, `-tags=integration`)** | **80.4%** (floor 80.0%) | |
+| **Full test coverage (authoritative, `-tags=integration`)** | **82.3%** (floor 80.0%) | |
 | **HTTP routes (total)** | **96** | ✓ |
 | — **Product API (`/v1/*`)** | **47** | ✓ |
 | — Admin API (`/admin/*`, fully gated) | 32 | ✓ |
@@ -571,23 +641,45 @@ go test -count=1 -coverprofile=/tmp/c.out -coverpkg=./... ./... \
 
 ## Pending Work
 
-Ordered by priority. Full detail in [TECH_DEBT.md](TECH_DEBT.md) and
-[ROADMAP.md](ROADMAP.md).
+**This is a view of [TECH_DEBT.md](TECH_DEBT.md) and
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md), not a plan.** Those two files are
+authoritative and carry the reasoning; product direction lives in
+[ROADMAP.md](ROADMAP.md) and [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md)
+instead. An item appearing here is not a commitment to do it.
 
-| # | Item | Severity | Reference |
-|---|---|---|---|
-| 1 | ~~No automated e2e suite — regressions escape (KI-001 did)~~ resolved in two halves: machine boundary 2026-08-09, operator boundary 2026-08-10 | — | [TD-003](TECH_DEBT.md#td-003) · [TD-031](TECH_DEBT.md#td-031) |
-| 2 | docker-compose omits 4 env vars; documented production recipe is not runnable | High | [TD-004](TECH_DEBT.md#td-004) |
-| 3 | Rate limit trusts `X-Forwarded-For` unconditionally — trivially bypassable | Medium | [KI-004](KNOWN_ISSUES.md#ki-004) |
-| 4 | Integration + frontend tests excluded from CI | Medium | [TD-003](TECH_DEBT.md#td-003) |
-| 5 | ~~`AutoMigrate` with no versioned migrations~~ resolved 2026-07-28 | — | [TD-005](TECH_DEBT.md#td-005) |
-| 6 | Multi-tenancy decision deferred; cost grows with every feature | Medium | [ROADMAP.md](ROADMAP.md#v2--make-it-a-saas-backend) |
-| 7 | `SetupRouter` takes 8 positional parameters | Medium | [TD-006](TECH_DEBT.md#td-006) |
-| 8 | N+1 in `ListSessions`; inconsistent pagination | Medium | [TD-007](TECH_DEBT.md#td-007) |
-| 9 | Audit trail is volatile (ring buffer only) | Medium | [TD-008](TECH_DEBT.md#td-008) |
-| 10 | No metrics or tracing | Medium | [TD-009](TECH_DEBT.md#td-009) |
-| 11 | No realm-wide session revocation | Low | [KI-006](KNOWN_ISSUES.md#ki-006) |
-| 12 | No `golangci-lint` in CI | Low | [TD-011](TECH_DEBT.md#td-011) |
+Most open debt in this project carries an explicit trigger that has not fired.
+That is deliberate, and it is the reason this list is not a backlog.
+
+**Open and unconditional** — real today, whether or not anything changes:
+
+| Item | Severity | Reference |
+|---|---|---|
+| Rate limit trusts `X-Forwarded-For` and `X-Real-IP` unconditionally | Medium | [KI-004](KNOWN_ISSUES.md#ki-004) |
+| No security headers on the `/admin` shell | Medium | [KI-003](KNOWN_ISSUES.md#ki-003) |
+| SPA has never had a dedicated XSS review | Medium, unassessed | [KI-005](KNOWN_ISSUES.md#ki-005) |
+| No idempotency keys — every SDK consumer builds its own reconciliation | Medium | [TD-036](TECH_DEBT.md#td-036) |
+| `/admin/*` and `/v1` are two identity code paths | Medium | [TD-022](TECH_DEBT.md#td-022) |
+| List endpoints truncate silently; four do not paginate at all | Medium | [TD-007](TECH_DEBT.md#td-007) · [KI-013](KNOWN_ISSUES.md#ki-013) |
+| Provider mutations are not atomic with their audit row | Low, operational | [TD-038](TECH_DEBT.md#td-038) |
+| No tracing | Low | [TD-009](TECH_DEBT.md#td-009) |
+| Community health files referenced by CONTRIBUTING do not exist | Low | [TD-017](TECH_DEBT.md#td-017) |
+
+**Open with a trigger that has not fired** — the reasoning for waiting is in each
+entry, and none of these is work waiting to be scheduled:
+
+| Item | Trigger | Reference |
+|---|---|---|
+| Rate-limit buckets are per process | A second replica | [TD-027](TECH_DEBT.md#td-027) |
+| Authorization refusals reach no durable trail | A real incident, or an operator asking | [TD-037](TECH_DEBT.md#td-037) |
+| A credential over its limit still buys one lookup | A runaway backend observed | [TD-028](TECH_DEBT.md#td-028) |
+| Keycloak token acquisition duplicated in the verifier | A change to how the platform talks to the token endpoint | [TD-018](TECH_DEBT.md#td-018) |
+| `kcAdmin` test scaffolding duplicated | A third copy | [TD-021](TECH_DEBT.md#td-021) |
+| `/metrics` has no scrape-side proof | The metric set outgrowing manual review | [TD-032](TECH_DEBT.md#td-032) |
+| `/admin` pagination echo, password route bypass, audit vocabulary | The slice that retires `/admin/*` | [TD-020](TECH_DEBT.md#td-020) · [TD-025](TECH_DEBT.md#td-025) · [TD-034](TECH_DEBT.md#td-034) |
+
+**Accepted trade-offs**, not pending work: [KI-002](KNOWN_ISSUES.md#ki-002),
+[KI-010](KNOWN_ISSUES.md#ki-010), [KI-014](KNOWN_ISSUES.md#ki-014),
+[KI-015](KNOWN_ISSUES.md#ki-015), [KI-016](KNOWN_ISSUES.md#ki-016).
 
 ---
 
@@ -595,12 +687,13 @@ Ordered by priority. Full detail in [TECH_DEBT.md](TECH_DEBT.md) and
 
 | Horizon | Theme | Detail |
 |---|---|---|
-| **MVP** (done) | IAM foundation | Auth, RBAC, admin CRUD, audit, console — shipped |
-| **v1** | Make it operable | e2e tests, CI completeness, metrics, durable audit, migrations, compose fixes |
-| **v2** | Make it a SaaS backend | Multi-tenancy decision → organizations → queue → billing |
-| **Future** | Scale and ecosystem | Webhooks, storage, runtime feature flags, IaC + CD |
+| **Delivered** | Identity control plane | Workspaces, connections, projects, credentials, scoped `/v1`, durable audit, operator console, Go SDK — `v0.4.x` |
+| **Next** | Identity experience | Making common identity-experience configuration reachable without deep Keycloak knowledge. **Direction registered, scope not frozen** |
+| **Future** | Audit and investigation | Evolving the existing trail toward investigation. No version attached |
 
-Full breakdown with priority, impact and dependencies: **[ROADMAP.md](ROADMAP.md)**.
+**What the product is for, and where its boundary with Keycloak sits:**
+[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md). **Sequence and what is
+deliberately not promised:** [ROADMAP.md](ROADMAP.md).
 
 ---
 

@@ -11,7 +11,7 @@ open.
 
 ## 📌 Canonical documentation — start here
 
-These thirteen documents are the official, maintained description of the
+These fourteen documents are the official, maintained description of the
 project. They are verified against the code — `make check-docs` fails the build
 if a link breaks or a published number stops matching. Where any other document
 in this repository disagrees with them, **they win** — and the code wins over
@@ -30,9 +30,13 @@ all of them.
 
 | Doc | Answers |
 |---|---|
-| **[ROADMAP.md](ROADMAP.md)** | What comes next, in what order, and why that order. |
-| **[MILESTONE_v0.4.md](MILESTONE_v0.4.md)** | The next milestone: objectives, scope, acceptance criteria, risks. |
+| **[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md)** | What the product is *for*, where its boundary with Keycloak sits, and what it deliberately is not. Three pillars, each split into available today / direction / future. |
+| **[ROADMAP.md](ROADMAP.md)** | What is done, what is next, in what order, and what is explicitly **not** promised. |
 | **[RISKS.md](RISKS.md)** | The ten biggest threats to future evolution, scored by impact × probability. |
+
+> [`MILESTONE_v0.4.md`](MILESTONE_v0.4.md) used to sit in this table as "the
+> next milestone". It is a **historical record** of a milestone that shipped as
+> `v0.4.0`; it is catalogued under [Release](#release-history) instead.
 
 ### What is wrong with it
 
@@ -190,7 +194,7 @@ roadmap in [`roadmap/HARDENING_REPORT.md`](roadmap/HARDENING_REPORT.md).
 | [`SECRET_KEY_ROTATION.md`](SECRET_KEY_ROTATION.md) | The master-key lifecycle: the versioned keyring, how to rotate without downtime or re-entering credentials, how to know when an old key is safe to destroy, what a missing key degrades, and why a database backup alone does not restore an installation. |
 | [`WORKSPACE_IDENTITY_RUNTIME.md`](WORKSPACE_IDENTITY_RUNTIME.md) | The runtime boundary: how `/v1/workspaces/{id}/users` resolves a workspace's active Connection to a Keycloak realm per request, what the boundary hides, why the provider cache is keyed on connection id plus `updated_at`, and why legacy `/admin/*` was deliberately left on environment configuration. |
 | [`WORKSPACE_IDENTITY_API.md`](WORKSPACE_IDENTITY_API.md) | The complete `/v1/workspaces/{id}/...` identity surface: 24 operations across users, roles, sessions and invitations, the stable machine-readable error catalogue, the `caller_forbidden` vs `provider_forbidden` distinction, read-only connection semantics, and the route parity matrix against legacy `/admin/*`. |
-| [`PROJECTS.md`](PROJECTS.md) | Projects and machine credentials: how an external backend authenticates without an operator token, the opaque key format and why it is hashed rather than sealed, the permanent workspace binding that is the authorization boundary, the eight scopes and the two placements that make least privilege real, what `roles:write` cannot do, the operator-only control plane, and the credential lifecycle. |
+| [`PROJECTS.md`](PROJECTS.md) | Projects and machine credentials: how an external backend authenticates without an operator token, the opaque key format and why it is hashed rather than sealed, the permanent workspace binding that is the authorization boundary, the nine scopes and the two placements that make least privilege real, what `roles:write` cannot do, the operator-only control plane, and the credential lifecycle. |
 | [`SDK_GO.md`](SDK_GO.md) | The official Go SDK (`sdk/go`): why the workspace is bound at client construction rather than passed per call, why it is a separate Go module with no dependencies, the 24-of-24 parity matrix against the authorization registry and the OpenAPI document, the gates that stop the SDK drifting or learning what provider is behind the API, the real-stack acceptance suite, and the release model: the proven nested-module tag format, what the offline simulation establishes and what waits for the first pushed tag, and the bad-release policy. |
 | [`WORKSPACE_CONSOLE.md`](WORKSPACE_CONSOLE.md) | The multi-workspace admin console: why the workspace lives in the route rather than in application state, the three isolation mechanisms that stop one workspace's data or mutations reaching another, the connection-state vocabulary the UI gates writes on, how TD-024 was resolved without mutating a realm, and what deliberately stayed on legacy `/admin/*`. |
 | [`FRONTEND_READINESS.md`](FRONTEND_READINESS.md) | **Superseded** by `WORKSPACE_CONSOLE.md`. The pre-Slice-6 assessment of the admin console against the `/v1` surface: which views were expected to migrate mechanically, which were blocked, and the API-shape differences needing more than path replacement. Kept as the record of what was predicted. |

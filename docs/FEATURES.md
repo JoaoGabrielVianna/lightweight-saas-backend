@@ -1,6 +1,11 @@
 # Features
 
-**Last updated:** 2026-07-26 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md)
+**Last updated:** 2026-08-24 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md)
+
+> **Sections 1-11 describe the legacy single-realm `/admin/*` surface and the
+> platform underneath it.** The product surface is `/v1`, and it has its own
+> section: **[3b. The product API (`/v1`)](#3b-the-product-api-v1)**. Read that
+> first if you are evaluating what LIGHTWEIGHT does.
 
 Complete feature inventory with a code reference for every claim. If a feature
 is not listed here with a file path, it does not exist.
@@ -149,13 +154,47 @@ write when the placeholder is sent back
 Reads the in-process ring buffer. Volatile, capped at 500 events
 ([TD-008](TECH_DEBT.md#td-008)).
 
+## 3b. The product API (`/v1`)
+
+**47 routes.** Authenticated by an operator token **or** a `lw_sk_` project
+credential, and authorized by a registry the process refuses to boot without: a
+`/v1` route with no authorization classification is a build failure, not a
+runtime surprise ([`internal/authz`](../internal/authz/)).
+
+| Group | Routes | Status | Implementation |
+|---|---|:--:|---|
+| Workspaces | create, list, get, update, archive | ✅ | [`internal/workspace`](../internal/workspace/) — [WORKSPACES.md](WORKSPACES.md) |
+| Connections | create, list, get, update, verify, activate, retire | ✅ | [`internal/connection`](../internal/connection/) — [CONNECTIONS.md](CONNECTIONS.md) |
+| Projects | create, list, get, update, archive | ✅ | [`internal/project`](../internal/project/) — [PROJECTS.md](PROJECTS.md) |
+| Credentials | create, list, revoke | ✅ | same. Secret shown once, stored as a digest |
+| Scope vocabulary | list | ✅ | `GET /v1/projects/scopes` |
+| Workspace identity | users, roles, sessions, invitations — 24 operations | ✅ | [`internal/identityruntime`](../internal/identityruntime/) — [WORKSPACE_IDENTITY_API.md](WORKSPACE_IDENTITY_API.md) |
+| Workspace audit | list, filter, paginate | ✅ | [`internal/auditlog`](../internal/auditlog/) — [AUDIT.md](AUDIT.md) |
+
+**The 9 credential scopes:** `users:read`, `users:write`, `roles:read`,
+`roles:write`, `sessions:read`, `sessions:revoke`, `invitations:read`,
+`invitations:write`, `audit:read`. The count is checked by
+`make check-metrics` against `AllScopes` in the code.
+
+**What `/v1` has that `/admin/*` does not:** per-workspace realm routing, a
+uniform error envelope with `request_id`, machine credentials with scopes,
+effective-value pagination echo, and the durable audit trail.
+
+**What `/admin/*` has that `/v1` does not:** SMTP settings, email templates, and
+the audit ring buffer. Deliberately, and the reason is in
+[WORKSPACE_IDENTITY_API.md §7](WORKSPACE_IDENTITY_API.md#why-smtp-and-email-templates-are-deferred).
+The split itself is [TD-022](TECH_DEBT.md#td-022).
+
 ## 4. Non-admin routes
 
 | Method | Path | Auth | Status | Implementation |
 |---|---|---|:--:|---|
 | GET | `/me` | Required | ✅ | [user/handler.go](../internal/user/handler.go) |
 | GET | `/auth/debug` | Required | ✅ | [server.go](../internal/server/server.go) |
-| GET | `/health` | None | ✅ | [server.go](../internal/server/server.go) — liveness only, no dependency checks |
+| GET | `/health` | None | ✅ | [health.go](../internal/server/health.go) — liveness. Kept byte-compatible for existing monitors |
+| GET | `/health/live` | None | ✅ | [health.go](../internal/server/health.go) — liveness, no I/O |
+| GET | `/health/ready` | None | ✅ | [health.go](../internal/server/health.go) — checks the database and drain state; `503` when not ready |
+| GET | `/metrics` | Token or loopback | ✅ | [metrics.go](../internal/metrics/metrics.go) — `METRICS_ENABLED` only, off by default |
 | GET | `/swagger/*any` | None | ✅ | `gin-swagger` |
 | GET | `/` | None | ✅ | [landing.go](../internal/server/landing.go) |
 
@@ -164,16 +203,18 @@ Reads the in-process ring buffer. Volatile, capped at 500 events
 | Feature | Status | Implementation | Limitations |
 |---|:--:|---|---|
 | Canonical event model | ✅ | [audit/event.go](../internal/audit/event.go) | — |
-| 14 canonical actions | ✅ | [audit/event.go](../internal/audit/event.go) | All 14 declared **and** emitted |
+| 28 canonical actions | ✅ | [audit/event.go](../internal/audit/event.go) | All 28 declared **and** emitted; the count is checked by `make check-metrics` |
 | Structured-log sink (durable) | ✅ | [logging/audit_sink.go](../internal/logging/audit_sink.go) | Log-based; no query interface |
 | In-memory ring buffer | ✅ | [audit/memory.go](../internal/audit/memory.go) | Volatile, capped at 500 |
 | Fan-out to multiple sinks | ✅ | [audit/multi.go](../internal/audit/multi.go) | — |
 | Emission on success **and** failure | ✅ | `RecordMutation` — [logging/gin_helpers.go](../internal/logging/gin_helpers.go) | Failure adds `reason` |
 | Actor + IP capture | ✅ | `ActorFromGin`/`IPFromGin` | IP via `c.ClientIP()` |
-| Admin console viewer | ✅ | [views/auditlogs.js](../web/admin/static/js/views/auditlogs.js) | Shows the volatile buffer only |
-| Database persistence | 🔴 | — | [TD-008](TECH_DEBT.md#td-008) |
-| Retention / archival policy | 🔴 | — | — |
-| Read-model filtering & search | 🔴 | — | Endpoint returns the raw buffer |
+| Admin console viewer | ✅ | [views/auditlogs.js](../web/admin/static/js/views/auditlogs.js) | The legacy view shows the volatile buffer; the workspace Audit view reads the durable trail |
+| Database persistence | ✅ | `audit_events` table, migration `000006` | Durable and workspace-scoped ([TD-008](TECH_DEBT.md#td-008) resolved) — [AUDIT.md](AUDIT.md) |
+| Transactional with the change | ✅ | [TD-033](TECH_DEBT.md#td-033) | All 14 control-plane mutations. **Provider mutations cannot be** — [TD-038](TECH_DEBT.md#td-038) |
+| Retention policy | ✅ | `AUDIT_RETENTION_DAYS`, default 90 | By age, across every workspace and event type |
+| Read API with filtering & pagination | ✅ | `GET /v1/workspaces/{id}/audit` | Operator, or a credential holding `audit:read` |
+| Durable trail for authorization refusals | 🔴 | — | Deliberately not, with the arithmetic — [TD-037](TECH_DEBT.md#td-037) |
 
 ## 6. Security controls
 
@@ -282,13 +323,14 @@ Reads the in-process ring buffer. Volatile, capped at 500 events
 | Local user projection | ✅ | [user/model.go](../internal/user/model.go) | 1 table, 6 columns |
 | Unique constraint on identity | ✅ | `keycloak_sub uniqueIndex` | Survives concurrent first-login races |
 | JIT user provisioning | ✅ | `EnsureUser` — [user/service.go](../internal/user/service.go) | — |
-| Workspaces | 🟡 | [`internal/workspace`](../internal/workspace/) | Create, read, list, rename, archive under `/v1`. No Connection, no Keycloak binding, no default workspace — [WORKSPACES.md](WORKSPACES.md) |
-| Connections (identity-provider config) | 🟡 | [`internal/connection`](../internal/connection/) | Draft/active/retired lifecycle, read-only verify probe, one active per workspace. **Nothing consumes it yet** — [CONNECTIONS.md](CONNECTIONS.md) |
-| Secrets at rest (AES-256-GCM) | ✅ | [`internal/secrets`](../internal/secrets/aesgcm.go) | Sealed with per-row AAD and a stored key version. Key rotation not implemented — [TD-019](TECH_DEBT.md#td-019) |
+| Workspaces | ✅ | [`internal/workspace`](../internal/workspace/) | Create, read, list, rename, archive under `/v1`. Root of the domain: connections, projects and audit events all reference it — [WORKSPACES.md](WORKSPACES.md) |
+| Connections (identity-provider config) | ✅ | [`internal/connection`](../internal/connection/) | Draft/active/retired lifecycle, read-only verify probe, one active per workspace enforced by a partial unique index. **Consumed per request** by [`internal/identityruntime`](../internal/identityruntime/) — [CONNECTIONS.md](CONNECTIONS.md) |
+| Projects and credentials | ✅ | [`internal/project`](../internal/project/) | `projects` and `project_credentials`. Key stored as a SHA-256 digest, never recoverable — [PROJECTS.md](PROJECTS.md) |
+| Durable audit events | ✅ | [`internal/auditlog`](../internal/auditlog/) | `audit_events`, workspace-scoped, retention by age — [AUDIT.md](AUDIT.md) |
+| Secrets at rest (AES-256-GCM) | ✅ | [`internal/secrets`](../internal/secrets/aesgcm.go) | Sealed with per-row AAD and a stored key version. **Online key rotation implemented** ([TD-019](TECH_DEBT.md#td-019) resolved) — [SECRET_KEY_ROTATION.md](SECRET_KEY_ROTATION.md) |
 | Prefixed public ids | ✅ | [`internal/publicid`](../internal/publicid/publicid.go) | `ws_<uuid>` on the wire; bare UUID also accepted on input |
 | Request correlation id | 🟡 | [`internal/requestid`](../internal/requestid/requestid.go) | `X-Request-Id` on `/v1` only; `/admin/*` deliberately unchanged |
 | Schema migration | ✅ | [`internal/database/migrate.go`](../internal/database/migrate.go) | Versioned SQL via `golang-migrate`, embedded with `go:embed`, applied at boot — [MIGRATIONS.md](MIGRATIONS.md) |
-| Versioned migrations | 🔴 | — | — |
 | Seed data | 🔴 | — | Seed users come from the Keycloak realm export, not the app DB |
 | Connection pool tuning | 🔴 | — | GORM defaults |
 | Read replicas / sharding | 🔴 | — | — |
@@ -299,9 +341,19 @@ Reads the in-process ring buffer. Volatile, capped at 500 events
 Everything in this section has **zero lines of implementation**. Listed
 explicitly so no reader infers otherwise.
 
+> **One correction, because the old wording here was misleading.** This table
+> used to say flatly that multi-tenancy did not exist. That was true when it was
+> written and stopped being true with `v0.4.0`. **Tenancy exists**: a Workspace
+> is the tenant boundary, each is bound to its own Keycloak realm, the binding is
+> resolved per request, and isolation is proven across real realms in CI. What
+> does not exist is the *`tenant_id`-column* strategy the old roadmap
+> contemplated. What also does not exist is the ADR that should have recorded
+> the choice, which is [TD-010](TECH_DEBT.md#td-010) and is a documentation debt
+> rather than an architectural one.
+
 | Feature | Status | Evidence of absence |
 |---|:--:|---|
-| Multi-tenancy | ⚪ | `grep -rni tenant --include='*.go'` → 3 hits: an unread bootstrap prompt, its test fixture, and a comment. No `tenant_id`, no resolution middleware, no query scoping |
+| Multi-tenancy *as a `tenant_id` column* | ⚪ | No `tenant_id`, no row-level security, no query-scoping middleware. **But read the note below** — tenancy exists in this product, by a different mechanism |
 | Organizations / Teams | 🔴 | No package, no model, no route |
 | Billing / subscriptions | 🔴 | No package, no Stripe dependency in [go.mod](../go.mod) |
 | File upload / object storage | 🔴 | No package, no S3 dependency |
@@ -329,10 +381,12 @@ for m in GET POST PUT PATCH DELETE; do
   echo -n "$m "; grep -c "admin\.$m(" internal/server/router.go
 done
 
-# Audit actions declared vs emitted (should both be 14)
+# Audit actions declared (should be 28 — also checked by `make check-metrics`)
 grep -cE '^\tAction[A-Za-z]+ +Action = ' internal/audit/event.go
-grep -rhoE 'audit\.Action[A-Za-z]+' internal/identity/handler.go | sort -u | wc -l
 
-# Confirm the product domain really is absent
-grep -rni "tenant\|billing\|webhook\|queue" --include='*.go' internal/ | grep -v _test
+# Product API routes (should be 47) and credential scopes (should be 9)
+make check-metrics
+
+# Confirm the ABSENT parts of the product domain really are absent
+grep -rni "billing\|webhook\|queue" --include='*.go' internal/ | grep -v _test
 ```

@@ -596,6 +596,9 @@ flowchart LR
         U["users<br/>id · keycloak_sub UNIQUE<br/>email · username<br/>created_at · updated_at"]
         W["workspaces<br/>id uuid · slug UNIQUE<br/>name · status<br/>created_at · updated_at · archived_at"]
         C["connections<br/>id uuid · workspace_id FK<br/>provider · status · base_url · realm<br/>secret_ciphertext · secret_nonce<br/>health · access_mode"]
+        P["projects<br/>id uuid · workspace_id FK<br/>name · status<br/>created_at · updated_at · archived_at"]
+        PC["project_credentials<br/>id uuid · project_id FK<br/>key_prefix · key_hash · key_hash_alg<br/>scopes text[] · expires_at · revoked_at<br/>created_by · last_used_at"]
+        AE["audit_events<br/>id uuid · workspace_id FK NULL<br/>event_type · outcome · actor_*<br/>resource_* · request_id · reason_code<br/>metadata jsonb · occurred_at"]
     end
     subgraph kcdb["Keycloak Postgres"]
         K["users · credentials · roles<br/>sessions · attributes<br/>role_mappings"]
@@ -603,26 +606,54 @@ flowchart LR
     API["API"] -->|GORM| U
     API -->|GORM| W
     API -->|GORM| C
+    API -->|GORM| P
+    API -->|GORM| PC
+    API -->|GORM| AE
     C -.->|workspace_id| W
+    P -.->|workspace_id| W
+    PC -.->|project_id| P
+    AE -.->|workspace_id| W
     API -->|Admin REST| KCS["Keycloak"] --> K
     U -.->|keycloak_sub| K
 ```
 
-The service owns **three tables**, and none holds identity data: everything
-identity-related lives in Keycloak and is reachable only over HTTP.
+The service owns **6 tables**, and none holds identity data: everything
+identity-related lives in Keycloak and is reachable only over HTTP. They arrive
+in six versioned migrations, `000001_baseline` through `000006_audit_events`.
 
 `connections` holds each workspace's identity-provider configuration. The
 provider's client secret is sealed with AES-256-GCM before it is written and is
 never returned by the API; at most one connection per workspace may be active,
-enforced by a partial unique index. Nothing consumes a connection yet — the
-Identity API still uses the process-level `KEYCLOAK_*` configuration. See
-[CONNECTIONS.md](CONNECTIONS.md).
+enforced by a partial unique index. **A connection is what a `/v1` identity
+request routes through**: `internal/identityruntime` resolves the calling
+workspace's active connection per request and builds a provider from it, so two
+workspaces on two realms are served by one process. See
+[CONNECTIONS.md](CONNECTIONS.md) and
+[WORKSPACE_IDENTITY_RUNTIME.md](WORKSPACE_IDENTITY_RUNTIME.md). Legacy
+`/admin/*` still uses the process-level `KEYCLOAK_*` configuration instead, and
+that split is [TD-022](TECH_DEBT.md#td-022).
 
-`workspaces` is the first table of the product domain. There is no foreign key
-between it and `users` — a Workspace has no members yet, and will hold a
-Connection to an identity provider rather than a set of people. Its invariants
-are enforced by four CHECK constraints rather than by application code alone;
-see [WORKSPACES.md](WORKSPACES.md).
+`workspaces` is the root of the product domain: `connections`, `projects` and
+`audit_events` all reference it, each `ON DELETE RESTRICT`, because workspaces
+are archived and never deleted. There is no foreign key between it and `users` —
+a Workspace holds a Connection to an identity provider rather than a set of
+people. Its invariants are enforced by four CHECK constraints rather than by
+application code alone; see [WORKSPACES.md](WORKSPACES.md).
+
+`projects` and `project_credentials` are the machine-authentication half.
+`project_credentials.key_hash` is a SHA-256 **digest**, not a sealed value:
+unlike `connections.secret_ciphertext` there is no operation that needs the
+secret back. `projects.workspace_id` is the authorization boundary itself, and
+is compared against the workspace in the request path before any workspace,
+connection or provider is touched. See [PROJECTS.md](PROJECTS.md).
+
+`audit_events` is the durable, workspace-scoped trail. `workspace_id` is
+nullable and NULL means "not workspace-scoped", which is how the legacy
+`/admin/*` surface records; the workspace audit API filters on
+`workspace_id = $1`, so those rows are unreachable through it by construction.
+Control-plane mutations write their row in the same transaction as the change
+([TD-033](TECH_DEBT.md#td-033)); provider mutations cannot, and that is
+[TD-038](TECH_DEBT.md#td-038). See [AUDIT.md](AUDIT.md).
 
 - **`keycloak_sub` is the canonical key**, with a unique index enforcing it at
   the database level even under concurrent first-login races.
