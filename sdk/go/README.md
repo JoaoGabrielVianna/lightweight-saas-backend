@@ -77,9 +77,8 @@ import lightweight "github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go
 The import alias is worth writing out: the path's last element is `go`, while the
 package is named `lightweight`.
 
-> **No release has been published yet.** The command above is the verified
-> installation form — it is what will work, unchanged, from the first release
-> onward — but `v0.1.0` does not exist on GitHub yet, so running it today fails.
+> **`v0.1.0` is published.** The tag `sdk/go/v0.1.0` is on the repository, so
+> the command above resolves through the module proxy and works as written.
 > See [Versioning](#versioning).
 
 Ask for the **version**, `@v0.1.0`, and not for the git tag. Those are different
@@ -299,8 +298,8 @@ compatibility rule applies and the module path itself would gain a `/v2` suffix.
 An SDK v1.0.0 would not imply the server API had changed, and a future `/v2`
 would not force an SDK v2.0.0 — a single SDK release could speak both.
 
-**No release has been published.** Publishing is a separate decision from
-building; the mechanics are proven and documented in
+**`v0.1.0` is the current release**, published by the tag `sdk/go/v0.1.0`. The
+release model, and what a bad release would cost, are in
 [docs/SDK_GO.md](../../docs/SDK_GO.md#release).
 
 ---

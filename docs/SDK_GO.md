@@ -194,9 +194,10 @@ to be correct.
 
 ## Release
 
-**Nothing has been published, and no tag has been pushed.** Release is a separate
-decision, and it is now the only step left: the mechanics below are proven, so
-what remains is an operator typing `git push`, not engineering.
+**`v0.1.0` is published.** The tag `sdk/go/v0.1.0` is on `origin`, the module
+resolves through `proxy.golang.org`, `sum.golang.org` holds its hash and
+pkg.go.dev renders it. The mechanics below are what published it, and are kept
+because they are what the next release will follow.
 
 ### The tag and the version are different strings
 
@@ -317,8 +318,7 @@ The two modes exist because a tag captures a **commit**, never a working tree.
 `sdk-release-dev` checks the files on disk and says so; `sdk-release-check`
 checks what a tag would actually contain and enforces the preconditions. Blurring
 them would let the tooling report "ready to release" about code that is not in
-any commit — which is precisely the situation this repository is in today, and
-the check reports it:
+any commit. When that happens the check says so rather than blessing it:
 
 ```
 Release content
@@ -326,18 +326,26 @@ Release content
       This tag would publish nothing.
 ```
 
+That output is an example of the failure mode, not the current state: the
+module has been committed since `dd2bc5f` and `sdk/go/v0.1.0` shipped from it.
+
 Neither command tags, pushes, or contacts a remote. Nothing in `scripts/` does.
 
 ### The first release
 
-**Recommended: `v0.1.0`.** The repository's existing tags (`v0.1.0-auth-foundation`,
+**Shipped as `v0.1.0` on 2026-08-15**, from the tag `sdk/go/v0.1.0` pointing at
+`303ff18`. The reasoning that chose that number, and the sequence that published
+it, are recorded below as written; the sequence is still the procedure for the
+next release, with the version substituted.
+
+**Why `v0.1.0`.** The repository's existing tags (`v0.1.0-auth-foundation`,
 `v0.2.0`, `v0.3.0`, `v0.3.1`) are all server releases in the root module's
 namespace and are unreachable from `sdk/go/`, so the SDK's history starts empty
 and `v0.1.0` collides with nothing. `v0.1.0` rather than `v1.0.0` because no
 external integration has yet depended on this surface, and `v0` is the honest way
 to say the API may still move.
 
-The exact sequence, to be run by a human who has decided to publish:
+The exact sequence, run by a human who has decided to publish:
 
 ```bash
 # 1. the release content is committed and merged to main
@@ -363,9 +371,10 @@ git push origin sdk/go/v0.1.0
 Step 7 is the first moment `proxy.golang.org` is involved at all, and it cannot
 be run earlier — see below.
 
-### What is proven, and what waits for the first tag
+### What was proven before the tag, and what the tag proved
 
-The distinction matters because it is easy to overclaim here.
+The distinction mattered because it was easy to overclaim, and it is kept
+because it is the shape of the evidence for any future release.
 
 **Proven, offline, with no GitHub involvement.** A snapshot of the working tree
 was committed into a throwaway Git repository, tagged, published through a local
@@ -377,14 +386,28 @@ module's zip automatically; and that `lightweight.Version()` reports `v0.1.0` fr
 inside a released dependency. The temporary repository was deleted afterwards.
 Nothing was pushed.
 
-**Not proven, and not provable before a real tag exists.** `proxy.golang.org`
-cannot serve a version nobody has published, and `sum.golang.org` cannot have
-recorded a hash for it. Local resolution used `GOPRIVATE`/`GONOSUMDB` and direct
-VCS access precisely to bypass both, so it is evidence about *Go module
-semantics* and not about the public infrastructure. Three things therefore remain
-open until step 5 above: public proxy resolution, checksum-database entry, and
-pkg.go.dev rendering. `scripts/first-publish-smoke.sh` tests exactly those, and
-refuses to run against a version that does not exist yet.
+**Not provable before a real tag existed.** `proxy.golang.org` cannot serve a
+version nobody has published, and `sum.golang.org` cannot have recorded a hash
+for it. Local resolution used `GOPRIVATE`/`GONOSUMDB` and direct VCS access
+precisely to bypass both, so it was evidence about *Go module semantics* and not
+about the public infrastructure. Three things stayed open until the tag was
+pushed: public proxy resolution, checksum-database entry, and pkg.go.dev
+rendering.
+
+**Closed by the tag.** `scripts/first-publish-smoke.sh` tests exactly those three
+against the real proxy from an empty directory outside this repository, and
+refuses to run against a version that does not exist. Against `v0.1.0`:
+
+```
++ tag 'sdk/go/v0.1.0' exists on origin
++ go get github.com/JoaoGabrielVianna/lightweight-saas-backend/sdk/go@v0.1.0
++ sum.golang.org recorded a hash for v0.1.0
++ the published module still pulls in nothing else
++ lightweight.Version() reports v0.1.0 (User-Agent: lightweight-go/v0.1.0)
++ pkg.go.dev is serving .../sdk/go@v0.1.0
+```
+
+Re-runnable at any time; it contacts the public proxy and creates nothing.
 
 ### A bad release
 
@@ -405,7 +428,7 @@ Go's `retract` directive can mark a published version as withdrawn, so `go get`
 stops selecting it and `go list -m -u` reports it. It is added to the *SDK's own*
 `go.mod` in a later release. None is present now and none should be added
 speculatively; the directive exists for a version that shipped and should not
-have, which has not happened because nothing has shipped.
+have, and `v0.1.0` is not that version.
 
 ---
 
