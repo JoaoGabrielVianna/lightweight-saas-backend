@@ -113,6 +113,25 @@ That role name is **not configurable**. A token without it is rejected by every
 `/v1` route. LIGHTWEIGHT has no second permission model for humans: scopes
 describe what a *machine* may do, never an operator.
 
+#### What you see if you forget this step
+
+The console will let the account **sign in** and then stop, on a screen titled
+**"This account cannot use the console"**. That is not a bug and not a broken
+install: signing in and being authorized are two different questions, and
+Keycloak answered the first one correctly.
+
+The screen names the account, the roles the session actually carries, and the
+role it needs. The fix is always in Keycloak, never in LIGHTWEIGHT: assign the
+realm role `admin` to that user, then sign out and back in so a new token is
+issued. An existing token does not gain the role.
+
+A second, rarer variant is titled **"Could not confirm your permissions"**, with
+a Retry button. That means the console could not establish which roles the
+session carries — `/auth/debug` was unreachable, or answered with a payload it
+marked as unverified — so it refused rather than guess. Retry is the right first
+response; if it persists, the API is not reachable from the browser and the
+problem is network or deployment, not identity.
+
 ### 3c. Optional: a second client for live revocation checks
 
 By default an operator's `admin` role is trusted for the lifetime of their

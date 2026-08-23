@@ -129,6 +129,40 @@ Two things to read before a production deployment:
 
 ---
 
+## Am I done? The first-success checklist
+
+Six checkpoints. Each one is observable, and each one tells you which of the
+previous ones is actually at fault when it fails. Work down the list; the first
+failure is where the problem is, regardless of what the last step reported.
+
+| # | Checkpoint | How you know | If it fails |
+|---|---|---|---|
+| 1 | **The server is running** | `curl -fsS localhost:8080/health/live` returns `200` | The container is not up. `docker compose ps`, then its logs |
+| 2 | **The server can serve traffic** | `curl -fsS localhost:8080/health/ready` returns `{"status":"ready",...}` | `503` means a global dependency is down. The `checks` object names which |
+| 3 | **You are an operator** | `http://localhost:8080/admin` loads the console *and the sidebar draws* | A screen saying the account cannot use the console means the account lacks the realm role `admin`, not that the install is broken |
+| 4 | **A workspace has a live realm behind it** | Its connection shows **active** after a successful Verify | Verify names the cause. Verified and active are two different states — a verified connection still has to be activated |
+| 5 | **A credential exists** | The creation modal showed a `lw_sk_…` secret once | If you closed it without copying, create another and revoke the first. It cannot be recovered |
+| 6 | **The whole path works, from outside** | The [30-second check](CONNECT_BACKEND.md#the-30-second-check) returns `200` with a JSON page of users | This is the one that matters. It proves 1 through 5 at once, plus that the credential's scopes are right |
+
+**Checkpoint 6 is the definition of "my installation is working."** It exercises
+every layer in one request: the credential authenticates, its scope is checked,
+its workspace binding is enforced, that workspace's active connection is
+resolved, and a real Keycloak realm answers.
+
+```bash
+curl -sS -H "Authorization: Bearer $LIGHTWEIGHT_API_KEY" \
+  "$LIGHTWEIGHT_URL/v1/workspaces/$LIGHTWEIGHT_WORKSPACE_ID/users?max=10"
+```
+
+Keep that command. Anything that breaks later is diagnosed by running it first.
+
+> **What a green checklist does not mean.** It does not mean you are ready for
+> production. Read [Step 5](#step-5-run-it-for-real) before you get there: the
+> supported topology is a single instance, and the keyring is not in your
+> database backup.
+
+---
+
 ## If you are here to contribute, not to install
 
 [`QUICKSTART.md`](QUICKSTART.md) is the contributor stack: Go toolchain, `make`
@@ -143,14 +177,49 @@ See also [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) and
 
 ## Troubleshooting index
 
+Symptoms an install actually produces, in roughly the order you would hit them.
+Every row points at a document that explains the cause rather than just the fix.
+
+**Getting the stack up**
+
 | Symptom | Where |
 |---|---|
-| Port already allocated | [Ports and collisions](KEYCLOAK_BUNDLED.md#ports-and-collisions) |
-| `docker: unknown command: docker compose` | [Prerequisites](KEYCLOAK_BUNDLED.md#prerequisites) |
-| Verify fails, and the message is unclear | [Reading Verify](KEYCLOAK_EXISTING.md#reading-verify) |
+| `docker: unknown command: docker compose` | [Prerequisites](KEYCLOAK_BUNDLED.md#prerequisites) — substitute `docker-compose`, or install the v2 plugin |
+| `Bind for 0.0.0.0:8080 failed: port is already allocated` | [Ports and collisions](KEYCLOAK_BUNDLED.md#ports-and-collisions) |
+| `./scripts/init.sh` says `.env already exists` and changes nothing | Intended. It refuses rather than mint a new keyring over your sealed data. Read the note it prints before deleting anything |
+| The API container restarts, or exits at boot with a configuration error | [Fail-fast](../operations/RUNNING.md#3-fail-fast) — the message names the variable |
+| `curl localhost:8080/health/ready` returns `503` with `"database":"..."` | [Health: liveness and readiness](../operations/RUNNING.md#4-health-liveness-and-readiness). PostgreSQL is unreachable; the API is up and correctly refusing traffic |
+| `curl localhost:8080/health/ready` returns `503` with `"accepting":"draining"` | The process is shutting down. [Shutdown](../operations/RUNNING.md#5-shutdown) |
+
+**Signing in**
+
+| Symptom | Where |
+|---|---|
 | `invalid issuer` on every token | [The variable that catches everyone](KEYCLOAK_EXISTING.md#the-variable-that-catches-everyone) |
+| Console says **"This account cannot use the console"** after a successful login | [What you see if you forget this step](KEYCLOAK_EXISTING.md#what-you-see-if-you-forget-this-step) — the account lacks the realm role `admin` |
+| Console says **"Could not confirm your permissions"**, with Retry | Same section. The console could not read the session's roles and refused to guess |
+
+**Connecting a realm**
+
+| Symptom | Where |
+|---|---|
+| Verify fails, and the message is unclear | [Reading Verify](KEYCLOAK_EXISTING.md#reading-verify) and the [error reference](KEYCLOAK_EXISTING.md#11-error-reference) — it distinguishes unreachable, wrong realm, bad credentials and insufficient privileges |
 | `x509: certificate signed by unknown authority` | [TLS and certificates](KEYCLOAK_EXISTING.md#tls-and-certificates) |
-| The console shows "This workspace isn't connected yet" | [Activate](FIRST_CREDENTIAL.md#5-activate-the-connection) |
-| A credential gets `insufficient_scope` | [Scope failures](CONNECT_BACKEND.md#insufficient_scope) |
+| The console shows "This workspace isn't connected yet" | [Activate](FIRST_CREDENTIAL.md#5-activate-the-connection) — a verified connection is still not an active one |
+| `workspace_connection_missing` at runtime | [Error reference](KEYCLOAK_EXISTING.md#11-error-reference) |
+| `connection_read_only` when writing | Same. The service account has read roles only |
+| `provider_credentials_unavailable` | Same. The sealed secret cannot be opened: `SECRETS_KEYRING` changed. [What a missing key does not do](../SECRET_KEY_ROTATION.md#6-what-a-missing-key-does-not-do) |
+
+**Using a credential**
+
+| Symptom | Where |
+|---|---|
+| A credential gets `401` | Revoked, expired, or mistyped. Revocation is immediate |
+| A credential gets `403 insufficient_scope` | [Scope failures](CONNECT_BACKEND.md#insufficient_scope) |
+| A credential gets `403` naming a workspace mismatch | The key belongs to a different workspace. The binding is permanent — [PROJECTS.md](../PROJECTS.md) |
 | A credential gets `429` | [Rate limiting](CONNECT_BACKEND.md#rate-limiting) |
-| I lost a credential secret | [Rotating a credential](FIRST_CREDENTIAL.md#rotating-or-losing-a-credential) |
+| I lost a credential secret | [Rotating a credential](FIRST_CREDENTIAL.md#rotating-or-losing-a-credential) — it cannot be recovered |
+
+**Still stuck?** The [30-second check](CONNECT_BACKEND.md#the-30-second-check) is
+the fastest way to tell a configuration problem from a code problem: if that
+`curl` succeeds and your code does not, the bug is yours.

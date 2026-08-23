@@ -48,6 +48,13 @@ later, not on the day you do it:
 It also gives you an operator console, a durable audit trail per workspace, and
 encryption at rest for every provider credential it holds.
 
+**Who it is for.** Teams that already run Keycloak, or are willing to, and have
+more than one service or more than one tenant needing identity operations. If
+you have one application and one realm and are happy giving it admin rights,
+you do not need this yet. If you are handing out Keycloak admin credentials to
+services, or copying realm configuration between deployments, you are the
+audience.
+
 ---
 
 ## Core concepts
@@ -282,6 +289,9 @@ Reporting a vulnerability: [`SECURITY.md`](SECURITY.md).
 | Call the API from Go | [`sdk/go/README.md`](sdk/go/README.md) |
 | Call the API from anything else | [`docs/swagger.yaml`](docs/swagger.yaml) |
 | Understand how it is built | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Know what it is for, and what it deliberately is not | [`docs/PRODUCT_DIRECTION.md`](docs/PRODUCT_DIRECTION.md) |
+| See what is next, and what is **not** promised | [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| Know what is broken or missing | [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) · [`docs/TECH_DEBT.md`](docs/TECH_DEBT.md) |
 | Contribute | [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`docs/QUALITY_GATE.md`](docs/QUALITY_GATE.md) |
 | Everything else | [`docs/INDEX.md`](docs/INDEX.md) |
 
