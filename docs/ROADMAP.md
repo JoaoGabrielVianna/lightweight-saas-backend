@@ -14,7 +14,7 @@ capability cannot ship without it.
 
 ## CURRENT — v0.4.x
 
-**Shipped and published.** `v0.4.1` is the current server release; the Go SDK is
+**Shipped and published.** `v0.4.2` is the current server release; the Go SDK is
 `v0.1.0`.
 
 LIGHTWEIGHT is an installable identity control plane. One installation serves

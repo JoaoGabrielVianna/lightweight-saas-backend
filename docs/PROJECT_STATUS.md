@@ -10,7 +10,7 @@
 > code wins over both.
 
 **Last updated:** 2026-08-24
-**Last release tag:** `v0.4.1` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
+**Last release tag:** `v0.4.2` · Go SDK `sdk/go/v0.1.0` (module `v0.1.0`)
 **Verified against:** the current `main` tree, with the published metrics below
 re-derived by `make check-metrics` and both coverage figures re-measured by
 `scripts/check_coverage.sh`
