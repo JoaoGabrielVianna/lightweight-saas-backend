@@ -1,6 +1,6 @@
 # Technical Debt
 
-**Last updated:** 2026-08-10 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md), [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and [RISKS.md](RISKS.md)
+**Last updated:** 2026-08-24 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md), [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and [RISKS.md](RISKS.md)
 
 Debt is a **deliberate or accumulated shortcut that raises the cost of future
 change**. Defects and runtime limitations live in
@@ -38,7 +38,7 @@ where the distinction is thin.
 | [TD-013](#td-013) | Infrastructure | No graceful shutdown | ~~Low~~ **Resolved 2026-08-09** |
 | [TD-014](#td-014) | Code | Unused `RequireAnyRole` middleware | **Low** |
 | [TD-015](#td-015) | Bootstrap | Three feature flags collected but never read | **Low** |
-| [TD-016](#td-016) | Testing | `internal/logging` at 25% coverage | **Low** |
+| [TD-016](#td-016) | Testing | `internal/logging` at 25% coverage | ~~Low~~ **Resolved 2026-08-24** |
 | [TD-017](#td-017) | Documentation | Missing community health files referenced by CONTRIBUTING | **Low** |
 | [TD-018](#td-018) | Code | Keycloak token acquisition duplicated in the connection verifier | **Low** |
 | [TD-019](#td-019) | Security | No master-key rotation for credentials at rest | ~~Medium~~ **Resolved 2026-08-11** |
@@ -62,14 +62,23 @@ where the distinction is thin.
 | [TD-037](#td-037) | Observability | Authenticated authorization failures reach no durable trail | **Low** |
 | [TD-038](#td-038) | Architecture | Provider mutations cannot be atomic with their audit write | **Low** |
 
-**Open:** 18 · **Resolved:** 17 · **Partially resolved:** 1 (TD-009 — tracing
-remains)
+**38 entries · Open: 18 · Resolved: 19 · Partially resolved: 1** (TD-009 —
+tracing remains). Open entries are TD-007, TD-010, TD-012, TD-014, TD-015,
+TD-017, TD-018, TD-020, TD-021, TD-022, TD-025, TD-027, TD-028, TD-032, TD-034,
+TD-036, TD-037, TD-038.
 
 Resolved: TD-001, TD-002 on 2026-07-26 · TD-011 on 2026-07-27 · TD-005 on
 2026-07-28 · TD-006, TD-023, TD-024, TD-026 on 2026-08-09 (Slice 8) ·
 TD-003, TD-004, TD-013, TD-029 on 2026-08-09 (Slice 9) · TD-008 on 2026-08-10
 (Slice 10) · TD-031 on 2026-08-10 (Slice 11) · TD-019, TD-030 on 2026-08-11
-(Slice 12)
+(Slice 12) · TD-033 on 2026-08-14 (Slice 15) · TD-035 on 2026-08-15 (Slice 16) ·
+TD-016 on 2026-08-24 (re-measured during the v0.4.2 documentation
+reconciliation)
+
+> **These three counts are maintained by hand and have drifted before.** Before
+> editing them, re-derive: the table above is the source, and the entry headings
+> carry the authoritative status. The v0.4.2 reconciliation found them reading
+> 18 / 17 / 1 against 38 entries, which does not add up.
 
 ---
 
@@ -583,22 +592,30 @@ Cross-referenced as [KI-007](KNOWN_ISSUES.md#ki-007).
 
 ## TD-016
 
-### `internal/logging` at 25% coverage
+### `internal/logging` at 25% coverage — **RESOLVED 2026-08-24**
 
 **Priority: Low** · Category: Testing
 
-**Description.** [internal/logging](../internal/logging/) has the lowest
-coverage in the codebase at 25.0%. The gap is mostly in `AuditSink`'s
-formatting paths.
-
-**Impact.** Bounded but not trivial: this package sits on the audit path, and
+**Was.** [internal/logging](../internal/logging/) had the lowest coverage in the
+codebase at 25.0%, the gap mostly in `AuditSink`'s formatting paths. That
+mattered more than the number suggested: the package sits on the audit path, and
 `RecordMutation` is the single choke point for the "every mutation emits exactly
-one event" invariant. A formatting regression could corrupt the durable trail
-without any test failing.
+one event" invariant, so a formatting regression could have corrupted the durable
+trail without any test failing.
 
-**Recommendation.** Table-driven tests over `AuditSink` output for each of the
-14 action types, plus assertions that `RecordMutation` emits exactly once on
-both the success and failure paths.
+**Now.** The package measures **85.7%** on the unit run. `audit_sink_test.go`,
+`control_plane_test.go`, `correlation_test.go` and `access_log_test.go` cover the
+sink's formatting, the control-plane mutation path and request correlation. It is
+no longer the lowest-covered package; `internal/user` is, at 45.5%.
+
+This was not paid down as a dedicated item. The tests arrived with the slices
+that made the audit trail durable and transactional
+([TD-008](#td-008), [TD-033](#td-033)) and with the access-log redaction fix
+([KI-019](KNOWN_ISSUES.md#ki-019)), which is why it was never marked. Closed on
+re-measurement during the v0.4.2 documentation reconciliation.
+
+*Re-derive:* `COVERAGE_MODE=unit ./scripts/check_coverage.sh` writes
+`coverage.out`; per-package figures come from that profile.
 
 ---
 
@@ -1421,14 +1438,17 @@ from a different checkout, invalid SemVer, unsuffixed v2, a too-new Go symbol, a
 untidy `go.mod` — and every one is caught, each checked against a pristine copy
 first.
 
-**Why this is closed rather than partially closed.** The only remaining step is
-`git push origin sdk/go/v0.1.0`, which is an operator decision and not a missing
-capability. What genuinely cannot be proven before that push — `proxy.golang.org`
-resolution, the `sum.golang.org` entry, pkg.go.dev rendering — is infrastructure
-outside this repository; `scripts/first-publish-smoke.sh` tests exactly those
-afterwards and refuses to run against a version that does not exist yet. The
-boundary is stated in [SDK_GO.md](SDK_GO.md#what-is-proven-and-what-waits-for-the-first-tag)
+**Why this was closed rather than partially closed.** At the time the only
+remaining step was `git push origin sdk/go/v0.1.0`, an operator decision and not
+a missing capability. What could not be proven before that push —
+`proxy.golang.org` resolution, the `sum.golang.org` entry, pkg.go.dev rendering —
+is infrastructure outside this repository, and the boundary was stated in
+[SDK_GO.md](SDK_GO.md#what-was-proven-before-the-tag-and-what-the-tag-proved)
 rather than papered over.
+
+**The push happened.** `sdk/go/v0.1.0` is on `origin`, and
+`scripts/first-publish-smoke.sh v0.1.0` passes against the real proxy, so all
+three infrastructure items are now evidenced rather than pending.
 
 **Found on the way.** The zero-dependency gate had a blind spot: `go list -m all`
 exits non-zero and prints nothing when a `require` cannot be resolved, so a

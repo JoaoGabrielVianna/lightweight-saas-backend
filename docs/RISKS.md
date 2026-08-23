@@ -36,18 +36,25 @@ next two milestones, given current trajectory.
 | # | Risk | Impact | Prob. | Score | Priority |
 |---|---|:--:|:--:|:--:|---|
 | [R-01](#r-01) | ~~No end-to-end test coverage~~ · both boundaries covered in CI 2026-08-10; residual is negative assertion of the guards | 4 | 2 | ~~25~~ **8** | Monitor |
-| [R-02](#r-02) | Multi-tenancy deferred while the schema grows | 5 | 4 | **20** | **Act now** |
+| [R-02](#r-02) | ~~Multi-tenancy deferred while the schema grows~~ · workspaces shipped in v0.4.0; residual is the unwritten ADR | 3 | 2 | ~~20~~ **6** | Planned |
 | [R-03](#r-03) | Bus factor of one | 4 | 5 | **20** | **Act now** |
-| [R-04](#r-04) | No versioned migrations before a second table | 4 | 4 | **16** | Next milestone |
-| [R-05](#r-05) | Cannot observe production | 4 | 4 | **16** | Next milestone |
+| [R-04](#r-04) | ~~No versioned migrations before a second table~~ · resolved 2026-07-28 | — | — | ~~16~~ **0** | Resolved |
+| [R-05](#r-05) | ~~Cannot observe production~~ · metrics, readiness and correlation shipped; tracing remains | 3 | 2 | ~~16~~ **6** | Planned |
 | [R-06](#r-06) | Keycloak coupling limits what is expressible | 4 | 3 | **12** | Next milestone |
-| [R-07](#r-07) | Deployment is manual and not reproducible | 3 | 4 | **12** | Next milestone |
-| [R-08](#r-08) | Composition root does not scale | 3 | 4 | **12** | Next milestone |
+| [R-07](#r-07) | Deployment is manual and not reproducible · compose recipe fixed and gated; no CD or IaC | 2 | 3 | ~~12~~ **6** | Planned |
+| [R-08](#r-08) | ~~Composition root does not scale~~ · `RouterDeps` landed 2026-08-09 | 2 | 2 | ~~12~~ **4** | Monitor |
 | [R-09](#r-09) | Frontend has no framework, build step, or type safety | 3 | 3 | **9** | Planned |
 | [R-10](#r-10) | Unreviewed security surfaces | 4 | 2 | **8** | Planned |
 
 Two risks (R-01, R-03) are **not** technical debt — no shortcut created them.
 They are structural properties of how the project is built and staffed.
+
+**Re-scored 2026-08-24**, during the v0.4.2 documentation reconciliation. Five
+rows had gone stale: R-04 was already marked resolved in its own entry while the
+table still scored it 16, and R-02, R-05, R-07 and R-08 were all materially
+addressed by work that shipped between v0.3.1 and v0.4.1 without the table being
+touched. **R-03 (bus factor) is unchanged at 20 and is now the highest score on
+the register.** The per-risk entries below carry the evidence.
 
 ---
 
@@ -130,6 +137,20 @@ items from the original recommendation are NOT:
 ## R-02
 
 ### Multi-tenancy deferred while the schema grows
+
+> **Re-scored 2026-08-24: 20 → 6.** The risk as written was that tenancy would be
+> retrofitted into a grown schema. That did not happen: `v0.4.0` shipped
+> Workspaces as the tenant boundary, each bound to its own Keycloak realm and
+> resolved per request, with isolation proven across real realms in CI. The
+> expensive retrofit this risk existed to prevent was avoided.
+>
+> **What remains** is that the decision was never written down as an ADR, so the
+> reasoning lives in code and commit messages rather than on paper. That is a
+> documentation risk with a real but bounded cost — it compounds the bus factor
+> ([R-03](#r-03)) rather than the schema. Tracked as
+> [TD-010](TECH_DEBT.md#td-010).
+>
+> The original text is preserved below.
 
 **Impact 5 · Probability 4 · Score 20 — act now**
 
@@ -226,6 +247,18 @@ without reconciliation. See [MIGRATIONS.md](MIGRATIONS.md).
 
 ### Cannot observe production
 
+> **Re-scored 2026-08-24: 16 → 6.** `/metrics` (request counts, a duration
+> histogram, authentication failures, authorization denials), `/health/live` and
+> `/health/ready`, and request correlation by `request_id` / `project_id` /
+> `credential_id` / `workspace_id` all shipped 2026-08-09.
+>
+> **What remains** is tracing — no spans, no context propagation, no
+> OpenTelemetry ([TD-009](TECH_DEBT.md#td-009)) — and the fact that `/metrics`
+> has never been scraped by a real Prometheus ([TD-032](TECH_DEBT.md#td-032)).
+> Neither is acute for a single-instance deployment.
+>
+> The original text is preserved below.
+
 **Impact 4 · Probability 4 · Score 16 — next milestone**
 
 No `/metrics`, no tracing, no error-rate signal, no readiness probe. `/health`
@@ -294,6 +327,20 @@ shipped without it, so treat it as unplanned work, not a plan.
 
 ### Deployment is manual and not reproducible
 
+> **Re-scored 2026-08-24: 12 → 6.** Three of the four specifics in the original
+> text are closed: the compose file carries the variables the code reads
+> ([TD-004](TECH_DEBT.md#td-004)), graceful shutdown exists with
+> `SHUTDOWN_TIMEOUT_SECONDS` ([TD-013](TECH_DEBT.md#td-013)), and the install
+> path is now `./scripts/init.sh` plus `docker compose up -d`, gated by
+> `make product-acceptance`.
+>
+> **What remains** is the absence of a CD pipeline, Kubernetes manifests or a
+> Helm chart, and any IaC, plus the manual `docker exec` for the Keycloak email
+> theme ([KI-011](KNOWN_ISSUES.md#ki-011)). Reproducible by hand is not the same
+> as automated.
+>
+> The original text is preserved below.
+
 **Impact 3 · Probability 4 · Score 12 — next milestone**
 
 No CD pipeline, no IaC, no graceful shutdown. The `docker-compose.yml` omits
@@ -323,6 +370,15 @@ step entirely.
 ## R-08
 
 ### Composition root does not scale
+
+> **Re-scored 2026-08-24: 12 → 4.** `SetupRouter`'s eight positional parameters
+> were replaced by a `RouterDeps` struct on 2026-08-09
+> ([TD-006](TECH_DEBT.md#td-006)), which is exactly the recommendation below.
+> Adding a handler is no longer a breaking signature change. Manual DI
+> ([AD-008](PROJECT_STATUS.md#ad-008--manual-dependency-injection)) was kept, as
+> the entry advised.
+>
+> The original text is preserved below.
 
 **Impact 3 · Probability 4 · Score 12 — next milestone**
 

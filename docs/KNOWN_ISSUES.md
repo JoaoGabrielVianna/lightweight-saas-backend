@@ -1,6 +1,6 @@
 # Known Issues
 
-**Last updated:** 2026-07-26 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md) and [TECH_DEBT.md](TECH_DEBT.md)
+**Last updated:** 2026-08-24 · Companion to [PROJECT_STATUS.md](PROJECT_STATUS.md) and [TECH_DEBT.md](TECH_DEBT.md)
 
 Defects, runtime limitations, workarounds, and temporary decisions. Structural
 shortcuts that raise the cost of change live in
@@ -31,11 +31,11 @@ L1–L10, GAP-1–GAP-4) are cross-referenced so older reports remain traceable.
 | [KI-005](#ki-005) | SPA never reviewed for XSS | Medium | Open — unassessed |
 | [KI-006](#ki-006) | No realm-wide session revocation | Low | Open (GAP-3 / L6) |
 | [KI-007](#ki-007) | Bootstrap collects three feature flags nothing reads | Low | Open |
-| [KI-008](#ki-008) | Tag `v0.3.1` has no CHANGELOG entry | Low | Open |
+| [KI-008](#ki-008) | Tag `v0.3.1` has no CHANGELOG entry | Low | ✅ **Fixed 2026-07-26** |
 | [KI-009](#ki-009) | `internal/config` documents a removed `JWTSecret` field | Low | Open |
 | [KI-010](#ki-010) | Admin API client retries only on 401, not 5xx | Low | Accepted (L7) |
 | [KI-011](#ki-011) | Keycloak email theme does not survive container recreation | Medium | Open — workaround documented |
-| [KI-012](#ki-012) | `/health` performs no dependency checks | Low | Open |
+| [KI-012](#ki-012) | `/health` performs no dependency checks | Low | ✅ **Fixed 2026-08-09** |
 | [KI-013](#ki-013) | List endpoints silently truncate at a hard cap | Medium | Open |
 | [KI-014](#ki-014) | Token replay possible for a token's full TTL | Low | Accepted (F3) |
 | [KI-015](#ki-015) | Unknown JSON keys silently dropped on PATCH | Low | Accepted (GAP-4) |
@@ -45,11 +45,22 @@ L1–L10, GAP-1–GAP-4) are cross-referenced so older reports remain traceable.
 | [KI-019](#ki-019) | OAuth authorization code written to the access log | Medium | ✅ **Fixed 2026-08-10** |
 | [KI-020](#ki-020) | Workspace Audit view crashed on any workspace with events | High | ✅ **Fixed 2026-08-10** |
 
-**Open:** 15 · **Accepted trade-offs:** 5 of those · **Fixed this cycle:** 2
+**20 entries · Open: 14 · Fixed or closed: 6.** Five of the fourteen are
+**accepted trade-offs** (KI-002, KI-010, KI-014, KI-015, KI-016) rather than
+work waiting to be done. **No Critical and no High is open.**
 
-Both entries added this cycle were found by the browser end-to-end suite
+Open entries are KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-009,
+KI-010, KI-011, KI-013, KI-014, KI-015, KI-016, KI-017.
+
+KI-019 and KI-020 were found by the browser end-to-end suite
 ([TD-031](TECH_DEBT.md#td-031), Slice 11) on its first runs against a real
 stack, and neither was visible to any pre-existing gate.
+
+> **KI-008 and KI-012 were closed on 2026-08-24 by re-derivation, not by new
+> work.** Both had been fixed weeks earlier — the `[0.3.1]` changelog section on
+> 2026-07-26, the readiness split on 2026-08-09 — and neither entry was marked.
+> Counts here are maintained by hand; re-derive from the table before editing
+> them.
 
 ---
 
@@ -295,19 +306,27 @@ Tracked as debt in [TD-015](TECH_DEBT.md#td-015).
 
 ## KI-008
 
-### Tag `v0.3.1` has no CHANGELOG entry
+### Tag `v0.3.1` has no CHANGELOG entry — **FIXED**
 
-**Severity: Low** · Status: Open
+**Severity: Low** · Fixed 2026-07-26 · **Entry closed 2026-08-24**
 
-`v0.3.1` (`06a5bd6`, 2026-05-25, *"add admin-aligned landing and minimal IAM boot
-experience"*) is tagged in git, but [CHANGELOG.md](../CHANGELOG.md) jumps from
-`[Unreleased]` to `[0.3.0]`.
+**What it said.** `v0.3.1` (`06a5bd6`, 2026-05-25, *"add admin-aligned landing
+and minimal IAM boot experience"*) was tagged in git, but
+[CHANGELOG.md](../CHANGELOG.md) jumped from `[Unreleased]` to `[0.3.0]`, so the
+changelog was incomplete as a release record.
 
-**Impact.** The changelog is incomplete as a release record. Anyone reconstructing
-history from it will miss a release.
+**What fixed it.** The `[0.3.1]` section was written retroactively on
+2026-07-26 and says so in its own preamble, naming this issue.
 
-**Recommendation.** Add the `[0.3.1]` section. The 20 commits after it are now
-recorded under `[Unreleased]` as of this documentation pass.
+**Why it stayed listed as Open for a month.** The fix landed in the CHANGELOG
+and nobody came back to mark the entry. That is the same class of rot the
+v0.4.2 documentation reconciliation exists to clear, and it is the reason
+[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) gate 2.9 exists.
+
+**Regression guard.** `scripts/check_docs_links.py` would fail on a dangling
+`#ki-008` anchor, but nothing asserts that every tag has a changelog section.
+That gate does not exist and is not proposed here: the failure is caught by
+Phase 2 of the release checklist, by a human, once per release.
 
 ---
 
@@ -397,23 +416,37 @@ existing runbook shows `24.0` in this snippet — see [KI-017](#ki-017).
 
 ## KI-012
 
-### `/health` performs no dependency checks
+### `/health` performs no dependency checks — **FIXED 2026-08-09**
 
-**Severity: Low** · Status: Open
+**Severity: Low** · Fixed by the readiness split · **Entry closed 2026-08-24**
 
-`healthHandler` returns `{"status":"ok"}` unconditionally. Its doc comment is
-explicit and honest: *"Plain liveness check — no auth, no DB ping."*
+**What it said.** `healthHandler` returned `{"status":"ok"}` unconditionally, so
+there was no readiness signal: an orchestrator could not distinguish "process
+running" from "process able to serve", and a pod with a broken database kept
+receiving traffic.
 
-**Impact.** There is no readiness signal. An orchestrator cannot distinguish
-"process running" from "process able to serve", so a pod with a broken database
-or unreachable Keycloak keeps receiving traffic.
+**What fixed it.** The probes were split, exactly as this entry recommended
+([`internal/server/health.go`](../internal/server/health.go)):
 
-**Recommendation.** Keep `/health` as liveness, and add `/ready` that checks the
-DB and Keycloak with a short timeout. Distinguishing the two matters: a failing
-readiness check should remove the pod from rotation, while a failing liveness
-check should restart it.
+| Route | Answers | Checks |
+|---|---|---|
+| `/health/live` | should this process be restarted? | nothing — no I/O, no lock, no dependency |
+| `/health/ready` | should this instance receive traffic? | the database, and whether a drain has begun |
+| `/health` | unchanged | liveness, kept byte-compatible for existing monitors |
 
-**Roadmap:** [V1-05](ROADMAP.md#v1-05--metrics-and-tracing)
+`/health/ready` answers `{"status":"ready", "checks": {…}}` with `200`, or `503`
+with the same shape while draining or when the database is unreachable, and sets
+`Cache-Control: no-store` so a cached "ready" cannot outlive the state it
+described.
+
+**One deliberate deviation from the recommendation.** Readiness does **not**
+check Keycloak. This entry asked for it; it was rejected with a reason worth
+keeping: connections are per workspace, so one tenant's Keycloak going down
+would take the instance out of rotation and every other tenant with it. A
+workspace whose provider is unreachable answers `provider_unavailable` on its
+own requests and nobody else's.
+
+**Related:** [TD-009](TECH_DEBT.md#td-009), whose operational half this was.
 
 ---
 

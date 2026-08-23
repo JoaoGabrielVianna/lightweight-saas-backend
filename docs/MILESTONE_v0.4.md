@@ -13,7 +13,47 @@
 > product is, see the [README](../README.md).
 >
 > The text below is preserved as it was drafted, in the future tense it was
-> written in.
+> written in. The acceptance checkboxes were never ticked and are left unticked;
+> what actually shipped is reconciled immediately below.
+
+---
+
+## What shipped, and what did not — reconciled 2026-08-24
+
+Added during the v0.4.2 documentation pass, because this document declared five
+**blocking** items and was then marked DELIVERED without recording that two of
+them did not ship. A commitment that is neither met nor withdrawn is worse than
+either.
+
+| # | Blocking item | Shipped? | Evidence |
+|---|---|---|---|
+| B1 | Fix docker-compose env wiring | **Yes** | [TD-004](TECH_DEBT.md#td-004) resolved 2026-08-09 |
+| B2 | End-to-end test suite | **Yes**, and beyond scope | [TD-003](TECH_DEBT.md#td-003), [TD-031](TECH_DEBT.md#td-031); the negative authorization matrix ([KI-018](KNOWN_ISSUES.md#ki-018)) went further than this item asked |
+| B3 | Close the rate-limit bypass | **No** | [KI-004](KNOWN_ISSUES.md#ki-004) is open. `clientIP` in `internal/server/ratelimit.go` still honours `X-Forwarded-For` and `X-Real-IP` unconditionally, and no trusted-proxy setting exists among the 41 declared configuration variables |
+| B4 | Readiness probe + Prometheus metrics | **Yes** | `/health/live`, `/health/ready`, `/metrics` — [TD-009](TECH_DEBT.md#td-009), operational half |
+| B5 | Multi-tenancy ADR as `AD-009` | **No** | `grep -rn 'AD-009'` finds only the acceptance criterion itself. [PROJECT_STATUS.md](PROJECT_STATUS.md#architectural-decisions) has AD-001 through AD-008 |
+
+Of the optional items, **O-D** (security headers, [KI-003](KNOWN_ISSUES.md#ki-003)),
+**O-E** (realm-wide session revocation, [KI-006](KNOWN_ISSUES.md#ki-006)) and
+**O-G** (community health files, [TD-017](TECH_DEBT.md#td-017)) also did not
+ship. **O-A** (versioned migrations) shipped early, on 2026-07-28.
+
+**B5 needs a qualification rather than a flat "no".** v0.4.0 shipped Workspaces:
+one installation, many tenants, each bound to its own Keycloak realm, resolved
+per request, with isolation proven across real realms. That is, in substance,
+the "Keycloak realm per tenant" strategy this milestone asked to *decide*. The
+decision was made and implemented; what was never written is the ADR recording
+it and its rejected alternatives, which was the actual deliverable. The residual
+is tracked as [TD-010](TECH_DEBT.md#td-010).
+
+**Why this was not caught.** The release checklist's documentation gates 2.6,
+2.7 and 2.8 are the only Phase 2 gates with no machine behind them, and all
+three were missed for `v0.4.0` and `v0.4.1`. See
+[RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
+**Nothing here is being scheduled by this note.** B3 and B5 return to
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md) and [TECH_DEBT.md](TECH_DEBT.md) as ordinary
+open entries, which is where they already were.
 
 ---
 
