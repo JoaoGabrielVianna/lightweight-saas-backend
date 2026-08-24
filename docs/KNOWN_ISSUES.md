@@ -44,13 +44,14 @@ L1–L10, GAP-1–GAP-4) are cross-referenced so older reports remain traceable.
 | [KI-018](#ki-018) | Guards not asserted end-to-end | Medium | **Closed** (Slice 14) |
 | [KI-019](#ki-019) | OAuth authorization code written to the access log | Medium | ✅ **Fixed 2026-08-10** |
 | [KI-020](#ki-020) | Workspace Audit view crashed on any workspace with events | High | ✅ **Fixed 2026-08-10** |
+| [KI-021](#ki-021) | SMTP and email-template mutations leave no audit trail | Medium | Open |
 
-**20 entries · Open: 14 · Fixed or closed: 6.** Five of the fourteen are
+**21 entries · Open: 15 · Fixed or closed: 6.** Five of the fifteen are
 **accepted trade-offs** (KI-002, KI-010, KI-014, KI-015, KI-016) rather than
 work waiting to be done. **No Critical and no High is open.**
 
 Open entries are KI-002, KI-003, KI-004, KI-005, KI-006, KI-007, KI-009,
-KI-010, KI-011, KI-013, KI-014, KI-015, KI-016, KI-017.
+KI-010, KI-011, KI-013, KI-014, KI-015, KI-016, KI-017, KI-021.
 
 KI-019 and KI-020 were found by the browser end-to-end suite
 ([TD-031](TECH_DEBT.md#td-031), Slice 11) on its first runs against a real
@@ -744,6 +745,55 @@ the pre-fix code (the one that passes is the empty-trail case, exactly as the
 defect's shape predicts): a row per event, the five column headers, the
 project-vs-operator actor rendering, the failure reason code, the empty state,
 and both ends of the cursor pagination.
+
+---
+
+## KI-021
+
+### SMTP and email-template mutations leave no audit trail
+
+**Severity: Medium** · Status: Open · Recorded 2026-08-23 (v0.5.0 planning)
+
+**What happens.** `PUT /admin/settings/smtp`,
+`PUT /admin/settings/email-templates/:key` and
+`DELETE /admin/settings/email-templates/:key` change realm state and emit **no
+audit event**. None of the 28 canonical actions in `internal/audit` covers
+configuration, and neither handler calls `RecordMutation`.
+
+**Impact.** Two changes with real consequences are invisible after the fact:
+
+- **the SMTP password and host can be changed** with no record of who did it or
+  when, which is the credential the realm uses to send every recovery and
+  verification message;
+- **an email template can be replaced or reset to default** with no record of
+  the previous value, so a change that breaks a recovery message cannot be
+  attributed or reconstructed from the product.
+
+Both are operator-only surfaces, so the actor is always an authenticated
+operator rather than an anonymous caller. That bounds who can do it; it does not
+make it visible.
+
+**Why it happened.** These handlers predate the durable trail. They were written
+against the concrete Keycloak provider, bypassing both `identity.IdentityProvider`
+and `identity.Service` (related: [TD-025](TECH_DEBT.md#td-025)), and the audit
+path lives on the seam they skip. Nothing regressed; the surface simply never
+had it.
+
+**Reproduction.** Change SMTP through the console, then read
+`GET /v1/workspaces/{id}/audit` and `GET /admin/audit-events`. Neither contains
+the change.
+
+**Workaround.** None inside the product. The mutation appears in the process
+access log as a request line, without the before or after value.
+
+**Not a fix for this entry:** logging the new value. An audit row must not carry
+the SMTP password, so whatever closes this has to redact at the audit boundary
+rather than record the body.
+
+**Planned resolution.** Scoped as M5 in
+[V0_5_0_PLAN.md](V0_5_0_PLAN.md#5-must), alongside moving the surface to
+`/v1`. Recording it here rather than only in the plan, because it is a gap in
+shipped behaviour and remains true whatever that plan becomes.
 
 ---
 

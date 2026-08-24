@@ -61,11 +61,12 @@ where the distinction is thin.
 | [TD-036](#td-036) | API contract | No idempotency keys, so a client cannot safely retry a mutation | **Medium** |
 | [TD-037](#td-037) | Observability | Authenticated authorization failures reach no durable trail | **Low** |
 | [TD-038](#td-038) | Architecture | Provider mutations cannot be atomic with their audit write | **Low** |
+| [TD-039](#td-039) | Architecture | The connection capability model cannot express realm-configuration privilege | **Medium** |
 
-**38 entries · Open: 18 · Resolved: 19 · Partially resolved: 1** (TD-009 —
+**39 entries · Open: 19 · Resolved: 19 · Partially resolved: 1** (TD-009 —
 tracing remains). Open entries are TD-007, TD-010, TD-012, TD-014, TD-015,
 TD-017, TD-018, TD-020, TD-021, TD-022, TD-025, TD-027, TD-028, TD-032, TD-034,
-TD-036, TD-037, TD-038.
+TD-036, TD-037, TD-038, TD-039.
 
 Resolved: TD-001, TD-002 on 2026-07-26 · TD-011 on 2026-07-27 · TD-005 on
 2026-07-28 · TD-006, TD-023, TD-024, TD-026 on 2026-08-09 (Slice 8) ·
@@ -1600,3 +1601,52 @@ observation is possible.
 **Recommendation.** Leave open and watch the metric. If
 `lightweight_audit_persist_failures_total` is ever non-zero in a real
 deployment, that is the signal to size the work.
+
+---
+
+## TD-039
+
+### The connection capability model cannot express realm-configuration privilege
+
+**Priority: Medium** · Category: Architecture · Recorded 2026-08-23 (v0.5.0 planning)
+
+**Description.** A Connection's `AccessMode` answers one question: may this
+service account perform identity **writes**. `CanWrite()` is binary, and
+`writeGrantRoles` is `{realm-admin, manage-users}`.
+
+Realm **configuration** is a third capability the model has no room for. Every
+realm setting, including the `smtpServer` block and localization overrides,
+is written through `PUT /admin/realms/{realm}`, which `manage-users` does not
+grant. So a connection can legitimately report `access_mode=full`, be entirely
+correct about identity writes, and still be unable to change a single setting.
+
+**This is not a contradiction of [TD-024](#td-024), it is its successor.**
+TD-024 deliberately excluded `manage-realm` from `writeGrantRoles` because
+granting it while withholding `manage-users` permits realm-role writes and
+refuses every user mutation, which would over-claim write capability by exactly
+one endpoint. That reasoning is still right. What it left behind is the
+opposite gap: there is no way to claim *configuration* capability at all.
+
+**Impact.** Latent today, because the only configuration surface that exists
+(`/admin/settings/smtp`, `/admin/settings/email-templates`) runs on the
+process-level `KEYCLOAK_ADMIN_*` client rather than on a workspace connection,
+and the bundled realm grants that client `realm-admin`.
+
+It stops being latent the moment configuration becomes workspace-scoped. Without
+this, the product would either attempt the write and surface a raw provider
+`403`, or refuse on a guess. Both are worse than a probe that knows.
+
+**A second-order consequence worth recording.**
+[getting-started/KEYCLOAK_EXISTING.md §3c](getting-started/KEYCLOAK_EXISTING.md)
+documents `view-users` and `view-realm` as the roles for the process-level admin
+client. Those do not permit a realm write either, so an operator following the
+documented least-privilege path may find the shipped SMTP surface failing with a
+provider refusal and no explanation. Not confirmed against a live realm; it
+follows from the role semantics.
+
+**Recommendation.** Take it as the first slice of whatever version makes
+configuration workspace-scoped, and size it as a probe plus a representation
+decision rather than a refactor. The behaviour that matters is fail-closed:
+unprovable configuration privilege must deny, as unprovable write capability
+already does not. The representation itself is deliberately not decided here.
+Scoped as M1 in [V0_5_0_PLAN.md](V0_5_0_PLAN.md#5-must).

@@ -131,9 +131,9 @@ at.
 
 | Capability | Where | Caveat |
 |---|---|---|
-| SMTP configuration for the installation's realm | `/admin/*` | No `/v1` equivalent; no dedicated Go tests |
+| SMTP configuration for the installation's realm | `/admin/*` | No `/v1` equivalent; no dedicated Go tests; **no audit trail** ([KI-021](KNOWN_ISSUES.md#ki-021)) |
 | SMTP connection test | `/admin/*` | same |
-| Keycloak email-template customization | `/admin/*` | same |
+| Keycloak email-template customization | `/admin/*` | same, and a template can be saved without its required `${link}` placeholder |
 | A custom FTL email theme | `deploy/keycloak/themes/` | Does not survive container recreation ([KI-011](KNOWN_ISSUES.md#ki-011)) |
 | Console localization, including PT-BR | admin console | The console only, not the end-user login screens |
 
@@ -156,27 +156,55 @@ operator who wants to change the sender address on an invitation, or the wording
 of a login screen, is currently sent to a different console with a different
 vocabulary and broader access than the task warrants.
 
-Areas under consideration, in no committed order:
+The areas, and where each now stands:
 
-- email delivery and configuration
-- email templates
-- the authentication experience
-- login and registration customization
-- branding
-- no-code configuration for the common cases
-- validated customization for the cases that need more
+| Area | Status |
+|---|---|
+| Email delivery and configuration | **committed to v0.5.0** ([plan](V0_5_0_PLAN.md#5-must)) |
+| Email templates, with validation | **committed to v0.5.0** |
+| Realm behaviour: registration, verification, recovery | **committed to v0.5.0** |
+| Login and registration appearance | deferred, see the split below |
+| Branding | deferred, same reason |
+| No-code configuration for the common cases | partly v0.5.0, partly deferred |
+| Validated customization for the cases that need more | deferred |
 
-### What is NOT decided
+### This pillar splits in two, and the split is architectural
 
-**The scope of this pillar's first release is not frozen.** Specifically, none
-of the following has been chosen, and none should be inferred: an HTML format or
-markup subset, a DSL, a component model, a schema or migration, an endpoint
-shape, a draft/publish model, version history, a preview or validation engine,
-rollback semantics, a supported-provider list, MFA, a number of configurable
-pages, or any new scope or role.
+The planning audit found that "identity experience" is not one problem. It is
+two, with very different costs, and treating them as one is what would prevent
+either from shipping.
 
-Those are the subject of the v0.5.0 design sprint, which has not happened. See
-[ROADMAP.md § NEXT](ROADMAP.md#next--v050--identity-experience).
+**Behaviour and communication.** How identity *talks* and *acts*: where mail
+comes from, what it says, whether self-registration exists, whether email is
+verified, whether a password can be recovered. All of it is reachable through
+Keycloak's Admin API, which is how LIGHTWEIGHT already talks to a provider it
+does not own. **This is v0.5.0**, and its scope is frozen in
+[V0_5_0_PLAN.md](V0_5_0_PLAN.md).
+
+**Visual appearance.** What the login and registration pages *look* like: logo,
+colours, layout, typography. Keycloak deploys themes as files on its own
+filesystem, and there is no Admin REST endpoint to upload one. LIGHTWEIGHT
+reaches its provider over HTTP and has no filesystem access to it, so visual
+theming **cannot be delivered through the Admin API alone** for the journey most
+installations take. **This is deferred**, and the direction is a closed
+declarative domain rendered by a theme installed once, not free markup. See
+[ROADMAP.md § Direction after v0.5.0](ROADMAP.md#direction-after-v050).
+
+That distinction is why this document separates them rather than promising
+"identity experience" as one deliverable.
+
+### What is NOT decided, for the visual half
+
+None of the following has been chosen, and none should be inferred: an HTML
+format or markup subset, a DSL, a component model, a schema or migration, an
+endpoint shape, a draft/publish model, version history, a preview or validation
+engine, rollback semantics, a supported-provider list, MFA, a number of
+configurable pages, or any new scope or role.
+
+**One thing is decided, and it is a constraint rather than a design:** the login
+page is where a password is typed, so **arbitrary HTML and JavaScript are
+excluded permanently**, not merely deferred. No sanitizer earns the trust that
+page requires. Whatever ships there will be a closed domain.
 
 **The boundary still applies.** Anything built here configures Keycloak's
 experience. It does not replace Keycloak's authentication flows, its template

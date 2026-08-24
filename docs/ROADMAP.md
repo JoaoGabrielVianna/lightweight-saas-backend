@@ -44,99 +44,97 @@ making the published documentation true — see the
 
 ---
 
-## NEXT — v0.5.0 · Identity Experience
+## NEXT — v0.5.0 · Identity Experience Configuration
 
-> ### THE EXACT v0.5.0 SCOPE IS NOT YET FROZEN.
+> ### THE v0.5.0 SCOPE IS FROZEN.
 >
-> What follows is a **direction**, recorded so the next design conversation
-> starts from something. It is not a specification, not a commitment, and not a
-> backlog. Nothing here has been designed, sized, or promised, and nothing here
-> may be built ahead of that design.
+> **[V0_5_0_PLAN.md](V0_5_0_PLAN.md) is the authoritative source.** It carries
+> the MUST / SHOULD / COULD / WON'T split, the slices, the invariants, the
+> Definition of Done and the freeze rule. This section is a pointer, not a
+> second copy, so there is exactly one place the scope can be read or changed.
 
-**The intent, in one sentence:** make the identity-experience settings that
-every installation needs reachable by someone who should not have to learn
-Keycloak's admin console to change them.
+**In one sentence:** a person who does not know Keycloak configures, per
+workspace and from the console, **how identity communicates and behaves**:
+where mail comes from, what it says, whether self-registration exists, whether
+email is verified, whether a password can be recovered. Validated before it is
+applied, audited after, reversible where the provider permits.
 
-**The problem it responds to.** LIGHTWEIGHT already removes the need for a
-backend to hold Keycloak admin rights. It does not yet remove the equivalent
-need for a *person*: an operator who wants to change the sender address on an
-invitation email, or what the login page says, is sent to Keycloak. That is a
-different console, a different vocabulary, and a level of access the task does
-not warrant.
+**The five MUST items**, in the plan's words rather than restated here:
+connection configuration privilege, workspace-scoped SMTP, workspace-scoped
+email templates with validation, identity experience realm settings, and the
+audit trail those three owe. See
+[V0_5_0_PLAN.md §5](V0_5_0_PLAN.md#5-must).
 
-**Candidate areas**, in no committed order and with no committed shape:
+**What this version deliberately does not include**, because the reason matters
+more than the list: **visual customization of the login and registration
+pages.** Keycloak deploys themes as files on its own filesystem, and there is no
+Admin REST endpoint to upload one. LIGHTWEIGHT talks to a Keycloak it does not
+own, over HTTP. So visual theming is not reachable for the journey most
+installations take, and promising it here would be promising what the
+architecture does not support. It is the subject of the v0.6.0 direction below.
 
-| Area | The question it would answer |
-|---|---|
-| Email delivery and configuration | Where does mail come from, and did it arrive? |
-| Email templates | What does an invitation actually say? |
-| Authentication experience | What does a user see when signing in? |
-| Login and registration customization | Which fields, which flows, in what language? |
-| Branding | Whose product does this look like? |
-| No-code configuration | Can an operator change it without a deploy? |
-| Advanced validated customization | Can a power user go further without being able to break it? |
-
-**What today's product already has in this area**, so the gap is measured
-honestly: SMTP settings, an SMTP connection test, Keycloak email-template
-customization and a custom FTL theme all exist, on the legacy `/admin/*`
-surface, with no `/v1` equivalent and no dedicated tests. The FTL theme does not
-survive container recreation ([KI-011](KNOWN_ISSUES.md#ki-011)). Why they were
-left there is recorded in
-[WORKSPACE_IDENTITY_API.md §7](WORKSPACE_IDENTITY_API.md#why-smtp-and-email-templates-are-deferred):
-they are provider-specific realm settings rather than identity administration,
-and migrating them means designing that seam.
-
-### Explicitly NOT promised for v0.5.0
-
-Listed because naming them keeps a brainstorm from hardening into a contract by
-repetition. None of the following has been decided, and none should be treated
-as intended:
-
-- any HTML format, markup subset, or templating dialect
-- any DSL
-- any specific component or component model
-- any schema, table, or migration
-- any endpoint, route, or API shape
-- any draft/publish or version-history model
-- any preview or validation engine
-- any rollback semantics
-- any list of supported providers
-- MFA
-- any count of configurable pages or screens
-- any new scope, role, or authorization vocabulary
-
-These belong to the v0.5.0 design sprint, which has not happened.
-
-**A constraint that design sprint inherits**, stated now because it is already
-true: LIGHTWEIGHT configures and simplifies; **Keycloak remains the identity
-provider and the runtime**. Anything in this area is a configuration surface
-over Keycloak, not a reimplementation of it. See
-[PRODUCT_DIRECTION.md § The boundary](PRODUCT_DIRECTION.md#the-boundary-with-keycloak).
+Also out: arbitrary HTML or JavaScript in login pages, SMS and phone channels,
+and audit investigation. The full list with reasons is
+[V0_5_0_PLAN.md §8](V0_5_0_PLAN.md#8-wont).
 
 ---
 
-## FUTURE — Audit and investigation
+## Direction after v0.5.0
 
-**No version. No date. Direction only.**
+**Proposed, not frozen.** These are the next two axes as they look today. They
+are recorded so sequencing is deliberate rather than reactive; neither has been
+designed, sized, or committed to, and either may be reordered or dropped when
+v0.5.0 closes and the evidence is fresher.
 
-The durable audit trail answers "what happened to this workspace". The direction
-is to evolve it toward **investigation**: making security-relevant events
-visible and answerable, rather than only recorded.
+### v0.6.0 · Login and register experience, safely declarative
 
-The honest starting point is that the groundwork here is analysis, not code, and
-some of it is already done and points at a real cost. Authorization refusals
-deliberately do **not** reach the durable trail today, and
-[TD-037](TECH_DEBT.md#td-037) carries the arithmetic for why: one misconfigured
-backend retrying a `403` in a loop would outweigh the real history by roughly
-four orders of magnitude in the same table, under a single age-based retention
-policy. The entry names a separate security-event class with its own retention
-as the eventual answer, and says plainly that doing it badly would degrade the
-trail the product's audit story now rests on.
+Pick up the visual half that v0.5.0 deliberately left out, in a way that works
+against a Keycloak LIGHTWEIGHT does not own.
 
-That analysis is a reason this is direction rather than a plan. It is listed
-here so the direction is on record; it is not scheduled, and
-[TD-037](TECH_DEBT.md#td-037) remains a debt entry rather than a roadmap item
-until something schedules it.
+The shape under consideration is a **closed declarative domain** rather than
+free markup: a theme installed once on the Keycloak, as an operator already
+installs a client and grants roles, which renders from configuration the Admin
+API can write. That keeps preview, validation and rollback tractable, because
+the configuration is data rather than files, and it keeps the login page, which
+is where the password is typed, out of reach of arbitrary markup.
+
+**Not decided:** the representation, the installation mechanism, which surfaces
+are configurable, or whether the premise holds at all. A technical spike is
+listed as COULD in the v0.5.0 plan precisely to answer that before anything is
+promised.
+
+### v0.7.0 · Audit and investigation
+
+Evolve the durable trail from *recorded* to *answerable*: who did what, when, in
+which workspace, with which principal, from where, and what changed.
+
+The groundwork is analysis rather than code, and some of it is already done and
+points at a real cost. Authorization refusals deliberately do **not** reach the
+durable trail today, and [TD-037](TECH_DEBT.md#td-037) carries the arithmetic:
+one misconfigured backend retrying a `403` in a loop would outweigh the real
+history by roughly four orders of magnitude in the same table, under a single
+age-based retention policy. The entry names a separate security-event class with
+its own retention as the eventual answer, and says plainly that doing it badly
+would degrade the trail the product's audit story now rests on.
+
+Other gaps the planning audit found and did not schedule: Keycloak's own admin
+and user events are not ingested, so a change made directly in the provider is
+invisible here; there is no `user_agent`, no structured before and after, no
+export, and no filter by actor or resource.
+
+**Why this is after v0.6.0 rather than before it.** v0.5.0 builds a
+configuration foundation, privilege model, validator, rollback and configuration
+audit, that the theming axis reuses almost entirely. Audit reuses none of it.
+Sequencing by reuse rather than by appetite is the cheaper order.
+
+**[TD-037](TECH_DEBT.md#td-037) remains a debt entry, not a roadmap item**,
+until something actually schedules it.
+
+### Not planned
+
+There is no v0.8.0. [TD-027](TECH_DEBT.md#td-027) (HA) and
+[TD-036](TECH_DEBT.md#td-036) (idempotency) are open debt whose triggers have
+not fired, and neither justifies a version of its own yet.
 
 ---
 
@@ -566,7 +564,7 @@ flowchart TD
 
 > **Superseded.** This was the plan as of 2026-07-27 and is preserved as the
 > record of how v0.4 was sequenced. For what comes next, read
-> [NEXT](#next--v050--identity-experience) above. Items 2, 3, 5 and 7 were
+> [NEXT](#next--v050--identity-experience-configuration) above. Items 2, 3, 5 and 7 were
 > carried out; item 4 (V1-04) was not, and item 6's ADR was never written.
 
 Revised 2026-07-27 after V1-02 shipped.

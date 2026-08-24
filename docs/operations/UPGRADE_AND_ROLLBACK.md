@@ -22,8 +22,10 @@ judgement call, the runbook says so explicitly.
   `DB_MIGRATE_ON_BOOT=false` and run `make migrate` (or
   `go run ./cmd/migrate up`) before starting the new binary. Full procedure in
   [`docs/MIGRATIONS.md`](../MIGRATIONS.md).
-- The current release is **v0.2.0**. Previous tag for rollback is
-  **v0.1.0-auth-foundation**.
+- The current release is **v0.4.2**. Previous tag for rollback is **v0.4.1**.
+  The Go SDK is versioned and tagged independently as `sdk/go/vX.Y.Z`; rolling
+  the server back does not roll the SDK back, and the two are not expected to
+  move together.
 - Git identity, ssh keys, and registry credentials are already in place.
   The runbook does not cover provisioning the host.
 
@@ -31,9 +33,22 @@ Inventory of tags available right now:
 
 ```sh
 git tag -l --format='%(refname:short) %(creatordate:short) %(subject)'
+# sdk/go/v0.1.0          2026-08-15 LIGHTWEIGHT Go SDK v0.1.0
 # v0.1.0-auth-foundation 2026-05-18 Authentication foundation milestone
 # v0.2.0                 2026-05-20 Reusable IAM foundation with RBAC, admin CRUD, audit validation and GAP-1 closure
+# v0.3.0                 2026-05-25 Production hardening release
+# v0.3.1                 2026-05-25 Root landing redesign and IAM console entrypoint refinement
+# v0.4.0                 2026-08-15 LIGHTWEIGHT v0.4.0
+# v0.4.1                 2026-08-23 LIGHTWEIGHT v0.4.1
+# v0.4.2                 2026-08-23 LIGHTWEIGHT v0.4.2
 ```
+
+> **Run the command rather than trusting the list above.** It is a snapshot
+> taken on 2026-08-23, and this file is not gated against the tag list. The
+> examples further down deliberately keep using `v0.2.0` and
+> `v0.1.0-auth-foundation`: they are the historical rollback the procedure was
+> written against, and rewriting them to the current pair would lose the
+> worked example without making anything truer.
 
 ---
 
@@ -85,7 +100,7 @@ So the rollback target is unambiguous:
 
 ```sh
 git rev-parse HEAD                   # current commit
-git describe --tags --always         # human-readable: "v0.2.0" or "v0.2.0-3-gabcdef0"
+git describe --tags --always         # human-readable: "v0.4.2" or "v0.4.2-1-gced359e"
 docker compose ps                    # container image tags + status
 curl -s http://localhost:8080/health # 200 + {"status":"ok"} sanity
 ```
