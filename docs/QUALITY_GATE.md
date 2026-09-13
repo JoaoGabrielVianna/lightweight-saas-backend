@@ -246,8 +246,45 @@ gate stops working.
 ## Documentation
 
 `make check-docs` mechanically enforces two properties: **every link
-resolves**, and **every number published in the docs matches the code**. What
-it cannot check is whether the prose is still true — that is the reviewer's job.
+resolves**, and **every number published in the docs matches the code**.
+
+### The gated half and the rotting half
+
+v0.4.2 changed no production code. It corrected documentation that had been
+wrong for two releases, worst of it in `sdk/go/README.md`, whose install section
+told the reader that `v0.1.0` "does not exist on GitHub yet, so running it today
+fails" — nine days after the module was published and resolvable. The
+documentation was telling a user not to do something that worked.
+
+Nothing caught it, and the reason is structural rather than careless. The gated
+half of the documentation — route counts, scope counts, links — was right the
+whole time. The prose half described a product two releases old. **Prose that no
+gate reads is a comment, and comments rot.**
+
+So the prose is split by whether it is *actionable*:
+
+| Kind of prose | Example | Gated by |
+|---|---|---|
+| **Actionable** — the reader copies and runs it | the SDK's `go get` and `import` lines | `make sdk-quickstart-check` — runs them for real |
+| **Descriptive** — the reader forms a belief from it | "the SDK is v0.x", architecture, status, promises | nothing. The reviewer |
+
+Three documents publish the install command as an instruction, and all three are
+gated: [README.md](../README.md), [sdk/go/README.md](../sdk/go/README.md) and
+[CONNECT_BACKEND.md](getting-started/CONNECT_BACKEND.md). The third is why the
+list carries a **coverage guard** rather than being a constant nobody revisits:
+it is the SDK's own getting-started guide, it carries the same `go get` and the
+same import, and until this gate went in nothing read it at all — not even
+`make sdk-identity-check`, whose document list predates the file. The guard
+greps every tracked Markdown file for the command and fails if one is neither
+gated nor explicitly exempted, because an install instruction no gate reads is
+the exact shape of the bug above.
+
+The second row is a **known gap, left open on purpose**. Executing an
+instruction is a decidable question; "is this paragraph still an accurate
+description of the product" is not, and a gate that guessed at it would produce
+either noise or false confidence. Until there is a real answer, it stays the
+reviewer's job — which is a weaker guarantee, stated plainly rather than
+papered over.
 
 Update whichever of these your change affects:
 
@@ -448,6 +485,8 @@ teaches people to pass `--no-verify` reflexively.
 | Job | Enforces | Needs |
 |---|---|---|
 | `gate` | fmt · vet · lint · build · test · swagger · docs | — |
+| `commit attribution` | No AI attribution in the commits the change introduces | Full history |
+| `sdk readme quickstart` | The `go get` and `import` published by three documents, executed as a consumer would | **Network** — `proxy.golang.org` |
 | `coverage` | Unit coverage floor, uploads the profile | — |
 | `frontend` | 30 admin console tests | Node 20 |
 | `integration` | `-tags=integration` suite **and** the authoritative coverage floor | PostgreSQL service + Keycloak container |
@@ -496,10 +535,39 @@ tagged commit to be an ancestor of `main`. That ancestry check is what stops
 | `make sdk-api-check` | Has the exported SDK API drifted from `sdk/go/api.txt`? |
 | `make sdk-consumer-check` | Does a module outside this repository compile against the SDK alone? |
 | `make sdk-publish-smoke VERSION=vX.Y.Z` | **After** pushing a tag: is it installable from `proxy.golang.org`? |
+| `make sdk-quickstart-check` | Do the documented `go get` lines work today, and do the documented `import`s compile? |
+| `make sdk-quickstart-selftest` | Prove that gate still rejects a document that lies |
 
 None of these tags, pushes, or mutates any remote. `sdk-publish-smoke` reads
 `origin` and refuses to run against a version that was never published, because
 a failure there would otherwise mean nothing.
+
+### The quickstart gate needs the network — the decision
+
+`scripts/check-sdk-quickstart.sh` extracts the `go get` and `import` lines from
+each gated document and runs them in a throwaway module outside the repository,
+against the real proxy and the real checksum database, with `GOPRIVATE`,
+`GONOSUMDB` and `GOFLAGS` cleared. Nothing it executes is written in the script:
+a gate that hard-coded the command would test what the script believes and leave
+the document free to say something else.
+
+That makes it the one gate here that can fail for a reason outside this
+repository. Two honest options, and the one taken:
+
+| Option | Chosen |
+|---|---|
+| **Blocking job on every push and PR** | **Yes.** ~10s. An outage at `proxy.golang.org` turns it red on an unrelated change; the message distinguishes "the proxy did not answer" from "the README is wrong", and a re-run is cheap |
+| Scheduled or release-only, non-blocking | No. A yellow check is a check nobody reads, and "someone will notice eventually" is exactly what already failed for two releases |
+
+It is deliberately **not** part of `make ci`: that target has to stay runnable
+offline, or people stop running it. Reversing the decision means moving the
+`sdk-quickstart` job out of `.github/workflows/ci.yml` — not weakening the
+script, which fails rather than skipping by design.
+
+`make sdk-quickstart-selftest` drives the gate against eleven deliberately
+broken documents, including the v0.4.2 bug itself and a document dropped from
+the gated list, then against all three real ones, which must still pass. A gate
+that has never failed is decoration.
 
 The permission model is deliberately minimal: the release workflow holds
 `contents: read`. It validates and refuses; it publishes nothing. A GitHub

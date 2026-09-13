@@ -116,6 +116,7 @@ worth listing.
 | `make sdk-deps-check` | Makefile | Any module dependency at all. |
 | `make sdk-coverage-gate` | Makefile | SDK statement coverage below its own floor, reported separately from the server's. |
 | `make sdk-mutation-check` | `scripts/` | A test that would not notice the behaviour it claims to pin. |
+| `make sdk-quickstart-check` | `scripts/` | A document whose own `go get` line does not resolve, whose `import` does not compile, whose alias is not the package's name, or whose examples name a symbol the published version does not export. Also fails if a document starts publishing the install command without being added to the gated list. Needs the network. |
 
 ### The capability-completeness gate
 

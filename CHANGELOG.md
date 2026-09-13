@@ -9,7 +9,56 @@ breaking changes are always called out under a **Breaking** subsection.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added — a gate that runs the SDK README instead of reading it
+
+- **The SDK's documented quickstart is now executed on every push.**
+  [`scripts/check-sdk-quickstart.sh`](scripts/check-sdk-quickstart.sh) extracts
+  the `go get` and `import` lines from every document that publishes them and
+  runs them in a throwaway module outside the repository, against the real
+  `proxy.golang.org` and the real checksum database, with `GOPRIVATE`,
+  `GONOSUMDB` and `GOFLAGS` cleared.
+
+  This is the gate `v0.4.2` did not have. `make sdk-identity-check` proves the
+  documented command is *well-formed*, offline, from the `go.mod` files; it
+  cannot prove the version it cites has ever been published — which is exactly
+  the bug that shipped for two releases, when the install section told readers
+  that `v0.1.0` "does not exist on GitHub yet" nine days after it was published.
+
+  Nothing it executes is written in the script. A gate with the command
+  hard-coded would test what the script believes, leave the README free to say
+  something else, and report green either way.
+
+  It fails when: the version in the README is not on the proxy; the module path
+  is wrong; the install command and the `import` disagree; the documented alias
+  is not the published package's name; a `go` example names a symbol the
+  published version does not export; or the install block stops being
+  extractable at all. The last one matters most — *cannot be checked* must never
+  read as *fine*.
+
+  `make sdk-quickstart-selftest` drives it against eleven broken documents,
+  including the historical bug, and against all three real ones, which must
+  still pass.
+
+- **Found while building it: the getting-started guide was publishing an
+  ungated install command.**
+  [`docs/getting-started/CONNECT_BACKEND.md`](docs/getting-started/CONNECT_BACKEND.md)
+  carries the same `go get` and the same import as the two READMEs, and nothing
+  was reading it, including `make sdk-identity-check`, whose list of documents
+  predates the file. It is gated now, and the gate carries a **coverage guard**:
+  every tracked Markdown file naming the install command must be either gated or
+  explicitly exempted, so a fourth one cannot be born outside the gate in
+  silence. [`docs/SDK_GO.md`](docs/SDK_GO.md) is the one exemption, recorded with
+  its reason: its `go get` appears inside an explanation of the tag-versus-version
+  distinction and inside a captured transcript, not as a step anyone runs.
+
+  The gate needs the network, so it is a separate **blocking** CI job and is
+  deliberately not part of `make ci`, which has to stay runnable offline. The
+  trade-off, and how to reverse it, are recorded in
+  [docs/QUALITY_GATE.md](docs/QUALITY_GATE.md#releasing-the-go-sdk).
+
+  Still not gated, and stated as an open gap rather than closed quietly:
+  *descriptive* prose — architecture, status, promises. Executing an instruction
+  is decidable; "is this paragraph still accurate" is not.
 
 ---
 
