@@ -95,6 +95,54 @@ jobs:
           fi
           echo "  + no AI attribution in the commits this change introduces"
 
+  # ── Gate 1c ───────────────────────────────────────────────────────────────
+  # The SDK's documented install instructions, executed against the real module
+  # proxy. `make ci` already proves the documented command is well-formed; this
+  # proves it WORKS, which is a different claim and the one v0.4.2 was released
+  # to fix after the README spent two releases telling readers that a published
+  # version did not exist.
+  #
+  # Covers README.md, sdk/go/README.md and docs/getting-started/CONNECT_BACKEND.md,
+  # plus a guard that fails if a fourth document starts publishing the command
+  # without being classified. The guard is not decoration: the getting-started
+  # guide was carrying an ungated install command until this job was written.
+  #
+  # Why a separate job, and why blocking:
+  #
+  #   * separate, because it is the only gate here that needs the public
+  #     internet. `make ci` has to stay runnable offline or people stop running
+  #     it, so this cannot live inside it;
+  #   * blocking, because the alternative considered — a scheduled or
+  #     non-blocking job — is a yellow check, and a yellow check is a check
+  #     nobody reads. The failure mode it guards against is documentation
+  #     shipping wrong for two releases, which is precisely what "someone will
+  #     notice eventually" already failed to catch.
+  #
+  # The cost accepted in exchange: an outage at proxy.golang.org turns this red
+  # on a change that did not cause it. The message says which of the two it is,
+  # and the run is ~10s, so a re-run is cheap. See docs/QUALITY_GATE.md.
+  sdk-quickstart:
+    name: sdk readme quickstart (public proxy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # cache: false on purpose. The script points GOMODCACHE at a throwaway
+      # directory so every fetch goes to the proxy — a warm cache here would
+      # cache nothing this job uses, and suggests a shortcut that would quietly
+      # gut the test if anyone ever wired it up.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Prove the gate still rejects a README that lies
+        run: make sdk-quickstart-selftest
+
+      - name: Run the SDK README's quickstart as a consumer would
+        run: make sdk-quickstart-check
+
   # ── Gate 2 ────────────────────────────────────────────────────────────────
   # Unit coverage floor — no services, so it reports in ~1 minute and a
   # coverage failure is legible at a glance instead of buried in the main

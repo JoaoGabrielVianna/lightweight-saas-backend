@@ -337,6 +337,28 @@ sdk-identity-check: ## sdk: Module path, tag prefix and documented install comma
 		{ ./scripts/check-sdk-release.sh --identity; exit 1; }
 	@echo "  + SDK module path, tag prefix and install docs agree"
 
+# The other half of the same worry, and the half `sdk-identity-check` cannot
+# reach. That one proves the documented command is WELL-FORMED, offline, from
+# the go.mod files. It cannot prove the version it cites has ever been
+# published — and a document citing a version the proxy does not serve is
+# exactly the bug v0.4.2 shipped for two releases.
+#
+# It covers three documents: README.md, sdk/go/README.md and the getting-started
+# guide, which publishes the same install command and which the identity check's
+# own document list never knew about. A coverage guard fails if a fourth appears
+# and is not classified.
+#
+# Deliberately NOT part of `make ci`: this one needs proxy.golang.org, and a `ci`
+# target that fails on a plane is a `ci` target people stop running. It has its
+# own CI job instead. See docs/QUALITY_GATE.md § Releasing the Go SDK.
+.PHONY: sdk-quickstart-check
+sdk-quickstart-check: ## docs: Run every documented install instruction against the real proxy (needs network)
+	@./scripts/check-sdk-quickstart.sh
+
+.PHONY: sdk-quickstart-selftest
+sdk-quickstart-selftest: ## docs: Prove the quickstart gate still rejects a lying document (needs network)
+	@./scripts/check-sdk-quickstart.sh --self-test
+
 .PHONY: sdk-check
 sdk-check: ## sdk: Every SDK gate that needs no database — identity, vet, deps, api, tests, coverage
 	@$(MAKE) -s sdk-identity-check
