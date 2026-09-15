@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -143,7 +144,48 @@ func (l *Logger) format(level string, bgColor string, textColor string, msg stri
 	paddedLevel := padLevel(level)
 	paddedOrigin := formatOrigin(l.origin)
 	styledLevel := fmt.Sprintf("%s%s %s %s", bgColor, textColor, paddedLevel, colorReset)
-	return fmt.Sprintf("%s %s [ %s ] %s", timestamp, styledLevel, paddedOrigin, msg)
+	return fmt.Sprintf("%s %s [ %s ] %s", timestamp, styledLevel, paddedOrigin, safeMessage(msg))
+}
+
+// =====================================================
+// messageEscaper neutralises the characters that let a
+// message stop being one message.
+//
+// Every line this logger emits is one record, and nothing
+// downstream (a terminal, a `grep`, a shipper that splits
+// on newlines) can tell a newline the application wrote
+// from one that arrived inside a value. A single \n in a
+// user-controlled field is therefore enough to forge a
+// complete, correctly shaped entry: a fabricated INFO line
+// describing an event that never happened, appended right
+// after a real one, indistinguishable from it afterwards.
+//
+// ESC is neutralised for the reason one step further out:
+// this logger emits ANSI colour codes, so an ESC that
+// survives into the stream reaches the terminal of whoever
+// reads the log and can repaint, erase or misattribute the
+// lines around it.
+//
+// The characters are escaped rather than dropped. That a
+// message arrived carrying a newline is itself the
+// interesting fact, and a literal \n in the output keeps it
+// legible where deletion would destroy the evidence.
+//
+// Escaping lives here, in format(), and not at the call
+// sites: it has to hold for the call sites nobody has
+// written yet. A rule that every future caller must
+// remember is a rule that is already broken somewhere.
+//
+// =====================================================
+var messageEscaper = strings.NewReplacer(
+	"\n", `\n`,
+	"\r", `\r`,
+	"\x1b", `\x1b`,
+)
+
+// safeMessage returns msg with line terminators and ESC escaped.
+func safeMessage(msg string) string {
+	return messageEscaper.Replace(msg)
 }
 
 // =====================================================
