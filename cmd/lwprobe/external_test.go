@@ -112,21 +112,41 @@ func TestClient_HasOnlyTheThreeContractFields(t *testing.T) {
 	}
 }
 
-// TestSafePrefix_NeverRendersAWholeKey — the harness prints which key it is
-// using. That line ends up in CI output, in a terminal scrollback and in a
-// pasted bug report, so it must not be enough to authenticate with.
+// TestSafePrefix_NeverRendersAWholeKey pins the one line of this harness that
+// prints the credential. That line ends up in CI output, in a terminal
+// scrollback and in a pasted bug report, so it must not be enough to
+// authenticate with.
+//
+// The assertion is per character rather than "does it contain a run of the
+// secret". A length check alone cannot express the rule, because the boundary
+// it has to respect lives in internal/project and lwprobe may not import it
+// (see TestLwprobe_ImportsNothingInternal). Distinct alphabets for the two
+// segments recover the exactness the import would have given: the lookup is
+// public and may be shown in full, and a single character from the secret
+// segment appearing in the output is a leak, whatever the length happens to
+// be.
 func TestSafePrefix_NeverRendersAWholeKey(t *testing.T) {
-	key := "lw_sk_" + strings.Repeat("a", 16) + "_" + strings.Repeat("b", 52)
+	const (
+		lookupAlphabet = "a"
+		secretAlphabet = "b"
+	)
+	lookup := strings.Repeat(lookupAlphabet, 16)
+	secret := strings.Repeat(secretAlphabet, 52)
+	key := "lw_sk_" + lookup + "_" + secret
 
 	got := safePrefix(key)
-	if strings.Contains(key, got) && len(got) >= len(key) {
+
+	if got == key {
 		t.Fatal("safePrefix returned the whole key")
 	}
+	if strings.ContainsAny(got, secretAlphabet) {
+		t.Errorf("safePrefix leaked %d character(s) of the secret segment: %q",
+			strings.Count(got, secretAlphabet), got)
+	}
+	// Belt and braces: even entirely inside the lookup, a longer rendering is
+	// not more useful to a reader and is more useful to everyone else.
 	if len(got) > 20 {
 		t.Errorf("safePrefix returned %d characters; that is more identification than a log line needs", len(got))
-	}
-	if strings.Contains(got, strings.Repeat("b", 8)) {
-		t.Error("safePrefix leaked part of the secret segment")
 	}
 }
 

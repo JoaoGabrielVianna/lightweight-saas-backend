@@ -591,8 +591,8 @@ disagree; the rest are re-derived by hand at release.
 |---|---:|:--:|
 | Go packages | 30 | ✓ |
 | Go source files (non-test) | 141 | ✓ |
-| Go test files | 113 | ✓ |
-| Go test functions | 1162 | ✓ |
+| Go test files | 114 | ✓ |
+| Go test functions | 1166 | ✓ |
 | Frontend test cases | 183 | |
 | Lines of Go (incl. tests) | 84,358 | |
 | Lines of Go (excl. tests and generated OpenAPI) | 32,562 | |
