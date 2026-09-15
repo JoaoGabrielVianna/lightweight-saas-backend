@@ -1,7 +1,7 @@
 # Browser Smoke Test — v0.2
 
 **Date:** 2026-05-20
-**Tester:** Claude (automated, headless Chromium via Playwright 1.60)
+**Tester:** Automated (headless Chromium via Playwright 1.60)
 **Target:** IAM Admin Console at `http://localhost:8080/admin`
 **Branch:** `milestone/auth-v1`
 **Verdict:** **PASS WITH GAPS**

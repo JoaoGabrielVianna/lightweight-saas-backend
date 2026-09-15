@@ -1,7 +1,7 @@
 # CRUD E2E Validation Report
 
 **Date:** 2026-05-20
-**Tester:** Claude (automated; headless Chromium via Playwright 1.60)
+**Tester:** Automated (headless Chromium via Playwright 1.60)
 **Target:** IAM Admin Console at `http://localhost:8080/admin`
 **Branch:** `milestone/auth-v1`
 **Driver:** `/tmp/smoketest_v02/crud.spec.mjs` (outside repo by design — only `docs/evidence/**` is writable)
